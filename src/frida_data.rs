@@ -25,14 +25,12 @@ fn encode_data<E: FieldElement + StarkField>(
         index += 1;
     }
 
-    data.chunks(element_size).for_each(|chunk| {
-        for i in 0..chunk.len() {
-            if (index + 1) % E::ELEMENT_BYTES == 0 {
-                index += 1;
-            }
-            encoded_data[index] = chunk[i];
+    data.iter().for_each(|byte| {
+        if (index + 1) % E::ELEMENT_BYTES == 0 {
             index += 1;
         }
+        encoded_data[index] = *byte;
+        index += 1;
     });
 
     encoded_data
