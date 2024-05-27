@@ -1,4 +1,5 @@
 use crate::frida_error::FridaError;
+use core::mem;
 use winter_math::{fft, polynom, FieldElement, StarkField};
 
 fn encode_data<E: FieldElement + StarkField>(
@@ -10,7 +11,8 @@ fn encode_data<E: FieldElement + StarkField>(
     let element_size = E::ELEMENT_BYTES - 1;
     let data_size = data.len();
 
-    let encoded_elements = (8 + data_size + element_size - 1) / element_size;
+    // element_size - 1 is to force a round up
+    let encoded_elements = (mem::size_of::<u64>() + data_size + element_size - 1) / element_size;
     assert!(
         encoded_elements <= domain_size / blowup_factor,
         "Data size will exceed the maximum degree after encoding"
@@ -40,7 +42,7 @@ fn data_to_field_element<E: FieldElement + StarkField>(
     encoded_data: &[u8],
     domain_size: usize,
 ) -> Result<Vec<E>, FridaError> {
-    let mut symbols = vec![E::ZERO; domain_size];
+    let mut symbols = vec![E::default(); domain_size];
     for (index, chunk) in encoded_data.chunks(E::ELEMENT_BYTES).enumerate() {
         match E::read_from_bytes(chunk) {
             Ok(val) => symbols[index] = val,
@@ -134,7 +136,7 @@ mod tests {
         assert_eq!(
             FridaError::XYCoordinateLengthMismatch(),
             recover_data_from_evaluations(
-                &vec![BaseElement::ZERO; 10],
+                &vec![BaseElement::default(); 10],
                 &vec![0; 2],
                 domain_size,
                 blowup_factor,
@@ -150,7 +152,7 @@ mod tests {
         assert_eq!(
             FridaError::NotEnoughDataPoints(),
             recover_data_from_evaluations(
-                &vec![BaseElement::ZERO; 1],
+                &vec![BaseElement::default(); 1],
                 &vec![0; 1],
                 domain_size,
                 blowup_factor,
@@ -165,7 +167,7 @@ mod tests {
         let blowup_factor = 2;
         let domain_size = (blowup_factor * data.len()).next_power_of_two();
 
-        let mut evaluations = vec![BaseElement::ZERO; domain_size];
+        let mut evaluations = vec![BaseElement::default(); domain_size];
         data.chunks(16).enumerate().for_each(|(index, chunk)| {
             let val = u128::from_be_bytes(chunk.try_into().unwrap());
             evaluations[index] = BaseElement::new(val);
