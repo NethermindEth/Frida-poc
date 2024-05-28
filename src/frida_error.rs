@@ -2,5 +2,7 @@
 pub enum FridaError {
     DeserializationError(),
     XYCoordinateLengthMismatch(),
-    NotEnoughDataPoints()
+    NotEnoughDataPoints(),
+    BadDataLength(),
+    NotEnoughEvaluationsForDecoding(),
 }

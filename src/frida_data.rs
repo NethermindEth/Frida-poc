@@ -1,6 +1,6 @@
 use crate::frida_error::FridaError;
 use core::mem;
-use winter_math::{fft::{self, get_twiddles}, polynom, FieldElement, StarkField};
+use winter_math::{fft, polynom, FieldElement, StarkField};
 
 fn encode_data<E: FieldElement + StarkField>(
     data: &[u8],
@@ -52,6 +52,7 @@ fn data_to_field_element<E: FieldElement + StarkField>(
     Ok(symbols)
 }
 
+// TODO: Decide if we want evaluations to be []DATA + []Parity or DATA[0] + PARITY + DATA[1] + PARITY + ...
 pub fn build_evaluations_from_data<E: FieldElement + StarkField>(
     data: &[u8],
     domain_size: usize,
@@ -61,14 +62,76 @@ pub fn build_evaluations_from_data<E: FieldElement + StarkField>(
     let mut symbols: Vec<E> = data_to_field_element(&encoded_data, domain_size)?;
     symbols.resize(domain_size / blowup_factor, E::default());
 
-    let inv_twiddles = fft::get_inv_twiddles::<E>(symbols.len());
+    let inv_twiddles = fft::get_inv_twiddles(symbols.len());
     fft::interpolate_poly(&mut symbols, &inv_twiddles);
 
     symbols.resize(domain_size, E::default());
-    let twiddles = fft::get_twiddles::<E>(domain_size);
+    let twiddles = fft::get_twiddles(domain_size);
     fft::evaluate_poly(&mut symbols, &twiddles);
 
     Ok(symbols)
+}
+
+fn reconstruct_evaluations<E: FieldElement + StarkField>(
+    evaluations: &[E],
+    positions: &[usize],
+    domain_size: usize,
+    blowup_factor: usize,
+) -> Result<Vec<E>, FridaError> {
+    if positions.len() < domain_size / blowup_factor {
+        return Err(FridaError::NotEnoughDataPoints());
+    }
+    if evaluations.len() != positions.len() {
+        return Err(FridaError::XYCoordinateLengthMismatch());
+    }
+
+    let omega = E::get_root_of_unity(domain_size.ilog2());
+    let xs = positions
+        .iter()
+        .map(|pos| omega.exp_vartime(E::PositiveInteger::from(*pos as u64)))
+        .collect::<Vec<E>>();
+
+    // TODO: This is too slow. fft::interpolate_poly is impossible to use as well. Refer to the post below for improvements
+    // https://ethresear.ch/t/reed-solomon-erasure-code-recovery-in-n-log-2-n-time-with-ffts/3039
+    let mut recovered_evaluations = polynom::interpolate(&xs, evaluations, false);
+
+    recovered_evaluations.resize(domain_size, E::default());
+    let twiddles = fft::get_twiddles(domain_size);
+    fft::evaluate_poly(&mut recovered_evaluations, &twiddles);
+
+    Ok(recovered_evaluations)
+}
+
+fn extract_and_decode_data<E: FieldElement + StarkField>(
+    evaluations: &[E],
+    domain_size: usize,
+    blowup_factor: usize,
+) -> Result<Vec<u8>, FridaError> {
+    if evaluations.len() != domain_size {
+        return Err(FridaError::NotEnoughEvaluationsForDecoding());
+    }
+
+    let element_size = E::ELEMENT_BYTES - 1;
+    let data_len = u64::from_be_bytes(
+        evaluations[0].as_bytes()[0..core::mem::size_of::<u64>()]
+            .try_into()
+            .unwrap(),
+    ) as usize;
+
+    if (8 + data_len + element_size - 1) / element_size > domain_size / blowup_factor {
+        return Err(FridaError::BadDataLength());
+    }
+
+    let decoded = evaluations
+        .iter()
+        .step_by(blowup_factor)
+        .take((8 + data_len + element_size - 1) / element_size)
+        .flat_map(|e| &e.as_bytes()[..element_size])
+        .skip(8)
+        .take(data_len)
+        .map(|e| *e)
+        .collect::<Vec<u8>>();
+    Ok(decoded)
 }
 
 pub fn recover_data_from_evaluations<E: FieldElement + StarkField>(
@@ -77,36 +140,22 @@ pub fn recover_data_from_evaluations<E: FieldElement + StarkField>(
     domain_size: usize,
     blowup_factor: usize,
 ) -> Result<Vec<u8>, FridaError> {
-    if positions.len() < domain_size / blowup_factor {
-        return Err(FridaError::NotEnoughDataPoints());
+    // Need to reconstruct if we have all the data
+    if evaluations.len() != domain_size {
+        let evaluations =
+            reconstruct_evaluations(evaluations, positions, domain_size, blowup_factor)?;
+        return Ok(extract_and_decode_data(
+            &evaluations,
+            domain_size,
+            blowup_factor,
+        )?);
     }
-    if evaluations.len() != positions.len() {
-        return Err(FridaError::XYCoordinateLengthMismatch());
-    }
-    let element_size = E::ELEMENT_BYTES - 1;
 
-    let omega = E::get_root_of_unity(domain_size.ilog2());
-    let xs = positions
-        .iter()
-        .map(|pos| omega.exp_vartime(E::PositiveInteger::from(*pos as u64)))
-        .collect::<Vec<E>>();
-    // TODO: This is too slow. Need to figure out how to use fft::interpolate_poly here
-    let mut coefficients = polynom::interpolate(&xs, evaluations, false);
-
-    let twiddles = get_twiddles(domain_size);
-    fft::evaluate_poly(&mut coefficients, &twiddles);
-
-    let data_len =
-        u64::from_be_bytes(coefficients[0].as_bytes()[0..8].try_into().unwrap()) as usize;
-    let recovered = coefficients
-        .iter()
-        .step_by(blowup_factor)
-        .take((8 + data_len + element_size - 1) / element_size)
-        .flat_map(|coeff| coeff.as_bytes()[..element_size].to_vec())
-        .skip(8)
-        .take(data_len)
-        .collect::<Vec<u8>>();
-    Ok(recovered)
+    Ok(extract_and_decode_data(
+        evaluations,
+        domain_size,
+        blowup_factor,
+    )?)
 }
 
 #[cfg(test)]
@@ -205,5 +254,63 @@ mod tests {
             recover_data_from_evaluations(&evaluations, &positions, domain_size, blowup_factor)
                 .unwrap();
         assert_eq!(data, recovered);
+    }
+
+    #[test]
+    fn test_reconstruct_evaluations() {
+        let data = b"Test string";
+        let blowup_factor = 2;
+        let domain_size = (blowup_factor * data.len()).next_power_of_two();
+        let data = data.repeat(10);
+
+        let evaluations =
+            build_evaluations_from_data::<BaseElement>(&data, domain_size, blowup_factor).unwrap();
+        let positions = (0..evaluations.len() / blowup_factor).collect::<Vec<usize>>();
+        let recovered_evaluations = reconstruct_evaluations(
+            &evaluations[0..evaluations.len() / blowup_factor],
+            &positions,
+            domain_size,
+            blowup_factor,
+        )
+        .unwrap();
+
+        let recovered_data = recover_data_from_evaluations(
+            &evaluations[0..evaluations.len() / blowup_factor],
+            &positions,
+            domain_size,
+            blowup_factor,
+        )
+        .unwrap();
+
+        assert_eq!(evaluations, recovered_evaluations);
+        assert_eq!(data, recovered_data)
+    }
+
+    #[test]
+    fn test_extract_and_decode_data() {
+        let data = b"Test string";
+        let blowup_factor = 2;
+        let domain_size = (blowup_factor * data.len()).next_power_of_two();
+        let data = data.repeat(10);
+
+        let evaluations =
+            build_evaluations_from_data::<BaseElement>(&data, domain_size, blowup_factor).unwrap();
+
+        let recovered_data =
+            extract_and_decode_data(&evaluations, domain_size, blowup_factor).unwrap();
+
+        assert_eq!(data, recovered_data);
+
+        let not_enough_evals = extract_and_decode_data(
+            &evaluations[0..evaluations.len() - 1],
+            domain_size,
+            blowup_factor,
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            FridaError::NotEnoughEvaluationsForDecoding(),
+            not_enough_evals
+        );
     }
 }
