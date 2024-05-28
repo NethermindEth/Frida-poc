@@ -1,6 +1,6 @@
 use crate::frida_error::FridaError;
 use core::mem;
-use winter_math::{fft, polynom, FieldElement, StarkField};
+use winter_math::{fft::{self, get_twiddles}, polynom, FieldElement, StarkField};
 
 fn encode_data<E: FieldElement + StarkField>(
     data: &[u8],
@@ -42,10 +42,10 @@ fn data_to_field_element<E: FieldElement + StarkField>(
     encoded_data: &[u8],
     domain_size: usize,
 ) -> Result<Vec<E>, FridaError> {
-    let mut symbols = vec![E::default(); domain_size];
-    for (index, chunk) in encoded_data.chunks(E::ELEMENT_BYTES).enumerate() {
+    let mut symbols = Vec::with_capacity(domain_size);
+    for chunk in encoded_data.chunks(E::ELEMENT_BYTES) {
         match E::read_from_bytes(chunk) {
-            Ok(val) => symbols[index] = val,
+            Ok(val) => symbols.push(val),
             Err(_) => return Err(FridaError::DeserializationError()),
         };
     }
@@ -59,8 +59,15 @@ pub fn build_evaluations_from_data<E: FieldElement + StarkField>(
 ) -> Result<Vec<E>, FridaError> {
     let encoded_data = encode_data::<E>(data, domain_size, blowup_factor);
     let mut symbols: Vec<E> = data_to_field_element(&encoded_data, domain_size)?;
+    symbols.resize(domain_size / blowup_factor, E::default());
+
+    let inv_twiddles = fft::get_inv_twiddles::<E>(symbols.len());
+    fft::interpolate_poly(&mut symbols, &inv_twiddles);
+
+    symbols.resize(domain_size, E::default());
     let twiddles = fft::get_twiddles::<E>(domain_size);
     fft::evaluate_poly(&mut symbols, &twiddles);
+
     Ok(symbols)
 }
 
@@ -84,12 +91,16 @@ pub fn recover_data_from_evaluations<E: FieldElement + StarkField>(
         .map(|pos| omega.exp_vartime(E::PositiveInteger::from(*pos as u64)))
         .collect::<Vec<E>>();
     // TODO: This is too slow. Need to figure out how to use fft::interpolate_poly here
-    let coefficients = polynom::interpolate(&xs, evaluations, false);
+    let mut coefficients = polynom::interpolate(&xs, evaluations, false);
+
+    let twiddles = get_twiddles(domain_size);
+    fft::evaluate_poly(&mut coefficients, &twiddles);
 
     let data_len =
         u64::from_be_bytes(coefficients[0].as_bytes()[0..8].try_into().unwrap()) as usize;
     let recovered = coefficients
         .iter()
+        .step_by(blowup_factor)
         .take((8 + data_len + element_size - 1) / element_size)
         .flat_map(|coeff| coeff.as_bytes()[..element_size].to_vec())
         .skip(8)
