@@ -2,23 +2,26 @@ use crate::frida_error::FridaError;
 use core::mem;
 use winter_math::{fft, polynom, FieldElement, StarkField};
 
+pub fn encoded_data_element_count<E: FieldElement + StarkField>(data_size: usize) -> usize {
+    let element_size = E::ELEMENT_BYTES - 1;
+    // element_size - 1 is to force a round up
+    (mem::size_of::<u64>() + data_size + element_size - 1) / element_size
+}
+
 fn encode_data<E: FieldElement + StarkField>(
     data: &[u8],
     domain_size: usize,
     blowup_factor: usize,
 ) -> Vec<u8> {
     // -1 to make sure the data cannot exceed the field prime
-    let element_size = E::ELEMENT_BYTES - 1;
     let data_size = data.len();
-
-    // element_size - 1 is to force a round up
-    let encoded_elements = (mem::size_of::<u64>() + data_size + element_size - 1) / element_size;
+    let encoded_element_count = encoded_data_element_count::<E>(data_size);
     assert!(
-        encoded_elements <= domain_size / blowup_factor,
+        encoded_element_count <= domain_size / blowup_factor,
         "Data size will exceed the maximum degree after encoding"
     );
 
-    let mut encoded_data = vec![0; encoded_elements * E::ELEMENT_BYTES];
+    let mut encoded_data = vec![0; encoded_element_count * E::ELEMENT_BYTES];
 
     let data_size_bytes = (data_size as u64).to_be_bytes();
     let mut index = 0;
@@ -117,15 +120,16 @@ fn extract_and_decode_data<E: FieldElement + StarkField>(
             .try_into()
             .unwrap(),
     ) as usize;
+    let encoded_element_count = encoded_data_element_count::<E>(data_len);
 
-    if (8 + data_len + element_size - 1) / element_size > domain_size / blowup_factor {
+    if encoded_element_count > domain_size / blowup_factor {
         return Err(FridaError::BadDataLength());
     }
 
     let decoded = evaluations
         .iter()
         .step_by(blowup_factor)
-        .take((8 + data_len + element_size - 1) / element_size)
+        .take(encoded_element_count)
         .flat_map(|e| &e.as_bytes()[..element_size])
         .skip(8)
         .take(data_len)
@@ -312,5 +316,17 @@ mod tests {
             FridaError::NotEnoughEvaluationsForDecoding(),
             not_enough_evals
         );
+    }
+
+    #[test]
+    fn test_encoded_data_element_count() {
+        let element_size = BaseElement::ELEMENT_BYTES - 1;
+        for i in 0..10 {
+            let size = 10usize.pow(i) - 1;
+            assert_eq!(
+                (8 + size + element_size - 1) / element_size,
+                encoded_data_element_count::<BaseElement>(size)
+            );
+        }
     }
 }
