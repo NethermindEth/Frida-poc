@@ -140,7 +140,7 @@ pub fn recover_data_from_evaluations<E: FieldElement + StarkField>(
     domain_size: usize,
     blowup_factor: usize,
 ) -> Result<Vec<u8>, FridaError> {
-    // Need to reconstruct if we have all the data
+    // Need to reconstruct if we don't have all the data
     if evaluations.len() != domain_size {
         let evaluations =
             reconstruct_evaluations(evaluations, positions, domain_size, blowup_factor)?;
