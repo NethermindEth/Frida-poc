@@ -11,7 +11,12 @@ where
     E: FieldElement,
     HHst: ElementHasher<BaseField = E::BaseField>,
     HRandom: ElementHasher<BaseField = E::BaseField>,
-    R: FridaRandomCoin<BaseField = E::BaseField, HashHst = HHst, HashRandom = HRandom>,
+    R: FridaRandomCoin<
+        BaseField = E::BaseField,
+        FieldElement = E,
+        HashHst = HHst,
+        HashRandom = HRandom,
+    >,
 {
     commitments: Vec<HRandom::Digest>,
     public_coin: R,
@@ -25,7 +30,12 @@ where
     E: FieldElement,
     HHst: ElementHasher<BaseField = E::BaseField>,
     HRandom: ElementHasher<BaseField = E::BaseField>,
-    R: FridaRandomCoin<BaseField = E::BaseField, HashHst = HHst, HashRandom = HRandom>,
+    R: FridaRandomCoin<
+        BaseField = E::BaseField,
+        FieldElement = E,
+        HashHst = HHst,
+        HashRandom = HRandom,
+    >,
 {
     /// Returns a new prover channel instantiated from the specified parameters.
     ///
@@ -54,6 +64,22 @@ where
             _field_element: PhantomData,
         }
     }
+
+    // TODO: implement this function
+    pub fn draw_query_positions(&mut self, _nonce: u64) -> Vec<usize> {
+        // self.public_coin
+        //     .draw_integers(self.num_queries, self.domain_size, nonce)
+        //     .expect("failed to draw query position")
+        vec![0]
+    }
+
+    pub fn layer_commitments(&self) -> &[HRandom::Digest] {
+        &self.commitments
+    }
+
+    pub fn drawn_alphas(&self) -> Vec<E> {
+        self.public_coin.drawn_alphas()
+    }
 }
 
 impl<E, HHst, HRandom, R> ProverChannel<E> for FridaProverChannel<E, HHst, HRandom, R>
@@ -61,7 +87,12 @@ where
     E: FieldElement,
     HHst: ElementHasher<BaseField = E::BaseField>,
     HRandom: ElementHasher<BaseField = E::BaseField>,
-    R: FridaRandomCoin<BaseField = E::BaseField, HashHst = HHst, HashRandom = HRandom>,
+    R: FridaRandomCoin<
+        BaseField = E::BaseField,
+        FieldElement = E,
+        HashHst = HHst,
+        HashRandom = HRandom,
+    >,
 {
     // assuming merkle tree hash function uses the hash function
     // that will generate the randomness in our Fiat-shamir
@@ -72,10 +103,11 @@ where
         layer_root: <<Self as ProverChannel<E>>::Hasher as winter_crypto::Hasher>::Digest,
     ) {
         self.commitments.push(layer_root);
-        self.public_coin.update(&layer_root.as_bytes());
+        self.public_coin.reseed(&layer_root.as_bytes());
     }
 
     fn draw_fri_alpha(&mut self) -> E {
-        self.public_coin.draw().expect("failed to draw FRI alpha")
+        let alpha = self.public_coin.draw().expect("failed to draw FRI alpha");
+        alpha
     }
 }

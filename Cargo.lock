@@ -91,6 +91,7 @@ dependencies = [
  "winter-fri",
  "winter-math",
  "winter-rand-utils",
+ "winter-utils",
 ]
 
 [[package]]
