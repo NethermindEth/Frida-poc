@@ -113,26 +113,7 @@ where
     C: BaseProverChannel<E, H>,
     H: ElementHasher<BaseField = B>,
 {
-    // COMMIT STAGE
-    // --------------------------------------------------------------------------------------------
-    pub fn commit(
-        &mut self,
-        data: Vec<u8>,
-        num_queries: usize,
-    ) -> Result<(Commitment<H>, Vec<u8>), FridaError> {
-        self.build_layers_from_data(&data, num_queries)?;
-        let proof = self.query();
-        let channel = self.channel.take().unwrap();
-
-        let commitment = Commitment {
-            roots: channel.take_layer_commitments(),
-            proof,
-        };
-
-        Ok((commitment, data))
-    }
-
-    pub fn build_layers_from_data(
+    fn build_layers_from_data(
         &mut self,
         data: &[u8],
         num_queries: usize,
@@ -149,16 +130,44 @@ where
         if domain_size > frida_const::MAX_DOMAIN_SIZE {
             return Err(FridaError::DomainSizeTooBig(domain_size));
         }
-        if num_queries >= domain_size || num_queries == 0 {
+        if num_queries >= domain_size {
             return Err(FridaError::BadNumQueries(num_queries));
         }
 
         let evaluations = build_evaluations_from_data(&data, domain_size, blowup_factor)?;
-        let mut channel = C::new(domain_size, num_queries);
-        self.build_layers(&mut channel, evaluations);
 
-        self.channel = Some(channel);
+        if num_queries == 0 {
+            let mut channel = C::new(domain_size, 1);
+            self.build_layers(&mut channel, evaluations);
+        } else {
+            let mut channel = C::new(domain_size, num_queries);
+            self.build_layers(&mut channel, evaluations);
+            self.channel = Some(channel);
+        }
+
         Ok(())
+    }
+
+    // COMMIT STAGE
+    // --------------------------------------------------------------------------------------------
+    pub fn commit(
+        &mut self,
+        data: Vec<u8>,
+        num_queries: usize,
+    ) -> Result<(Commitment<H>, Vec<u8>), FridaError> {
+        if num_queries == 0 {
+            return Err(FridaError::BadNumQueries(num_queries));
+        }
+        self.build_layers_from_data(&data, num_queries)?;
+        let proof = self.query();
+        let channel = self.channel.take().unwrap();
+
+        let commitment = Commitment {
+            roots: channel.take_layer_commitments(),
+            proof,
+        };
+
+        Ok((commitment, data))
     }
 
     fn query(&mut self) -> FridaProof {
@@ -172,6 +181,10 @@ where
 
     // OPEN STAGE
     // --------------------------------------------------------------------------------------------
+    pub fn parse_state(&mut self, state: &[u8]) -> Result<(), FridaError> {
+        self.build_layers_from_data(state, 0)
+    }
+
     pub fn open(&mut self, positions: &[usize]) -> FridaProof {
         self.build_proof(positions)
     }
@@ -287,7 +300,7 @@ mod tests {
             >,
             Blake3_256<BaseElement>,
         > = FridaProver::new(options.clone());
-        opening_prover.build_layers_from_data(&state, 31).unwrap();
+        opening_prover.parse_state(&state).unwrap();
 
         // Replicating query positions just to make sure open is generating proper proofs since we can just compare it with the query phase proofs
         let mut channel = FridaProverChannel::<
