@@ -6,6 +6,14 @@ use winter_math::FieldElement;
 
 use crate::{frida_const, frida_random::FridaRandomCoin};
 
+pub trait BaseProverChannel<E: FieldElement, HRoot: ElementHasher>:
+    ProverChannel<E, Hasher = HRoot>
+{
+    fn new(domain_size: usize, num_queries: usize) -> Self;
+    fn draw_query_positions(&mut self) -> Vec<usize>;
+    fn layer_commitments(&self) -> &[HRoot::Digest];
+}
+
 pub struct FridaProverChannel<E, HHst, HRandom, R>
 where
     E: FieldElement,
@@ -22,7 +30,7 @@ where
     _field_element: PhantomData<E>,
 }
 
-impl<E, HHst, HRandom, R> FridaProverChannel<E, HHst, HRandom, R>
+impl<E, HHst, HRandom, R> BaseProverChannel<E, HRandom> for FridaProverChannel<E, HHst, HRandom, R>
 where
     E: FieldElement,
     HHst: ElementHasher<BaseField = E::BaseField>,
@@ -35,7 +43,7 @@ where
     /// Panics if:
     /// * `domain_size` is smaller than 8 or is not a power of two.
     /// * `num_queries` is zero.
-    pub fn new(domain_size: usize, num_queries: usize) -> Self {
+    fn new(domain_size: usize, num_queries: usize) -> Self {
         assert!(
             domain_size >= frida_const::MIN_DOMAIN_SIZE,
             "domain size must be at least 8, but was {domain_size}"
@@ -64,7 +72,7 @@ where
     ///
     /// # Panics
     /// Panics if it fails while drawing a position.
-    pub fn draw_query_positions(&mut self) -> Vec<usize> {
+    fn draw_query_positions(&mut self) -> Vec<usize> {
         let mut positions = self
             .public_coin
             .draw_query_positions(self.num_queries, self.domain_size)
@@ -75,8 +83,8 @@ where
         positions
     }
 
-    pub fn layer_commitments(&self) -> &Vec<HRandom::Digest> {
-        return &self.commitments;
+    fn layer_commitments(&self) -> &[HRandom::Digest] {
+        &self.commitments
     }
 }
 

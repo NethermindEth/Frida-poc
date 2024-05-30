@@ -2,10 +2,11 @@ pub mod frida_commit;
 pub mod frida_const;
 pub mod frida_data;
 pub mod frida_error;
+pub mod frida_prover;
 pub mod frida_prover_channel;
 pub mod frida_random;
 
-use frida_prover_channel::FridaProverChannel;
+use frida_prover_channel::{BaseProverChannel, FridaProverChannel};
 use frida_random::FridaRandom;
 use winter_crypto::hashers::Blake3_256;
 use winter_fri::{FriOptions, FriProver};
