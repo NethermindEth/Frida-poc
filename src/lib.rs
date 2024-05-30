@@ -1,4 +1,3 @@
-pub mod frida_commit;
 pub mod frida_const;
 pub mod frida_data;
 pub mod frida_error;

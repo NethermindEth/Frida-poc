@@ -12,6 +12,7 @@ pub trait BaseProverChannel<E: FieldElement, HRoot: ElementHasher>:
     fn new(domain_size: usize, num_queries: usize) -> Self;
     fn draw_query_positions(&mut self) -> Vec<usize>;
     fn layer_commitments(&self) -> &[HRoot::Digest];
+    fn take_layer_commitments(self) -> Vec<HRoot::Digest>;
 }
 
 pub struct FridaProverChannel<E, HHst, HRandom, R>
@@ -85,6 +86,10 @@ where
 
     fn layer_commitments(&self) -> &[HRandom::Digest] {
         &self.commitments
+    }
+
+    fn take_layer_commitments(self) -> Vec<HRandom::Digest> {
+        self.commitments
     }
 }
 
