@@ -129,9 +129,6 @@ where
             proof,
         };
 
-        // Reset since commit is a one time thing
-        self.reset();
-
         Ok((commitment, data))
     }
 
@@ -214,9 +211,11 @@ mod tests {
             FridaError::DomainSizeTooBig(frida_const::MAX_DOMAIN_SIZE * 2),
             domain_error
         );
+        prover.reset();
 
         let num_qeuries_error_zero = prover.commit(rand_vector::<u8>(10), 0).unwrap_err();
         assert_eq!(FridaError::BadNumQueries(0), num_qeuries_error_zero);
+        prover.reset();
 
         let num_qeuries_error_bigger_than_domain =
             prover.commit(rand_vector::<u8>(200), 32).unwrap_err();
@@ -224,6 +223,7 @@ mod tests {
             FridaError::BadNumQueries(32),
             num_qeuries_error_bigger_than_domain
         );
+        prover.reset();
 
         // Make sure minimum domain size is correctly enforced
         let (commitment, _) = prover.commit(rand_vector::<u8>(1), 1).unwrap();
@@ -231,6 +231,7 @@ mod tests {
             frida_const::MIN_DOMAIN_SIZE.ilog2() as usize,
             commitment.roots.len()
         );
+        prover.reset();
 
         let data = rand_vector::<u8>(200);
         let (commitment, state) = prover.commit(data.clone(), 31).unwrap();
@@ -302,5 +303,10 @@ mod tests {
 
         let opening_prover_query_proof = opening_prover.open(&query_positions);
         assert_eq!(commitment.proof, opening_prover_query_proof);
+
+        // Make sure prover that has ran commit can also just use open for creating more proofs
+        let prover_proof = prover.open(&[1, 0, 3]);
+        let opening_prover_proof = opening_prover.open(&[1, 0, 3]);
+        assert_eq!(prover_proof, opening_prover_proof);
     }
 }
