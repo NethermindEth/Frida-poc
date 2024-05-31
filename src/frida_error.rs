@@ -5,4 +5,8 @@ pub enum FridaError {
     NotEnoughDataPoints(),
     BadDataLength(),
     NotEnoughEvaluationsForDecoding(),
+    DrawError(),
+    FailedToDrawEnoughQueryPoints(usize, usize),
+    DomainSizeTooBig(usize),
+    BadNumQueries(usize),
 }
