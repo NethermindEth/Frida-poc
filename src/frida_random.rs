@@ -29,21 +29,6 @@ pub trait FridaRandomCoin: Sync {
     fn drawn_alphas(&self) -> Vec<Self::FieldElement>;
 }
 
-// impl<
-//         B: StarkField,
-//         HashHst: ElementHasher<BaseField = B>,
-//         HashRandom: ElementHasher<BaseField = B>,
-//         E: FieldElement<BaseField = B>,
-//     > FridaRandom<HashHst, HashRandom, E>
-// {
-//     fn drawn_alphas(&self) -> Option<Vec<E>> {
-//         match &self.drawn_alphas {
-//             None => None,
-//             Some(v) => Some(v.to_vec()),
-//         }
-//     }
-// }
-
 impl<
         B: StarkField,
         HashHst: ElementHasher<BaseField = B>,
