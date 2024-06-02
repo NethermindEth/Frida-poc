@@ -1,10 +1,10 @@
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 
 use winter_crypto::{Digest, ElementHasher};
 use winter_fri::ProverChannel;
 use winter_math::FieldElement;
 
-use crate::frida_random::FridaRandomCoin;
+use crate::{frida_const, frida_random::FridaRandomCoin};
 
 pub struct FridaProverChannel<E, HHst, HRandom, R>
 where
@@ -20,6 +20,8 @@ where
 {
     commitments: Vec<HRandom::Digest>,
     public_coin: R,
+    domain_size: usize,
+    num_queries: usize,
     _hash_function_hst: PhantomData<HHst>,
     _hash_function_random: PhantomData<HRandom>,
     _field_element: PhantomData<E>,
@@ -45,7 +47,7 @@ where
     /// * `num_queries` is zero.
     pub fn new(domain_size: usize, num_queries: usize) -> Self {
         assert!(
-            domain_size >= 8,
+            domain_size >= frida_const::MIN_DOMAIN_SIZE,
             "domain size must be at least 8, but was {domain_size}"
         );
         assert!(
@@ -57,6 +59,8 @@ where
             "number of queries must be greater than zero"
         );
         Self {
+            domain_size,
+            num_queries,
             public_coin: FridaRandomCoin::new(&[123]),
             commitments: Vec::new(),
             _hash_function_hst: PhantomData,
@@ -65,16 +69,24 @@ where
         }
     }
 
-    // TODO: implement this function
-    pub fn draw_query_positions(&mut self, _nonce: u64) -> Vec<usize> {
-        // self.public_coin
-        //     .draw_integers(self.num_queries, self.domain_size, nonce)
-        //     .expect("failed to draw query position")
-        vec![0]
+    /// Draws the set of positions at which the polynomial evaluations committed at the first FRI
+    /// layer should be queried.
+    ///
+    /// # Panics
+    /// Panics if it fails while drawing a position.
+    pub fn draw_query_positions(&mut self) -> Vec<usize> {
+        let mut positions = self
+            .public_coin
+            .draw_query_positions(self.num_queries, self.domain_size)
+            .expect("failed to draw query position");
+
+        // TODO: Decide if dedup is ok or if we want to strictly hit the num_queries goal. Winterfell uses dedup.
+        positions.dedup();
+        positions
     }
 
-    pub fn layer_commitments(&self) -> &[HRandom::Digest] {
-        &self.commitments
+    pub fn layer_commitments(&self) -> &Vec<HRandom::Digest> {
+        return &self.commitments;
     }
 
     pub fn drawn_alphas(&self) -> Vec<E> {

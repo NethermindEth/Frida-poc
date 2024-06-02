@@ -1,3 +1,7 @@
+pub mod frida_commit;
+pub mod frida_const;
+pub mod frida_data;
+pub mod frida_error;
 pub mod frida_prover_channel;
 pub mod frida_random;
 pub mod frida_verifier;
@@ -145,7 +149,7 @@ mod tests {
             prover.build_layers(&mut channel, evaluations.clone());
             let prover_drawn_alpha = channel.drawn_alphas();
 
-            let positions = channel.draw_query_positions(0); // TODO: need to implement function
+            let positions = channel.draw_query_positions();
             let proof = prover.build_proof(&positions);
 
             // make sure the proof can be verified
