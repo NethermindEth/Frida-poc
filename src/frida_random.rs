@@ -7,7 +7,7 @@ use winter_math::{FieldElement, StarkField};
 pub struct FridaRandom<HashHst: ElementHasher, HashRandom: ElementHasher, E: FieldElement> {
     counter: u64,
     hst: Vec<u8>,
-    drawn_alphas: Vec<E>,
+    drawn_alphas: Vec<E>, // how can we only introduce this during test
     _hash_digest_hst: PhantomData<HashHst::Digest>,
     _hash_digest2_random: PhantomData<HashRandom::Digest>,
 }
