@@ -30,7 +30,7 @@ where
         FieldElement = E,
         HashHst = HHst,
         HashRandom = HRandom,
-    >, // R: FridaRandomCoin<BaseField = E::BaseField, HashHst = HHst, HashRandom = HRandom>,
+    >, 
 {
     // TODO: Decide if we want to dynamically set domain_size like here
     let blowup_factor = options.blowup_factor();
