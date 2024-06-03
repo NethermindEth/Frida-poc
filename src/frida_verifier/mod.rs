@@ -1,3 +1,5 @@
+mod test;
+
 use std::{marker::PhantomData, mem};
 
 use crate::frida_random::FridaRandomCoin;
