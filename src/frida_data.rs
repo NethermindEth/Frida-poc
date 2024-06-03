@@ -2,17 +2,13 @@ use crate::frida_error::FridaError;
 use core::mem;
 use winter_math::{fft, polynom, FieldElement, StarkField};
 
-pub fn encoded_data_element_count<E: FieldElement + StarkField>(data_size: usize) -> usize {
+pub fn encoded_data_element_count<E: FieldElement>(data_size: usize) -> usize {
     let element_size = E::ELEMENT_BYTES - 1;
     // element_size - 1 is to force a round up
     (mem::size_of::<u64>() + data_size + element_size - 1) / element_size
 }
 
-fn encode_data<E: FieldElement + StarkField>(
-    data: &[u8],
-    domain_size: usize,
-    blowup_factor: usize,
-) -> Vec<u8> {
+fn encode_data<E: FieldElement>(data: &[u8], domain_size: usize, blowup_factor: usize) -> Vec<u8> {
     // -1 to make sure the data cannot exceed the field prime
     let data_size = data.len();
     let encoded_element_count = encoded_data_element_count::<E>(data_size);
@@ -41,7 +37,7 @@ fn encode_data<E: FieldElement + StarkField>(
     encoded_data
 }
 
-fn data_to_field_element<E: FieldElement + StarkField>(
+fn data_to_field_element<E: FieldElement>(
     encoded_data: &[u8],
     domain_size: usize,
 ) -> Result<Vec<E>, FridaError> {
@@ -56,7 +52,7 @@ fn data_to_field_element<E: FieldElement + StarkField>(
 }
 
 // TODO: Decide if we want evaluations to be []DATA + []Parity or DATA[0] + PARITY + DATA[1] + PARITY + ...
-pub fn build_evaluations_from_data<E: FieldElement + StarkField>(
+pub fn build_evaluations_from_data<E: FieldElement>(
     data: &[u8],
     domain_size: usize,
     blowup_factor: usize,
@@ -75,7 +71,7 @@ pub fn build_evaluations_from_data<E: FieldElement + StarkField>(
     Ok(symbols)
 }
 
-fn reconstruct_evaluations<E: FieldElement + StarkField>(
+fn reconstruct_evaluations<E: FieldElement>(
     evaluations: &[E],
     positions: &[usize],
     domain_size: usize,
@@ -88,7 +84,7 @@ fn reconstruct_evaluations<E: FieldElement + StarkField>(
         return Err(FridaError::XYCoordinateLengthMismatch());
     }
 
-    let omega = E::get_root_of_unity(domain_size.ilog2());
+    let omega = E::from(E::BaseField::get_root_of_unity(domain_size.ilog2()));
     let xs = positions
         .iter()
         .map(|pos| omega.exp_vartime(E::PositiveInteger::from(*pos as u64)))
@@ -105,7 +101,7 @@ fn reconstruct_evaluations<E: FieldElement + StarkField>(
     Ok(recovered_evaluations)
 }
 
-fn extract_and_decode_data<E: FieldElement + StarkField>(
+fn extract_and_decode_data<E: FieldElement>(
     evaluations: &[E],
     domain_size: usize,
     blowup_factor: usize,
@@ -138,7 +134,7 @@ fn extract_and_decode_data<E: FieldElement + StarkField>(
     Ok(decoded)
 }
 
-pub fn recover_data_from_evaluations<E: FieldElement + StarkField>(
+pub fn recover_data_from_evaluations<E: FieldElement>(
     evaluations: &[E],
     positions: &[usize],
     domain_size: usize,
