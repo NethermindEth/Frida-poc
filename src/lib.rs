@@ -48,7 +48,7 @@ mod tests {
 
     use crate::{
         fri,
-        frida_prover_channel::{BaseProverChannel, FridaProverChannel},
+        frida_prover_channel::{BaseProverChannel, BaseProverChannelTest, FridaProverChannel},
         frida_random::{FridaRandom, FridaRandomCoin},
         frida_verifier::FridaVerifier,
     };

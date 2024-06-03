@@ -13,6 +13,10 @@ pub trait BaseProverChannel<E: FieldElement, HRoot: ElementHasher>:
     fn draw_query_positions(&mut self) -> Vec<usize>;
     fn layer_commitments(&self) -> &[HRoot::Digest];
     fn take_layer_commitments(self) -> Vec<HRoot::Digest>;
+}
+
+#[cfg(test)]
+pub trait BaseProverChannelTest<E: FieldElement> {
     fn drawn_alphas(&self) -> Vec<E>;
 }
 
@@ -102,7 +106,21 @@ where
     fn take_layer_commitments(self) -> Vec<HRandom::Digest> {
         self.commitments
     }
+}
 
+#[cfg(test)]
+impl<E, HHst, HRandom, R> BaseProverChannelTest<E> for FridaProverChannel<E, HHst, HRandom, R>
+where
+    E: FieldElement,
+    HHst: ElementHasher<BaseField = E::BaseField>,
+    HRandom: ElementHasher<BaseField = E::BaseField>,
+    R: FridaRandomCoin<
+        BaseField = E::BaseField,
+        FieldElement = E,
+        HashHst = HHst,
+        HashRandom = HRandom,
+    >,
+{
     fn drawn_alphas(&self) -> Vec<E> {
         self.public_coin.drawn_alphas()
     }

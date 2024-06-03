@@ -7,7 +7,9 @@ use winter_math::{FieldElement, StarkField};
 pub struct FridaRandom<HashHst: ElementHasher, HashRandom: ElementHasher, E: FieldElement> {
     counter: u64,
     hst: Vec<u8>,
-    drawn_alphas: Vec<E>, // how can we only introduce this during test
+    #[cfg(test)]
+    drawn_alphas: Vec<E>,
+    _field_element: PhantomData<E>,
     _hash_digest_hst: PhantomData<HashHst::Digest>,
     _hash_digest2_random: PhantomData<HashRandom::Digest>,
 }
@@ -26,6 +28,7 @@ pub trait FridaRandomCoin: Sync {
         domain_size: usize,
     ) -> Result<Vec<usize>, FridaError>;
     fn reseed(&mut self, new_root: &[u8]);
+    #[cfg(test)]
     fn drawn_alphas(&self) -> Vec<Self::FieldElement>;
 }
 
@@ -45,7 +48,9 @@ impl<
         Self {
             hst: hst_neg_1.to_vec(),
             counter: 0,
+            #[cfg(test)]
             drawn_alphas: vec![],
+            _field_element: PhantomData,
             _hash_digest_hst: PhantomData,
             _hash_digest2_random: PhantomData,
         }
@@ -56,6 +61,7 @@ impl<
 
         let bytes = &random_value.as_bytes()[..E::ELEMENT_BYTES];
         if let Some(element) = E::from_random_bytes(bytes) {
+            #[cfg(test)]
             self.drawn_alphas.push(element);
 
             return Ok(element);
@@ -112,17 +118,8 @@ impl<
         self.counter += 1;
     }
 
+    #[cfg(test)]
     fn drawn_alphas(&self) -> Vec<E> {
         self.drawn_alphas.clone()
     }
 }
-
-// new (hst_-1) -> Self
-// counter = 0
-
-// draw()
-// return hash_random(hst)
-
-// reseed(root_new)
-// new_hst = hash_hst(root_new, old_hst, counter)
-// counter += 1
