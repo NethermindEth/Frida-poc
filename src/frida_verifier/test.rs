@@ -1,11 +1,14 @@
 #[cfg(test)]
 mod test {
+    use crate::frida_prover::traits::BaseFriProver;
+    use crate::frida_prover::FridaProver;
     use crate::frida_prover_channel::{BaseProverChannel, BaseProverChannelTest};
     use crate::frida_random::{FridaRandom, FridaRandomCoin};
     use crate::frida_verifier::FridaVerifier;
+    use crate::frida_verifier_channel::FridaVerifierChannel;
     use crate::utils::{build_evaluations, build_prover_channel};
     use winter_crypto::hashers::Blake3_256;
-    use winter_fri::{DefaultVerifierChannel, FriOptions, FriProver};
+    use winter_fri::FriOptions;
     use winter_math::fields::f128::BaseElement;
 
     type Blake3 = Blake3_256<BaseElement>;
@@ -28,7 +31,7 @@ mod test {
         let evaluations: Vec<_> = build_evaluations(trace_length, lde_blowup);
 
         // instantiate the prover and generate the proof
-        let mut prover = FriProver::new(options.clone());
+        let mut prover = FridaProver::new(options.clone());
         prover.build_layers(&mut channel, evaluations.clone());
         let prover_drawn_alpha = channel.drawn_alphas();
         let commitments = channel.layer_commitments().to_vec();
@@ -36,11 +39,12 @@ mod test {
         let positions = channel.draw_query_positions();
         let proof = prover.build_proof(&positions);
 
-        let mut channel = DefaultVerifierChannel::<BaseElement, Blake3>::new(
+        let mut channel = FridaVerifierChannel::<BaseElement, Blake3>::new(
             proof,
             commitments,
             domain_size,
             options.folding_factor(),
+            0,
         )
         .unwrap();
         let mut coin = FridaRandom::<Blake3, Blake3, BaseElement>::new(&[123]);

@@ -41,6 +41,7 @@ mod tests {
                 commitments,
                 domain_size,
                 options.folding_factor(),
+                0,
             )
             .unwrap();
             let mut coin = FridaRandom::<Blake3, Blake3, BaseElement>::new(&[123]);

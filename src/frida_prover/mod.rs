@@ -40,7 +40,7 @@ pub struct FridaLayer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher> 
 
 pub struct BatchFridaLayer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher> {
     tree: MerkleTree<H>,
-    evaluations: Vec<Vec<E>>,
+    pub(crate) evaluations: Vec<Vec<E>>,
     _base_field: PhantomData<B>,
 }
 

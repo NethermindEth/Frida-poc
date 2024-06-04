@@ -2,7 +2,7 @@ mod test;
 
 use std::{marker::PhantomData, mem};
 
-use crate::frida_random::FridaRandomCoin;
+use crate::{frida_random::FridaRandomCoin, frida_verifier_channel::BaseVerifierChannel};
 use winter_crypto::{Digest, ElementHasher, RandomCoinError};
 use winter_fri::{
     folding::fold_positions, utils::map_positions_to_indexes, FriOptions, VerifierChannel,
@@ -22,6 +22,7 @@ where
     domain_size: usize,
     domain_generator: E::BaseField,
     layer_commitments: Vec<HRandom::Digest>,
+    zi: Option<Vec<E>>,
     layer_alphas: Vec<E>,
     options: FriOptions,
     num_partitions: usize,
@@ -32,7 +33,7 @@ where
 impl<E, C, HHst, HRandom, R> FridaVerifier<E, C, HHst, HRandom, R>
 where
     E: FieldElement,
-    C: VerifierChannel<E, Hasher = HRandom>,
+    C: BaseVerifierChannel<E, Hasher = HRandom>,
     HHst: ElementHasher<BaseField = E::BaseField>,
     HRandom: ElementHasher<BaseField = E::BaseField>,
     R: FridaRandomCoin<
@@ -56,6 +57,19 @@ where
 
         // read layer commitments from the channel and use them to build a list of alphas
         let layer_commitments = channel.read_fri_layer_commitments();
+
+        let zi = if channel.batch_size() > 0 {
+            let batch_layer_root = channel.batch_data().batch_commitment.unwrap();
+            public_coin.reseed(&batch_layer_root.as_bytes());
+            Some(public_coin.draw_zi(channel.batch_size()).map_err(|_e| {
+                VerifierError::RandomCoinError(RandomCoinError::FailedToDrawFieldElement(
+                    channel.batch_size(),
+                ))
+            })?)
+        } else {
+            None
+        };
+
         let mut layer_alphas = Vec::with_capacity(layer_commitments.len());
         let mut max_degree_plus_1 = max_poly_degree + 1;
         for (depth, commitment) in layer_commitments.iter().enumerate() {
@@ -85,6 +99,7 @@ where
             domain_size,
             domain_generator,
             layer_commitments,
+            zi,
             layer_alphas,
             options,
             num_partitions,
@@ -104,9 +119,10 @@ where
         evaluations: &[E],
         positions: &[usize],
     ) -> Result<(), VerifierError> {
-        if evaluations.len() != positions.len() {
+        let batch_size = usize::max(channel.batch_size(), 1);
+        if evaluations.len() != positions.len() * batch_size {
             return Err(VerifierError::NumPositionEvaluationMismatch(
-                positions.len(),
+                positions.len() * batch_size,
                 evaluations.len(),
             ));
         }
@@ -143,7 +159,11 @@ where
         let mut domain_size = self.domain_size;
         let mut max_degree_plus_1 = self.max_poly_degree + 1;
         let mut positions = positions.to_vec();
-        let mut evaluations = evaluations.to_vec();
+        let mut evaluations = if channel.batch_size() > 0 {
+            self.verify_batch_layer::<N>(channel, &evaluations, &positions)?
+        } else {
+            evaluations.to_vec()
+        };
 
         for depth in 0..self.options.num_fri_layers(self.domain_size) {
             // determine which evaluations were queried in the folded layer
@@ -227,6 +247,61 @@ where
         Ok(())
     }
 
+    fn verify_batch_layer<const N: usize>(
+        &self,
+        channel: &mut C,
+        evaluations: &[E],
+        positions: &[usize],
+    ) -> Result<Vec<E>, VerifierError> {
+        // determine which evaluations were queried in the folded layer
+        let folded_positions =
+            fold_positions(&positions, self.domain_size, self.options.folding_factor());
+        // determine where these evaluations are in the commitment Merkle tree
+        let position_indexes = map_positions_to_indexes(
+            &folded_positions,
+            self.domain_size,
+            self.options.folding_factor(),
+            self.num_partitions,
+        );
+
+        let batch_size = channel.batch_size();
+        let layer_values = channel.read_batch_layer_queries(
+            &position_indexes,
+            &channel.batch_data().batch_commitment.unwrap(),
+        )?;
+        let query_values = {
+            let row_length = self.domain_size / N;
+            let mut result = Vec::with_capacity(batch_size * positions.len());
+            for position in positions.iter() {
+                let idx = folded_positions
+                    .iter()
+                    .position(|&v| v == position % row_length)
+                    .unwrap();
+                layer_values[idx]
+                    [(position / row_length) * batch_size..position / row_length + batch_size]
+                    .iter()
+                    .for_each(|e| {
+                        result.push(*e);
+                    });
+            }
+            result
+        };
+        if evaluations != query_values {
+            return Err(VerifierError::InvalidLayerFolding(0));
+        }
+
+        let zi = self.zi.as_ref().unwrap();
+        Ok(query_values
+            .chunks(batch_size)
+            .map(|chunk| {
+                chunk
+                    .iter()
+                    .enumerate()
+                    .fold(E::default(), |accumulator, (i, e)| accumulator + *e * zi[i])
+            })
+            .collect())
+    }
+
     pub fn layer_alphas(&self) -> Vec<E> {
         let alphas = &self.layer_alphas;
         alphas.clone()
@@ -262,4 +337,89 @@ where
     p.iter()
         .rev()
         .fold(E::ZERO, |acc, &coeff| acc * E::from(x) + coeff)
+}
+
+#[cfg(test)]
+mod tests {
+    use winter_crypto::hashers::Blake3_256;
+    use winter_math::fields::f128::BaseElement;
+    use winter_rand_utils::{rand_value, rand_vector};
+
+    use crate::{
+        frida_prover::{traits::BaseFriProver, FridaProver},
+        frida_prover_channel::FridaProverChannel,
+        frida_random::FridaRandom,
+        frida_verifier_channel::FridaVerifierChannel,
+    };
+
+    use super::*;
+
+    #[test]
+    fn test_verify_batch() {
+        let batch_size = 10;
+        let mut data = vec![];
+        for _ in 0..batch_size {
+            data.push(rand_vector::<u8>(usize::min(
+                rand_value::<u64>() as usize,
+                1024,
+            )));
+        }
+
+        let blowup_factor = 2;
+        let folding_factor = 2;
+        let options = FriOptions::new(blowup_factor, folding_factor, 0);
+        let mut prover: FridaProver<
+            BaseElement,
+            BaseElement,
+            FridaProverChannel<
+                BaseElement,
+                Blake3_256<BaseElement>,
+                Blake3_256<BaseElement>,
+                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
+            >,
+            Blake3_256<BaseElement>,
+        > = FridaProver::new(options.clone());
+        let (commitment, _) = prover.commit_batch(data, 1).unwrap();
+
+        let mut channel = FridaVerifierChannel::<BaseElement, Blake3_256<BaseElement>>::new(
+            commitment.proof,
+            commitment.roots,
+            prover.domain_size(),
+            options.folding_factor(),
+            batch_size,
+        )
+        .unwrap();
+        let mut coin =
+            FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[
+                123,
+            ]);
+
+        let verifier = FridaVerifier::new(
+            &mut channel,
+            &mut coin,
+            options.clone(),
+            prover.domain_size() / options.blowup_factor() - 1,
+        )
+        .unwrap();
+
+        let mut query_positions = coin.draw_query_positions(1, prover.domain_size()).unwrap();
+        query_positions.dedup();
+        query_positions = fold_positions(&query_positions, prover.domain_size(), folding_factor);
+
+        let mut evaluations = vec![];
+        for position in query_positions.iter() {
+            let bucket = position % (prover.domain_size() / folding_factor);
+            let start_index = (position / (prover.domain_size() / folding_factor)) * batch_size;
+            prover.get_batch_layer().as_ref().unwrap().evaluations[bucket]
+                [start_index..start_index + batch_size]
+                .iter()
+                .for_each(|e| {
+                    evaluations.push(*e);
+                });
+        }
+
+        verifier
+            .verify(&mut channel, &evaluations, &query_positions)
+            .unwrap();
+    }
 }
