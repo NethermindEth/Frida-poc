@@ -233,7 +233,6 @@ where
     }
 }
 
-
 fn get_query_values<E: FieldElement, const N: usize>(
     values: &[[E; N]],
     positions: &[usize],

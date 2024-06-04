@@ -10,9 +10,11 @@ use winter_fri::{
     FriOptions, ProverChannel,
 };
 
+use crate::frida_prover::proof::FridaProofBatchLayer;
+
 use super::{
     proof::{FridaProof, FridaProofLayer},
-    FridaLayer, FridaRemainder,
+    BatchFridaLayer, FridaLayer, FridaRemainder,
 };
 
 // TRAIT implementing the default behavior for a fri prover
@@ -31,10 +33,12 @@ where
     fn domain_offset(&self) -> B;
     fn remainder_poly(&self) -> &FridaRemainder<E>;
     fn num_layers(&self) -> usize;
+    fn is_batch(&self) -> bool;
     fn reset(&mut self);
 
     fn store_layer(&mut self, layer: FridaLayer<B, E, H>);
     fn get_layer(&self, index: usize) -> &FridaLayer<B, E, H>;
+    fn get_batch_layer(&self) -> &Option<BatchFridaLayer<B, E, H>>;
     fn set_remainer_poly(&mut self, remainder: FridaRemainder<E>);
 
     fn build_layers(&mut self, channel: &mut C, mut evaluations: Vec<E>) {
@@ -134,7 +138,25 @@ where
         // use the remaining polynomial values directly as proof
         let remainder = self.remainder_poly().0.clone();
 
-        FridaProof::new(layers, remainder, 1)
+        let mut batch_layer = None;
+        if self.is_batch() {
+            let positions = fold_positions(&positions, self.domain_size(), self.folding_factor());
+            let proof = self
+                .get_batch_layer()
+                .as_ref()
+                .unwrap()
+                .tree
+                .prove_batch(&positions)
+                .expect("failed to generate a Merkle proof for FRI layer queries");
+            let evaluations = &self.get_batch_layer().as_ref().unwrap().evaluations;
+            let mut queried_values: Vec<Vec<E>> = Vec::with_capacity(positions.len());
+            for &position in positions.iter() {
+                queried_values.push(evaluations[position].clone());
+            }
+            batch_layer = Some(FridaProofBatchLayer::new(queried_values, proof));
+        }
+
+        FridaProof::new(batch_layer, layers, remainder, 1)
     }
 }
 

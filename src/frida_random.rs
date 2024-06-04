@@ -27,6 +27,7 @@ pub trait FridaRandomCoin: Sync {
         num_queries: usize,
         domain_size: usize,
     ) -> Result<Vec<usize>, FridaError>;
+    fn draw_zi(&self, count: usize) -> Result<Vec<Self::FieldElement>, FridaError>;
     fn reseed(&mut self, new_root: &[u8]);
 }
 
@@ -102,6 +103,26 @@ impl<
                 num_queries,
                 domain_size,
             ));
+        }
+
+        Ok(values)
+    }
+
+    fn draw_zi(&self, count: usize) -> Result<Vec<Self::FieldElement>, FridaError> {
+        let mut values = Vec::with_capacity(count);
+        for i in 0..count {
+            let to_be_hashed = [&self.hst[..], &i.to_be_bytes()].concat();
+            let random_value = HashRandom::hash(&to_be_hashed);
+            let bytes = &random_value.as_bytes()[..E::ELEMENT_BYTES];
+            if let Some(element) = E::from_random_bytes(bytes) {
+                values.push(element);
+            } else {
+                return Err(FridaError::DrawError());
+            }
+        }
+
+        if values.len() < count {
+            return Err(FridaError::FailedToDrawEnoughZi(count, count));
         }
 
         Ok(values)

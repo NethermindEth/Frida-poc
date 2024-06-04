@@ -7,6 +7,7 @@ pub enum FridaError {
     NotEnoughEvaluationsForDecoding(),
     DrawError(),
     FailedToDrawEnoughQueryPoints(usize, usize),
+    FailedToDrawEnoughZi(usize, usize),
     DomainSizeTooBig(usize),
     BadNumQueries(usize),
 }
