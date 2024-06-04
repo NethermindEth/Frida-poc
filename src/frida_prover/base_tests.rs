@@ -1,16 +1,12 @@
-use winter_crypto::hashers::Blake3_256;
 use winter_fri::{FriOptions, FriProver};
-use winter_math::{fft, fields::f128::BaseElement, FieldElement};
 use winter_utils::Serializable;
 
 use crate::{
-    frida_prover_channel::{BaseProverChannel, FridaProverChannel},
-    frida_random::FridaRandom,
+    frida_prover_channel::BaseProverChannel,
+    utils::{build_evaluations, build_prover_channel},
 };
 
 use super::{traits::BaseFriProver, FridaProver};
-
-type Blake3 = Blake3_256<BaseElement>;
 
 // TEST TRAIT IMPLEMENTATION
 // ================================================================================================
@@ -40,29 +36,6 @@ fn fri_folding_4() {
         folding_factor_e,
         max_remainder_degree,
     )
-}
-
-// TEST UTILS
-// ================================================================================================
-
-pub fn build_prover_channel(
-    trace_length: usize,
-    options: &FriOptions,
-) -> FridaProverChannel<BaseElement, Blake3, Blake3, FridaRandom<Blake3, Blake3, BaseElement>> {
-    FridaProverChannel::new(trace_length * options.blowup_factor(), 32)
-}
-
-pub fn build_evaluations(trace_length: usize, lde_blowup: usize) -> Vec<BaseElement> {
-    let mut p = (0..trace_length as u128)
-        .map(BaseElement::new)
-        .collect::<Vec<_>>();
-    let domain_size = trace_length * lde_blowup;
-    p.resize(domain_size, BaseElement::ZERO);
-
-    let twiddles = fft::get_twiddles::<BaseElement>(domain_size);
-
-    fft::evaluate_poly(&mut p, &twiddles);
-    p
 }
 
 // Match outputs with FriProver to make sure the BaseFriProver trait is implemented correctly
