@@ -52,7 +52,7 @@ mod tests {
                 .iter()
                 .map(|&p| evaluations[p])
                 .collect::<Vec<_>>();
-            verifier.verify(&mut channel, &queried_evaluations, positions)
+            verifier.check_auth(&mut channel, &queried_evaluations, positions)
         }
 
         fn fri_prove_verify(

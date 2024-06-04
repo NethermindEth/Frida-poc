@@ -98,7 +98,7 @@ where
         &self.options
     }
 
-    pub fn verify(
+    pub fn check_auth(
         &self,
         channel: &mut C,
         evaluations: &[E],
@@ -232,7 +232,6 @@ where
         alphas.clone()
     }
 }
-
 
 fn get_query_values<E: FieldElement, const N: usize>(
     values: &[[E; N]],
