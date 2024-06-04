@@ -4,35 +4,41 @@ use crate::{frida_const, frida_error::FridaError};
 use winter_crypto::{Digest, ElementHasher};
 use winter_math::{FieldElement, StarkField};
 
-pub struct FridaRandom<HashHst: ElementHasher, HashRandom: ElementHasher> {
+pub struct FridaRandom<HashHst: ElementHasher, HashRandom: ElementHasher, E: FieldElement> {
     counter: u64,
     hst: Vec<u8>,
+    #[cfg(test)]
+    drawn_alphas: Vec<E>,
+    _field_element: PhantomData<E>,
     _hash_digest_hst: PhantomData<HashHst::Digest>,
     _hash_digest2_random: PhantomData<HashRandom::Digest>,
 }
 
 pub trait FridaRandomCoin: Sync {
     type BaseField: StarkField;
+    type FieldElement: FieldElement;
     type HashHst: ElementHasher<BaseField = Self::BaseField>;
     type HashRandom: ElementHasher<BaseField = Self::BaseField>;
 
     fn new(hst_neg_1: &[u8]) -> Self;
-    fn draw<E: FieldElement<BaseField = Self::BaseField>>(&self) -> Result<E, FridaError>;
+    fn draw(&mut self) -> Result<Self::FieldElement, FridaError>;
     fn draw_query_positions(
         &self,
         num_queries: usize,
         domain_size: usize,
     ) -> Result<Vec<usize>, FridaError>;
-    fn update(&mut self, new_root: &[u8]);
+    fn reseed(&mut self, new_root: &[u8]);
 }
 
 impl<
         B: StarkField,
         HashHst: ElementHasher<BaseField = B>,
         HashRandom: ElementHasher<BaseField = B>,
-    > FridaRandomCoin for FridaRandom<HashHst, HashRandom>
+        E: FieldElement<BaseField = B>,
+    > FridaRandomCoin for FridaRandom<HashHst, HashRandom, E>
 {
     type BaseField = B;
+    type FieldElement = E;
     type HashHst = HashHst;
     type HashRandom = HashRandom;
 
@@ -40,18 +46,25 @@ impl<
         Self {
             hst: hst_neg_1.to_vec(),
             counter: 0,
+            #[cfg(test)]
+            drawn_alphas: vec![],
+            _field_element: PhantomData,
             _hash_digest_hst: PhantomData,
             _hash_digest2_random: PhantomData,
         }
     }
 
-    fn draw<E: FieldElement<BaseField = Self::BaseField>>(&self) -> Result<E, FridaError> {
+    fn draw(&mut self) -> Result<E, FridaError> {
         let random_value = HashRandom::hash(&self.hst[..E::ELEMENT_BYTES]);
 
         let bytes = &random_value.as_bytes()[..E::ELEMENT_BYTES];
         if let Some(element) = E::from_random_bytes(bytes) {
+            #[cfg(test)]
+            self.drawn_alphas.push(element);
+
             return Ok(element);
         }
+
         Err(FridaError::DrawError())
     }
 
@@ -94,7 +107,7 @@ impl<
         Ok(values)
     }
 
-    fn update(&mut self, new_root: &[u8]) {
+    fn reseed(&mut self, new_root: &[u8]) {
         let prev_hst = &self.hst;
         let merged = [new_root, prev_hst, &self.counter.to_be_bytes()].concat();
         let new_hst = HashHst::hash(&merged);
@@ -104,12 +117,23 @@ impl<
     }
 }
 
-// new (hst_-1) -> Self
-// counter = 0
+#[cfg(test)]
+pub trait FridaRandomCoinTest: Sync {
+    type FieldElement: FieldElement;
+    fn drawn_alphas(&self) -> Vec<Self::FieldElement>;
+}
 
-// draw()
-// return hash_random(hst)
+#[cfg(test)]
+impl<
+        B: StarkField,
+        HashHst: ElementHasher<BaseField = B>,
+        HashRandom: ElementHasher<BaseField = B>,
+        E: FieldElement<BaseField = B>,
+    > FridaRandomCoinTest for FridaRandom<HashHst, HashRandom, E>
+{
+    type FieldElement = E;
 
-// update(root_new)
-// new_hst = hash_hst(root_new, old_hst, counter)
-// counter += 1
+    fn drawn_alphas(&self) -> Vec<E> {
+        self.drawn_alphas.clone()
+    }
+}

@@ -212,7 +212,7 @@ mod tests {
                 BaseElement,
                 Blake3_256<BaseElement>,
                 Blake3_256<BaseElement>,
-                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>>,
+                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
             >,
             Blake3_256<BaseElement>,
         > = FridaProver::new(options.clone());
@@ -255,7 +255,7 @@ mod tests {
             BaseElement,
             Blake3_256<BaseElement>,
             Blake3_256<BaseElement>,
-            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>>,
+            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
         >::new(32, 31);
         prover.build_layers(&mut channel, evaluations.clone());
         let positions = channel.draw_query_positions();
@@ -281,7 +281,7 @@ mod tests {
                 BaseElement,
                 Blake3_256<BaseElement>,
                 Blake3_256<BaseElement>,
-                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>>,
+                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
             >,
             Blake3_256<BaseElement>,
         > = FridaProver::new(options.clone());
@@ -296,7 +296,7 @@ mod tests {
                 BaseElement,
                 Blake3_256<BaseElement>,
                 Blake3_256<BaseElement>,
-                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>>,
+                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
             >,
             Blake3_256<BaseElement>,
         > = FridaProver::new(options.clone());
@@ -307,7 +307,7 @@ mod tests {
             BaseElement,
             Blake3_256<BaseElement>,
             Blake3_256<BaseElement>,
-            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>>,
+            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
         >::new(32, 31);
         for layer_root in commitment.roots {
             channel.commit_fri_layer(layer_root);
