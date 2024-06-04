@@ -28,8 +28,6 @@ pub trait FridaRandomCoin: Sync {
         domain_size: usize,
     ) -> Result<Vec<usize>, FridaError>;
     fn reseed(&mut self, new_root: &[u8]);
-    #[cfg(test)]
-    fn drawn_alphas(&self) -> Vec<Self::FieldElement>;
 }
 
 impl<
@@ -117,8 +115,24 @@ impl<
         self.hst = new_hst.as_bytes().to_vec();
         self.counter += 1;
     }
+}
 
-    #[cfg(test)]
+#[cfg(test)]
+pub trait FridaRandomCoinTest: Sync {
+    type FieldElement: FieldElement;
+    fn drawn_alphas(&self) -> Vec<Self::FieldElement>;
+}
+
+#[cfg(test)]
+impl<
+        B: StarkField,
+        HashHst: ElementHasher<BaseField = B>,
+        HashRandom: ElementHasher<BaseField = B>,
+        E: FieldElement<BaseField = B>,
+    > FridaRandomCoinTest for FridaRandom<HashHst, HashRandom, E>
+{
+    type FieldElement = E;
+
     fn drawn_alphas(&self) -> Vec<E> {
         self.drawn_alphas.clone()
     }

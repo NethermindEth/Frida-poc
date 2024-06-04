@@ -6,6 +6,9 @@ use winter_math::FieldElement;
 
 use crate::{frida_const, frida_random::FridaRandomCoin};
 
+#[cfg(test)]
+use crate::frida_random::FridaRandomCoinTest;
+
 pub trait BaseProverChannel<E: FieldElement, HRoot: ElementHasher>:
     ProverChannel<E, Hasher = HRoot>
 {
@@ -145,11 +148,11 @@ where
     HHst: ElementHasher<BaseField = E::BaseField>,
     HRandom: ElementHasher<BaseField = E::BaseField>,
     R: FridaRandomCoin<
-        BaseField = E::BaseField,
-        FieldElement = E,
-        HashHst = HHst,
-        HashRandom = HRandom,
-    >,
+            BaseField = E::BaseField,
+            FieldElement = E,
+            HashHst = HHst,
+            HashRandom = HRandom,
+        > + FridaRandomCoinTest<FieldElement = E>,
 {
     fn drawn_alphas(&self) -> Vec<E> {
         self.public_coin.drawn_alphas()
