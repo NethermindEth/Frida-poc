@@ -5,19 +5,21 @@ pub mod frida_prover;
 pub mod frida_prover_channel;
 pub mod frida_random;
 pub mod frida_verifier;
+pub mod frida_verifier_channel;
 pub mod utils;
 
 #[cfg(test)]
 mod tests {
     use winter_crypto::{hashers::Blake3_256, Hasher};
-    use winter_fri::{DefaultVerifierChannel, FriOptions, FriProof, FriProver, VerifierError};
+    use winter_fri::{FriOptions, VerifierError};
     use winter_math::fields::f128::BaseElement;
-    use winter_utils::{Deserializable, Serializable, SliceReader};
 
     use crate::{
+        frida_prover::{proof::FridaProof, traits::BaseFriProver, FridaProver},
         frida_prover_channel::BaseProverChannel,
         frida_random::{FridaRandom, FridaRandomCoin},
         frida_verifier::FridaVerifier,
+        frida_verifier_channel::FridaVerifierChannel,
         utils::{build_evaluations, build_prover_channel},
     };
 
@@ -25,7 +27,7 @@ mod tests {
     fn test_verify() {
         type Blake3 = Blake3_256<BaseElement>;
         pub fn verify_proof(
-            proof: FriProof,
+            proof: FridaProof,
             commitments: Vec<<Blake3 as Hasher>::Digest>,
             evaluations: &[BaseElement],
             max_degree: usize,
@@ -33,15 +35,8 @@ mod tests {
             positions: &[usize],
             options: &FriOptions,
         ) -> Result<(), VerifierError> {
-            // test proof serialization / deserialization
-            let mut proof_bytes = Vec::new();
-            proof.write_into(&mut proof_bytes);
-
-            let mut reader = SliceReader::new(&proof_bytes);
-            let proof = FriProof::read_from(&mut reader).unwrap();
-
             // verify the proof
-            let mut channel = DefaultVerifierChannel::<BaseElement, Blake3>::new(
+            let mut channel = FridaVerifierChannel::<BaseElement, Blake3>::new(
                 proof,
                 commitments,
                 domain_size,
@@ -75,7 +70,7 @@ mod tests {
             let evaluations = build_evaluations(trace_length, lde_blowup);
 
             // instantiate the prover and generate the proof
-            let mut prover = FriProver::new(options.clone());
+            let mut prover = FridaProver::new(options.clone());
             prover.build_layers(&mut channel, evaluations.clone());
 
             let positions = channel.draw_query_positions();
