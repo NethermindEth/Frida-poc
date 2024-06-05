@@ -9,6 +9,7 @@ use winter_fri::{
     VerifierError,
 };
 use winter_math::{polynom, FieldElement, StarkField};
+use winter_utils::{iter_mut, uninit_vector};
 
 pub struct FridaVerifier<E, C, HHst, HRandom, R>
 where
@@ -59,7 +60,7 @@ where
         let layer_commitments = channel.read_fri_layer_commitments();
 
         let zi = if channel.batch_size() > 0 {
-            let batch_layer_root = channel.batch_data().batch_commitment.unwrap();
+            let batch_layer_root = channel.batch_layer_commitment();
             public_coin.reseed(&batch_layer_root.as_bytes());
             Some(public_coin.draw_zi(channel.batch_size()).map_err(|_e| {
                 VerifierError::RandomCoinError(RandomCoinError::FailedToDrawFieldElement(
@@ -265,10 +266,7 @@ where
         );
 
         let batch_size = channel.batch_size();
-        let layer_values = channel.read_batch_layer_queries(
-            &position_indexes,
-            &channel.batch_data().batch_commitment.unwrap(),
-        )?;
+        let layer_values = channel.read_batch_layer_queries(&position_indexes)?;
         let query_values = {
             let row_length = self.domain_size / N;
             let mut result = Vec::with_capacity(batch_size * positions.len());
@@ -291,15 +289,17 @@ where
         }
 
         let zi = self.zi.as_ref().unwrap();
-        Ok(query_values
-            .chunks(batch_size)
-            .map(|chunk| {
-                chunk
-                    .iter()
-                    .enumerate()
-                    .fold(E::default(), |accumulator, (i, e)| accumulator + *e * zi[i])
-            })
-            .collect())
+        let mut next_eval = unsafe { uninit_vector(query_values.len() / batch_size) };
+        iter_mut!(next_eval, 1024).enumerate().for_each(|(i, f)| {
+            *f = E::default();
+            query_values[i..i + batch_size]
+                .iter()
+                .enumerate()
+                .for_each(|(j, e)| {
+                    *f += *e * zi[j];
+                });
+        });
+        Ok(next_eval)
     }
 
     pub fn layer_alphas(&self) -> Vec<E> {

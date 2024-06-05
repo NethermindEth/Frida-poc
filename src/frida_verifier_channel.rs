@@ -7,6 +7,7 @@ use crate::frida_prover::proof::FridaProof;
 
 pub struct FridaVerifierChannel<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>> {
     layer_commitments: Vec<H::Digest>,
+    batch_size: usize,
     batch_data: Option<BatchData<E, H>>,
     layer_proofs: Vec<BatchMerkleProof<H>>,
     layer_queries: Vec<Vec<E>>,
@@ -15,10 +16,9 @@ pub struct FridaVerifierChannel<E: FieldElement, H: ElementHasher<BaseField = E:
 }
 
 pub struct BatchData<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>> {
-    pub batch_size: usize,
-    pub batch_commitment: Option<H::Digest>,
-    pub batch_layer_queries: Option<Vec<Vec<E>>>,
-    pub batch_layer_proof: Option<BatchMerkleProof<H>>,
+    batch_commitment: Option<H::Digest>,
+    batch_layer_queries: Option<Vec<Vec<E>>>,
+    batch_layer_proof: Option<BatchMerkleProof<H>>,
 }
 
 impl<E, H> FridaVerifierChannel<E, H>
@@ -42,7 +42,6 @@ where
                 proof.parse_batch_layer::<H, E>(domain_size, folding_factor, batch_size)?;
             let batch_commitment = layer_commitments.remove(0);
             Some(BatchData {
-                batch_size,
                 batch_commitment: Some(batch_commitment),
                 batch_layer_queries: Some(batch_layer_queries),
                 batch_layer_proof: Some(batch_layer_proof),
@@ -56,6 +55,7 @@ where
 
         Ok(Self {
             layer_commitments,
+            batch_size,
             batch_data,
             layer_proofs,
             layer_queries,
@@ -98,11 +98,10 @@ where
     E: FieldElement,
 {
     fn batch_size(&self) -> usize;
-    fn batch_data(&self) -> &BatchData<E, Self::Hasher>;
+    fn batch_layer_commitment(&self) -> &<<Self as VerifierChannel<E>>::Hasher as Hasher>::Digest;
     fn read_batch_layer_queries(
         &mut self,
         positions: &[usize],
-        commitment: &<<Self as VerifierChannel<E>>::Hasher as Hasher>::Digest,
     ) -> Result<Vec<Vec<E>>, VerifierError>;
 }
 
@@ -112,26 +111,25 @@ where
     H: ElementHasher<BaseField = E::BaseField>,
 {
     fn batch_size(&self) -> usize {
-        if self.batch_data.is_none() {
-            0
-        } else {
-            self.batch_data.as_ref().unwrap().batch_size
-        }
+        self.batch_size
     }
-    fn batch_data(&self) -> &BatchData<E, H> {
-        self.batch_data.as_ref().unwrap()
+    fn batch_layer_commitment(&self) -> &<<Self as VerifierChannel<E>>::Hasher as Hasher>::Digest {
+        self.batch_data
+            .as_ref()
+            .unwrap()
+            .batch_commitment
+            .as_ref()
+            .unwrap()
     }
     fn read_batch_layer_queries(
         &mut self,
         positions: &[usize],
-        commitment: &<<Self as VerifierChannel<E>>::Hasher as Hasher>::Digest,
     ) -> Result<Vec<Vec<E>>, VerifierError> {
-        let batch_data = self.batch_data.as_mut().unwrap();
+        let mut batch_data = self.batch_data.take().unwrap();
         let layer_proof = batch_data.batch_layer_proof.take().unwrap();
-        MerkleTree::<Self::Hasher>::verify_batch(commitment, positions, &layer_proof)
+        let commitment = batch_data.batch_commitment.take().unwrap();
+        MerkleTree::<Self::Hasher>::verify_batch(&commitment, positions, &layer_proof)
             .map_err(|_| VerifierError::LayerCommitmentMismatch)?;
-
-        // TODO: make sure layer queries hash into leaves of layer proof
         let layer_queries = batch_data.batch_layer_queries.take().unwrap();
         Ok(layer_queries)
     }

@@ -9,7 +9,7 @@ use winter_fri::FriOptions;
 pub mod proof;
 pub mod traits;
 use proof::FridaProof;
-use winter_utils::iter_mut;
+use winter_utils::{iter_mut, uninit_vector};
 
 use crate::{
     frida_const,
@@ -145,6 +145,8 @@ where
             (max_data_len * blowup_factor).next_power_of_two(),
             frida_const::MIN_DOMAIN_SIZE,
         );
+        let folding_factor = self.folding_factor();
+        let bucket_count = domain_size / folding_factor;
 
         if domain_size > frida_const::MAX_DOMAIN_SIZE {
             return Err(FridaError::DomainSizeTooBig(domain_size));
@@ -153,17 +155,17 @@ where
             return Err(FridaError::BadNumQueries(num_queries));
         }
 
-        let folding_factor = self.folding_factor();
-        let mut evaluations =
-            vec![vec![E::default(); batch_size * folding_factor]; domain_size / folding_factor];
+        let mut evaluations = vec![
+            unsafe { uninit_vector(batch_size * folding_factor) };
+            domain_size / folding_factor
+        ];
 
         for (i, data) in data_list.iter().enumerate() {
             build_evaluations_from_data::<E>(data, domain_size, blowup_factor)?
-                .iter()
+                .into_iter()
                 .enumerate()
                 .for_each(|(j, e)| {
-                    evaluations[j % (domain_size / folding_factor)]
-                        [batch_size * (j / (domain_size / folding_factor)) + i] = *e;
+                    evaluations[j % bucket_count][batch_size * (j / bucket_count) + i] = e;
                 });
         }
 
@@ -174,11 +176,7 @@ where
         };
 
         let len = evaluations.len();
-        let mut hashed_evaluations: Vec<H::Digest> = unsafe {
-            let mut vector = Vec::with_capacity(len);
-            vector.set_len(len);
-            vector
-        };
+        let mut hashed_evaluations: Vec<H::Digest> = unsafe { uninit_vector(len) };
         iter_mut!(hashed_evaluations, 1024)
             .zip(&evaluations)
             .for_each(|(r, v)| {
@@ -189,10 +187,11 @@ where
 
         channel.commit_fri_layer(*evaluation_tree.root());
         let zi = channel.draw_zi(batch_size)?;
-        let mut final_eval = vec![E::default(); domain_size];
-        final_eval.iter_mut().enumerate().for_each(|(i, f)| {
-            let start = batch_size * (i / (domain_size / folding_factor));
-            evaluations[i % (domain_size / folding_factor)][start..start + batch_size]
+        let mut final_eval = unsafe { uninit_vector(domain_size) };
+        iter_mut!(final_eval, 1024).enumerate().for_each(|(i, f)| {
+            *f = E::default();
+            let start = batch_size * (i / bucket_count);
+            evaluations[i % bucket_count][start..start + batch_size]
                 .iter()
                 .enumerate()
                 .for_each(|(j, e)| {

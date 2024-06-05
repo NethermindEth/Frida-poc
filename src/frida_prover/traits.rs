@@ -139,6 +139,7 @@ where
         let remainder = self.remainder_poly().0.clone();
 
         let mut batch_layer = None;
+
         if self.is_batch() {
             let positions = fold_positions(&positions, self.domain_size(), self.folding_factor());
             let proof = self
@@ -149,9 +150,9 @@ where
                 .prove_batch(&positions)
                 .expect("failed to generate a Merkle proof for FRI layer queries");
             let evaluations = &self.get_batch_layer().as_ref().unwrap().evaluations;
-            let mut queried_values: Vec<Vec<E>> = Vec::with_capacity(positions.len());
+            let mut queried_values: Vec<&Vec<E>> = Vec::with_capacity(positions.len());
             for &position in positions.iter() {
-                queried_values.push(evaluations[position].clone());
+                queried_values.push(&evaluations[position]);
             }
             batch_layer = Some(FridaProofBatchLayer::new(queried_values, proof));
         }

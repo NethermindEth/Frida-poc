@@ -173,7 +173,7 @@ impl FridaProof {
             "folding factor must be a power of two"
         );
         assert!(folding_factor > 1, "folding factor must be greater than 1");
-        assert!(batch_size > 1, "batch size must be greater than 1");
+        assert!(batch_size > 0, "batch size must be greater than 0");
 
         if let Some(layer) = self.batch_layer.take() {
             return Ok(layer.parse::<H, E>(domain_size, folding_factor, batch_size)?);
@@ -420,7 +420,7 @@ pub struct FridaProofBatchLayer {
 
 impl FridaProofBatchLayer {
     pub(crate) fn new<H: Hasher, E: FieldElement>(
-        query_values: Vec<Vec<E>>,
+        query_values: Vec<&Vec<E>>,
         merkle_proof: BatchMerkleProof<H>,
     ) -> Self {
         assert!(!query_values.is_empty(), "query values cannot be empty");
@@ -429,7 +429,7 @@ impl FridaProofBatchLayer {
 
         let mut value_bytes =
             Vec::with_capacity(E::ELEMENT_BYTES * query_values[0].len() * query_values.len());
-        let iter_over_elements = query_values.iter().flatten();
+        let iter_over_elements = query_values.into_iter().flatten();
         value_bytes.write_many(iter_over_elements);
 
         // concatenate all query values and all internal Merkle proof nodes into vectors of bytes;
