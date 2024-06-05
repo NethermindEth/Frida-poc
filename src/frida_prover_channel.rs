@@ -16,7 +16,7 @@ pub trait BaseProverChannel<E: FieldElement, HRoot: ElementHasher>:
     fn draw_query_positions(&mut self) -> Vec<usize>;
     fn layer_commitments(&self) -> &[HRoot::Digest];
     fn take_layer_commitments(self) -> Vec<HRoot::Digest>;
-    fn draw_zi(&mut self, count: usize) -> Result<Vec<E>, FridaError>;
+    fn draw_xi(&mut self, count: usize) -> Result<Vec<E>, FridaError>;
 }
 
 pub struct FridaProverChannel<E, HHst, HRandom, R>
@@ -106,9 +106,9 @@ where
         self.commitments
     }
 
-    fn draw_zi(&mut self, count: usize) -> Result<Vec<E>, FridaError> {
-        let zi = self.public_coin.draw_zi(count)?;
-        Ok(zi)
+    fn draw_xi(&mut self, count: usize) -> Result<Vec<E>, FridaError> {
+        let xi = self.public_coin.draw_xi(count)?;
+        Ok(xi)
     }
 }
 

@@ -23,7 +23,7 @@ where
     domain_size: usize,
     domain_generator: E::BaseField,
     layer_commitments: Vec<HRandom::Digest>,
-    zi: Option<Vec<E>>,
+    xi: Option<Vec<E>>,
     layer_alphas: Vec<E>,
     options: FriOptions,
     num_partitions: usize,
@@ -59,10 +59,10 @@ where
         // read layer commitments from the channel and use them to build a list of alphas
         let layer_commitments = channel.read_fri_layer_commitments();
 
-        let zi = if channel.batch_size() > 0 {
+        let xi = if channel.batch_size() > 0 {
             let batch_layer_root = channel.batch_layer_commitment();
             public_coin.reseed(&batch_layer_root.as_bytes());
-            Some(public_coin.draw_zi(channel.batch_size()).map_err(|_e| {
+            Some(public_coin.draw_xi(channel.batch_size()).map_err(|_e| {
                 VerifierError::RandomCoinError(RandomCoinError::FailedToDrawFieldElement(
                     channel.batch_size(),
                 ))
@@ -100,7 +100,7 @@ where
             domain_size,
             domain_generator,
             layer_commitments,
-            zi,
+            xi,
             layer_alphas,
             options,
             num_partitions,
@@ -288,7 +288,7 @@ where
             return Err(VerifierError::InvalidLayerFolding(0));
         }
 
-        let zi = self.zi.as_ref().unwrap();
+        let xi = self.xi.as_ref().unwrap();
         let mut next_eval = unsafe { uninit_vector(query_values.len() / batch_size) };
         iter_mut!(next_eval, 1024).enumerate().for_each(|(i, f)| {
             *f = E::default();
@@ -296,7 +296,7 @@ where
                 .iter()
                 .enumerate()
                 .for_each(|(j, e)| {
-                    *f += *e * zi[j];
+                    *f += *e * xi[j];
                 });
         });
         Ok(next_eval)

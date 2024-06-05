@@ -186,7 +186,7 @@ where
             MerkleTree::<H>::new(hashed_evaluations).expect("failed to construct FRI layer tree");
 
         channel.commit_fri_layer(*evaluation_tree.root());
-        let zi = channel.draw_zi(batch_size)?;
+        let xi = channel.draw_xi(batch_size)?;
         let mut final_eval = unsafe { uninit_vector(domain_size) };
         iter_mut!(final_eval, 1024).enumerate().for_each(|(i, f)| {
             *f = E::default();
@@ -195,7 +195,7 @@ where
                 .iter()
                 .enumerate()
                 .for_each(|(j, e)| {
-                    *f += *e * zi[j];
+                    *f += *e * xi[j];
                 });
         });
 
@@ -493,7 +493,7 @@ mod tests {
             FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
         >::new(prover.domain_size(), 1);
         channel.commit_fri_layer(commitment.roots[0]);
-        let zi = channel.draw_zi(batch_size).unwrap();
+        let xi = channel.draw_xi(batch_size).unwrap();
 
         // Sanity checks
         for i in 0..prover.domain_size() {
@@ -505,7 +505,7 @@ mod tests {
                     .take(batch_size)
                     .enumerate()
                     .fold(BaseElement::default(), |accum, (j, e)| {
-                        accum + zi[j] * *e
+                        accum + xi[j] * *e
                     })
             );
         }
@@ -552,7 +552,7 @@ mod tests {
                     .take(batch_size)
                     .enumerate()
                     .fold(BaseElement::default(), |accumulator, (j, val)| {
-                        accumulator + zi[j] * *val
+                        accumulator + xi[j] * *val
                     })
             )
         }
