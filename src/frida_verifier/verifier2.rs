@@ -1,10 +1,6 @@
-pub mod das;
-mod test;
-mod verifier2;
-
 use std::{marker::PhantomData, mem};
 
-use crate::frida_random::FridaRandomCoin;
+use crate::{frida_prover::Commitment, frida_random::FridaRandomCoin};
 use winter_crypto::{Digest, ElementHasher, RandomCoinError};
 use winter_fri::{
     folding::fold_positions, utils::map_positions_to_indexes, FriOptions, VerifierChannel,
@@ -12,13 +8,10 @@ use winter_fri::{
 };
 use winter_math::{polynom, FieldElement, StarkField};
 
-pub struct FridaVerifier<E, C, HHst, HRandom, R>
+pub struct FridaVerifier2<E, HRandom>
 where
     E: FieldElement,
-    C: VerifierChannel<E, Hasher = HRandom>,
-    HHst: ElementHasher<BaseField = E::BaseField>,
     HRandom: ElementHasher<BaseField = E::BaseField>,
-    R: FridaRandomCoin<BaseField = E::BaseField, HashHst = HHst, HashRandom = HRandom>,
 {
     max_poly_degree: usize,
     domain_size: usize,
@@ -27,60 +20,23 @@ where
     layer_alphas: Vec<E>,
     options: FriOptions,
     num_partitions: usize,
-    _channel: PhantomData<C>,
-    _public_coin: PhantomData<R>,
 }
 
-impl<E, C, HHst, HRandom, R> FridaVerifier<E, C, HHst, HRandom, R>
+impl<E, HRandom> FridaVerifier2<E, HRandom>
 where
     E: FieldElement,
-    C: VerifierChannel<E, Hasher = HRandom>,
-    HHst: ElementHasher<BaseField = E::BaseField>,
     HRandom: ElementHasher<BaseField = E::BaseField>,
-    R: FridaRandomCoin<
-        BaseField = E::BaseField,
-        FieldElement = E,
-        HashHst = HHst,
-        HashRandom = HRandom,
-    >,
 {
     pub fn new(
-        channel: &mut C,
-        public_coin: &mut R,
+        layer_commitments: Vec<HRandom::Digest>,
+        layer_alphas: Vec<E>,
+        num_partitions: usize,
         options: FriOptions,
         max_poly_degree: usize,
     ) -> Result<Self, VerifierError> {
         // infer evaluation domain info
         let domain_size = max_poly_degree.next_power_of_two() * options.blowup_factor();
         let domain_generator = E::BaseField::get_root_of_unity(domain_size.ilog2());
-
-        let num_partitions = channel.read_fri_num_partitions();
-
-        // read layer commitments from the channel and use them to build a list of alphas
-        let layer_commitments = channel.read_fri_layer_commitments();
-        let mut layer_alphas = Vec::with_capacity(layer_commitments.len());
-        let mut max_degree_plus_1 = max_poly_degree + 1;
-        for (depth, commitment) in layer_commitments.iter().enumerate() {
-            public_coin.reseed(&commitment.as_bytes());
-            let alpha = public_coin.draw().map_err(|_e| {
-                VerifierError::RandomCoinError(RandomCoinError::FailedToDrawFieldElement(1000))
-            })?;
-
-            layer_alphas.push(alpha);
-
-            // make sure the degree can be reduced by the folding factor at all layers
-            // but the remainder layer
-            if depth != layer_commitments.len() - 1
-                && max_degree_plus_1 % options.folding_factor() != 0
-            {
-                return Err(VerifierError::DegreeTruncation(
-                    max_degree_plus_1 - 1,
-                    options.folding_factor(),
-                    depth,
-                ));
-            }
-            max_degree_plus_1 /= options.folding_factor();
-        }
 
         Ok(Self {
             max_poly_degree,
@@ -90,8 +46,6 @@ where
             layer_alphas,
             options,
             num_partitions,
-            _channel: PhantomData,
-            _public_coin: PhantomData,
         })
     }
 
@@ -100,7 +54,7 @@ where
         &self.options
     }
 
-    pub fn check_auth(
+    pub fn check_auth<C: VerifierChannel<E, Hasher = HRandom>>(
         &self,
         channel: &mut C,
         evaluations: &[E],
@@ -116,17 +70,17 @@ where
         // static dispatch for folding factor parameter
         let folding_factor = self.options.folding_factor();
         match folding_factor {
-            2 => self.verify_generic::<2>(channel, evaluations, positions),
-            4 => self.verify_generic::<4>(channel, evaluations, positions),
-            8 => self.verify_generic::<8>(channel, evaluations, positions),
-            16 => self.verify_generic::<16>(channel, evaluations, positions),
+            2 => self.verify_generic::<2, C>(channel, evaluations, positions),
+            4 => self.verify_generic::<4, C>(channel, evaluations, positions),
+            8 => self.verify_generic::<8, C>(channel, evaluations, positions),
+            16 => self.verify_generic::<16, C>(channel, evaluations, positions),
             _ => Err(VerifierError::UnsupportedFoldingFactor(folding_factor)),
         }
     }
 
     /// This is the actual implementation of the verification procedure described above, but it
     /// also takes folding factor as a generic parameter N.
-    fn verify_generic<const N: usize>(
+    fn verify_generic<const N: usize, C: VerifierChannel<E, Hasher = HRandom>>(
         &self,
         channel: &mut C,
         evaluations: &[E],
