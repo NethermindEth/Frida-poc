@@ -124,7 +124,7 @@ where
         let encoded_element_count = encoded_data_element_count::<E>(data.len());
 
         let domain_size = usize::max(
-            (encoded_element_count * blowup_factor).next_power_of_two(),
+            encoded_element_count.next_power_of_two() * blowup_factor,
             frida_const::MIN_DOMAIN_SIZE,
         );
 

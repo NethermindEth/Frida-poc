@@ -149,7 +149,60 @@ where
 
 #[cfg(test)]
 mod test {
+    use winter_crypto::hashers::Blake3_256;
+    use winter_fri::FriOptions;
+    use winter_math::fields::f128::BaseElement;
+    use winter_rand_utils::rand_vector;
+
+    use crate::{
+        frida_data::encoded_data_element_count,
+        frida_prover::{traits::BaseFriProver, FridaProver},
+        frida_prover_channel::FridaProverChannel,
+        frida_random::{FridaRandom, FridaRandomCoin},
+        utils::{build_evaluations, build_prover_channel},
+    };
+
+    use super::FridaDasVerifier;
 
     #[test]
-    fn test_frida_das_verify() {}
+    fn test_frida_das_verify() {
+        let lde_blowup_e = 3;
+        let folding_factor_e = 1;
+        let max_remainder_degree = 7;
+        let lde_blowup = 1 << lde_blowup_e;
+        let folding_factor = 1 << folding_factor_e;
+
+        let options = FriOptions::new(lde_blowup, folding_factor, max_remainder_degree);
+
+        // instantiate the prover and generate the proof
+        let mut prover: FridaProver<
+            BaseElement,
+            BaseElement,
+            FridaProverChannel<
+                BaseElement,
+                Blake3_256<BaseElement>,
+                Blake3_256<BaseElement>,
+                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
+            >,
+            Blake3_256<BaseElement>,
+        > = FridaProver::new(options.clone());
+
+        let data = rand_vector::<u8>(200);
+        let (commitment, state) = prover.commit(data.clone(), 31).unwrap();
+
+        let mut public_coin =
+            FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[
+                123,
+            ]);
+
+        let encoded_element_count = encoded_data_element_count::<BaseElement>(data.len());
+
+        let verifier = FridaDasVerifier::new(
+            commitment,
+            &mut public_coin,
+            options,
+            encoded_element_count - 1,
+        )
+        .unwrap();
+    }
 }
