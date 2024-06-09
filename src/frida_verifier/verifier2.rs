@@ -1,7 +1,6 @@
-use std::{marker::PhantomData, mem};
+use std::mem;
 
-use crate::{frida_prover::Commitment, frida_random::FridaRandomCoin};
-use winter_crypto::{Digest, ElementHasher, RandomCoinError};
+use winter_crypto::ElementHasher;
 use winter_fri::{
     folding::fold_positions, utils::map_positions_to_indexes, FriOptions, VerifierChannel,
     VerifierError,
@@ -181,11 +180,6 @@ where
         }
 
         Ok(())
-    }
-
-    pub fn layer_alphas(&self) -> Vec<E> {
-        let alphas = &self.layer_alphas;
-        alphas.clone()
     }
 }
 

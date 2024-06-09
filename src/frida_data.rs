@@ -1,6 +1,6 @@
 use crate::frida_error::FridaError;
 use core::mem;
-use winter_math::{fft, polynom, FieldElement, StarkField};
+use winter_math::{fft, get_power_series, polynom, FieldElement, StarkField};
 
 pub fn encoded_data_element_count<E: FieldElement>(data_size: usize) -> usize {
     let element_size = E::ELEMENT_BYTES - 1;
@@ -69,6 +69,28 @@ pub fn build_evaluations_from_data<E: FieldElement>(
     fft::evaluate_poly(&mut symbols, &twiddles);
 
     Ok(symbols)
+}
+
+pub fn build_evaluations_from_data2<E: FieldElement>(
+    raw_data: &[u8],
+    domain_size: usize,
+    blowup_factor: usize,
+) -> Result<Vec<E>, FridaError> {
+    let ori_domain_size = domain_size / blowup_factor;
+    if !ori_domain_size.is_power_of_two() {
+        return Err(FridaError::BadDataLength());
+    }
+
+    let encoded_data = encode_data::<E>(raw_data, domain_size, blowup_factor);
+    let mut symbols: Vec<E> = data_to_field_element(&encoded_data, ori_domain_size)?;
+
+    let inv_twiddles = fft::get_inv_twiddles(ori_domain_size);
+    fft::interpolate_poly(&mut symbols, &inv_twiddles); // symbols are now coeffecients of the polynomial
+
+    let g_after_rs = E::from(E::BaseField::get_root_of_unity(domain_size.ilog2()));
+    let positions_after_rs: Vec<E> = get_power_series(g_after_rs, domain_size);
+    let final_evaluation = polynom::eval_many(&symbols, &positions_after_rs);
+    Ok(final_evaluation)
 }
 
 fn reconstruct_evaluations<E: FieldElement>(
@@ -161,7 +183,7 @@ pub fn recover_data_from_evaluations<E: FieldElement>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use winter_math::fields::f128::BaseElement;
+    use winter_math::{fields::f128::BaseElement, get_power_series};
 
     #[test]
     fn test_build_evaluations_from_data() {
@@ -219,6 +241,41 @@ mod tests {
             )
             .unwrap_err()
         );
+    }
+
+    #[test]
+    fn test_reed_solomon_encoding() {
+        // create evaluation of N size where N is 2-adicity for roots of unity, else pad with zeroes
+        // blowup factor
+
+        // interpolate evaluation
+        // evaluate polynomial to see if result is the same
+        // positions = (0..N).map(|i| g^i)
+        let blowup_factor = 8;
+
+        let mut example_evaluation = vec![
+            BaseElement::new(1),
+            BaseElement::new(2),
+            BaseElement::new(3),
+        ];
+        let next_power_of_two = example_evaluation.len().next_power_of_two();
+        while example_evaluation.len() < next_power_of_two {
+            example_evaluation.push(BaseElement::ZERO);
+        }
+
+        let g_before_rs = BaseElement::get_root_of_unity(next_power_of_two.ilog2());
+
+        let inv_twiddles = fft::get_inv_twiddles::<BaseElement>(next_power_of_two);
+        let mut coeffs: Vec<BaseElement> = example_evaluation.clone();
+        let positions_before_rs = get_power_series(g_before_rs, next_power_of_two);
+        fft::interpolate_poly(&mut coeffs, &inv_twiddles);
+        let before_evalution = polynom::eval_many(&coeffs, &positions_before_rs);
+
+        let domain_size = next_power_of_two * blowup_factor;
+        let g_after_rs = BaseElement::get_root_of_unity(domain_size.ilog2());
+        let positions_after_rs = get_power_series(g_after_rs, domain_size);
+        let final_evaluation = polynom::eval_many(&coeffs, &positions_after_rs);
+        println!("final_evaluation: {:?}", final_evaluation);
     }
 
     #[test]

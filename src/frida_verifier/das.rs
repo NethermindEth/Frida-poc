@@ -1,11 +1,16 @@
 use std::marker::PhantomData;
 
 use winter_crypto::{Digest, ElementHasher};
-use winter_fri::FriOptions;
-use winter_math::{FieldElement, StarkField};
+use winter_fri::{
+    folding::fold_positions, utils::map_positions_to_indexes, FriOptions, VerifierChannel,
+};
+use winter_math::FieldElement;
 
 use crate::{
-    frida_error::FridaError, frida_prover::Commitment, frida_random::FridaRandomCoin,
+    frida_error::FridaError,
+    frida_prover::{proof::FridaProof, Commitment},
+    frida_random::FridaRandomCoin,
+    frida_verifier::get_query_values,
     frida_verifier_channel::FridaVerifierChannel,
 };
 
@@ -20,7 +25,6 @@ where
 {
     max_poly_degree: usize,
     domain_size: usize,
-    domain_generator: E::BaseField,
     layer_commitments: Vec<HRandom::Digest>,
     layer_alphas: Vec<E>,
     options: FriOptions,
@@ -53,7 +57,6 @@ where
         // compute and store layered alpha
         // infer evaluation domain info
         let domain_size = max_poly_degree.next_power_of_two() * options.blowup_factor();
-        let domain_generator = E::BaseField::get_root_of_unity(domain_size.ilog2());
 
         let num_partitions = das_commitment.proof.num_partitions();
 
@@ -87,6 +90,15 @@ where
         // to get the openings for checking of folding for correctness
         let positions =
             public_coin.draw_query_positions(das_commitment.num_queries, domain_size)?;
+        println!("positions in verifier::new(): {:?}", positions);
+
+        let folded_positions = fold_positions(&positions, domain_size, options.folding_factor());
+
+        println!(
+            "folded_positions in verifier::new(): {:?}",
+            folded_positions
+        );
+        // let positions = vec![1];
 
         // verify commitment is correct by using CheckAuth
         // * to modify FridaVerifier to accept 'layer_commitments' and 'layered_alpha' in 'new', else it needs to recalculate
@@ -113,10 +125,56 @@ where
             .clone()
             .parse_layers::<HRandom, E>(domain_size.clone(), options.folding_factor())
             .map_err(|_e| FridaError::InvalidDASCommitment)?;
+
+        println!("queried_layers in verifier::new(): {:?}", queried_layers);
         let evaluations = queried_layers
             .first()
             .ok_or(FridaError::InvalidDASCommitment)?
             .to_owned();
+        println!("evaluations in verifier::new(): {:?}", evaluations);
+
+        // let query_values =
+        //         get_query_values::<E, N>(&layer_values, &positions, &folded_positions, domain_size);
+        // let actual_evaluation = get_query_values2(
+        //     queried_layers.clone(),
+        //     &positions,
+        //     &folded_positions,
+        //     domain_size,
+        // );
+
+        let mut verifier_channel = FridaVerifierChannel::<E, HRandom>::new(
+            das_commitment.proof.clone(),
+            layer_commitments.clone(),
+            domain_size.clone(),
+            options.folding_factor(),
+        )
+        .map_err(|_e| FridaError::InvalidDASCommitment)?;
+
+        //       // determine which evaluations were queried in the folded layer
+        //       let mut folded_positions =
+        //       fold_positions(&positions, domain_size, self.options.folding_factor());
+        //   // determine where these evaluations are in the commitment Merkle tree
+        let position_indexes = map_positions_to_indexes(
+            &folded_positions,
+            domain_size,
+            options.folding_factor(),
+            num_partitions,
+        );
+        let layer_commitment = layer_commitments[0];
+        let layer_values = verifier_channel
+            .read_layer_queries(&position_indexes, &layer_commitment)
+            .unwrap();
+        let query_values =
+            get_query_values::<E, 2>(&layer_values, &positions, &folded_positions, domain_size);
+        //   if evaluations != query_values {
+        //       return Err(VerifierError::InvalidLayerFolding(depth));
+        //   }
+        // verifier_channel.take_next_fri_layer_queries();
+
+        // let layer_values =
+        //     verifier_channel.read_layer_queries(&position_indexes, &layer_commitment)?;
+
+        println!("query_values in verifier::new(): {:?}", query_values);
 
         let mut verifier_channel = FridaVerifierChannel::<E, HRandom>::new(
             das_commitment.proof,
@@ -126,16 +184,15 @@ where
         )
         .map_err(|_e| FridaError::InvalidDASCommitment)?;
 
-        let _ = frida_verifier
-            .check_auth(&mut verifier_channel, &evaluations, &positions)
-            .map_err(|_e| FridaError::InvalidDASCommitment);
+        frida_verifier
+            .check_auth(&mut verifier_channel, &query_values, &positions)
+            .map_err(|_e| FridaError::InvalidDASCommitment)?;
 
         Ok(Self {
             max_poly_degree,
             domain_size,
             num_partitions,
             layer_commitments,
-            domain_generator,
             layer_alphas,
             options,
             _field_element: PhantomData,
@@ -144,9 +201,56 @@ where
         })
     }
 
-    pub fn verify(&self) {}
+    pub fn verify(
+        &self,
+        proof: FridaProof,
+        evaluations: &[E],
+        positions: &[usize],
+    ) -> Result<(), FridaError> {
+        let mut verifier_channel = FridaVerifierChannel::<E, HRandom>::new(
+            proof,
+            self.layer_commitments.clone(),
+            self.domain_size.clone(),
+            self.options.folding_factor(),
+        )
+        .map_err(|_e| FridaError::DeserializationError())?;
+
+        let frida_verifier = FridaVerifier2::<E, HRandom>::new(
+            self.layer_commitments.clone(),
+            self.layer_alphas.clone(),
+            self.num_partitions,
+            self.options.clone(),
+            self.max_poly_degree,
+        )
+        .map_err(|_e| FridaError::FailToVerify)?;
+
+        frida_verifier
+            .check_auth(&mut verifier_channel, &evaluations, &positions)
+            .map_err(|_e| FridaError::FailToVerify)
+    }
 }
 
+fn get_query_values2<E: FieldElement>(
+    values: Vec<Vec<E>>,
+    positions: &[usize],
+    folded_positions: &[usize],
+    domain_size: usize,
+) -> Vec<E> {
+    let length = values.first().unwrap().len();
+    let row_length = domain_size / length;
+
+    let mut result = Vec::new();
+    for position in positions {
+        let idx = folded_positions
+            .iter()
+            .position(|&v| v == position % row_length)
+            .unwrap();
+        let value = values[idx][position / row_length];
+        result.push(value);
+    }
+
+    result
+}
 #[cfg(test)]
 mod test {
     use winter_crypto::hashers::Blake3_256;
@@ -155,11 +259,10 @@ mod test {
     use winter_rand_utils::rand_vector;
 
     use crate::{
-        frida_data::encoded_data_element_count,
+        frida_data::{build_evaluations_from_data, encoded_data_element_count},
         frida_prover::{traits::BaseFriProver, FridaProver},
         frida_prover_channel::FridaProverChannel,
         frida_random::{FridaRandom, FridaRandomCoin},
-        utils::{build_evaluations, build_prover_channel},
     };
 
     use super::FridaDasVerifier;
@@ -188,7 +291,7 @@ mod test {
         > = FridaProver::new(options.clone());
 
         let data = rand_vector::<u8>(200);
-        let (commitment, state) = prover.commit(data.clone(), 31).unwrap();
+        let (commitment, _) = prover.commit(data.clone(), 31).unwrap();
 
         let mut public_coin =
             FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[
@@ -200,9 +303,25 @@ mod test {
         let verifier = FridaDasVerifier::new(
             commitment,
             &mut public_coin,
-            options,
+            options.clone(),
             encoded_element_count - 1,
         )
         .unwrap();
+
+        // query for a position
+        let open_position = [1];
+        let proof = prover.open(&open_position);
+
+        let domain_size = (encoded_element_count - 1).next_power_of_two() * options.blowup_factor();
+        let evaluations: Vec<BaseElement> =
+            build_evaluations_from_data(&data, domain_size, options.blowup_factor()).unwrap();
+
+        let queried_evaluations = open_position
+            .iter()
+            .map(|&p| evaluations[p])
+            .collect::<Vec<_>>();
+        let result = verifier.verify(proof, &queried_evaluations, &open_position);
+
+        assert!(result.is_ok(), "{:?}", result.err().unwrap());
     }
 }

@@ -136,6 +136,7 @@ where
         }
 
         let evaluations = build_evaluations_from_data(&data, domain_size, blowup_factor)?;
+        println!("evaluations in build_layers_from_data: {:?}", evaluations);
 
         if num_queries == 0 {
             let mut channel = C::new(domain_size, 1);
@@ -175,6 +176,7 @@ where
     fn query(&mut self) -> FridaProof {
         if let Some(channel) = &mut self.channel {
             let query_positions = channel.draw_query_positions();
+            // let query_positions = vec![1];
             self.build_proof(&query_positions)
         } else {
             panic!("Channel does not exist")
