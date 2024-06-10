@@ -105,36 +105,53 @@ where
                 num_partitions,
             );
             let layer_commitment = layer_commitments[0];
-            let layer_values = verifier_channel
-                .read_layer_queries(&position_indexes, &layer_commitment)
-                .unwrap();
 
             let folding_factor = options.folding_factor();
             match folding_factor {
-                2 => Ok(get_query_values::<E, 2>(
-                    &layer_values,
-                    &positions,
-                    &folded_positions,
-                    domain_size,
-                )),
-                4 => Ok(get_query_values::<E, 2>(
-                    &layer_values,
-                    &positions,
-                    &folded_positions,
-                    domain_size,
-                )),
-                8 => Ok(get_query_values::<E, 2>(
-                    &layer_values,
-                    &positions,
-                    &folded_positions,
-                    domain_size,
-                )),
-                16 => Ok(get_query_values::<E, 2>(
-                    &layer_values,
-                    &positions,
-                    &folded_positions,
-                    domain_size,
-                )),
+                2 => {
+                    let layer_values = verifier_channel
+                        .read_layer_queries(&position_indexes, &layer_commitment)
+                        .unwrap();
+                    Ok(get_query_values::<E, 2>(
+                        &layer_values,
+                        &positions,
+                        &folded_positions,
+                        domain_size,
+                    ))
+                }
+                4 => {
+                    let layer_values = verifier_channel
+                        .read_layer_queries(&position_indexes, &layer_commitment)
+                        .unwrap();
+                    Ok(get_query_values::<E, 4>(
+                        &layer_values,
+                        &positions,
+                        &folded_positions,
+                        domain_size,
+                    ))
+                }
+                8 => {
+                    let layer_values = verifier_channel
+                        .read_layer_queries(&position_indexes, &layer_commitment)
+                        .unwrap();
+                    Ok(get_query_values::<E, 8>(
+                        &layer_values,
+                        &positions,
+                        &folded_positions,
+                        domain_size,
+                    ))
+                }
+                16 => {
+                    let layer_values = verifier_channel
+                        .read_layer_queries(&position_indexes, &layer_commitment)
+                        .unwrap();
+                    Ok(get_query_values::<E, 16>(
+                        &layer_values,
+                        &positions,
+                        &folded_positions,
+                        domain_size,
+                    ))
+                }
                 _ => Err(FridaError::UnsupportedFoldingFactor(folding_factor)),
             }?
         };
