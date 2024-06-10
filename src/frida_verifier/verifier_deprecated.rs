@@ -9,6 +9,8 @@ use winter_fri::{
 };
 use winter_math::{polynom, FieldElement, StarkField};
 
+// TODO: remove this struct as it is being replaced by FridaVerifier
+#[deprecated]
 pub struct FridaVerifierDeprecated<E, C, HHst, HRandom, R>
 where
     E: FieldElement,
