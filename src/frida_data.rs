@@ -82,7 +82,7 @@ pub fn reed_solomon_encode_data<E: FieldElement>(
     let twiddles = fft::get_twiddles(domain_size);
     fft::evaluate_poly(&mut coeffs, &twiddles);
 
-    coeffs // coeffs is not the evaluation points
+    coeffs // coeffs is now the evaluation points
 }
 
 fn reconstruct_evaluations<E: FieldElement>(
