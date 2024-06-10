@@ -61,14 +61,6 @@ pub fn build_evaluations_from_data<E: FieldElement>(
     let mut symbols: Vec<E> = data_to_field_element(&encoded_data, domain_size)?;
     symbols.resize(domain_size / blowup_factor, E::default());
 
-    // let inv_twiddles = fft::get_inv_twiddles(symbols.len());
-    // fft::interpolate_poly(&mut symbols, &inv_twiddles);
-
-    // symbols.resize(domain_size, E::default());
-    // let twiddles = fft::get_twiddles(domain_size);
-    // fft::evaluate_poly(&mut symbols, &twiddles);
-
-    // Ok(symbols)
     Ok(reed_solomon_encode_data(
         &symbols,
         domain_size / blowup_factor,
