@@ -13,4 +13,5 @@ pub enum FridaError {
     FailToVerify,
     /// Polynomial degree at one of the FRI layers could not be divided evenly by the folding factor.
     DegreeTruncation(usize, usize, usize),
+    UnsupportedFoldingFactor(usize),
 }

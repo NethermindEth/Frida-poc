@@ -15,12 +15,7 @@ mod tests {
     use winter_math::fields::f128::BaseElement;
 
     use crate::{
-        frida_prover::{proof::FridaProof, traits::BaseFriProver, FridaProver},
-        frida_prover_channel::BaseProverChannel,
-        frida_random::{FridaRandom, FridaRandomCoin},
-        frida_verifier::FridaVerifier,
-        frida_verifier_channel::FridaVerifierChannel,
-        utils::{build_evaluations, build_prover_channel},
+        frida_prover::{proof::FridaProof, traits::BaseFriProver, FridaProver}, frida_prover_channel::BaseProverChannel, frida_random::{FridaRandom, FridaRandomCoin}, frida_verifier::verifier_deprecated::FridaVerifierDeprecated, frida_verifier_channel::FridaVerifierChannel, utils::{build_evaluations, build_prover_channel}
     };
 
     #[test]
@@ -46,7 +41,7 @@ mod tests {
             let mut coin = FridaRandom::<Blake3, Blake3, BaseElement>::new(&[123]);
 
             let verifier =
-                FridaVerifier::new(&mut channel, &mut coin, options.clone(), max_degree)?;
+                FridaVerifierDeprecated::new(&mut channel, &mut coin, options.clone(), max_degree)?;
 
             let queried_evaluations = positions
                 .iter()

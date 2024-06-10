@@ -66,15 +66,8 @@ where
         // rows of this matrix; we do this so that we could de-commit to N values with a single
         // Merkle authentication path.
         let transposed_evaluations = transpose_slice(evaluations);
-        println!(
-            "transposed_evaluations in build_layer: {:?}",
-            transposed_evaluations
-        );
         let hashed_evaluations = hash_values::<H, E, N>(&transposed_evaluations);
-        println!(
-            "hashed_evaluations in build_layer: {:?}",
-            hashed_evaluations
-        );
+
         let evaluation_tree =
             MerkleTree::<H>::new(hashed_evaluations).expect("failed to construct FRI layer tree");
         channel.commit_fri_layer(*evaluation_tree.root());
@@ -114,7 +107,6 @@ where
 
         let layers_len = self.num_layers();
         let mut layers = Vec::with_capacity(layers_len);
-        println!("positions in build_proof: {:?}", positions);
 
         if layers_len != 0 {
             let mut positions = positions.to_vec();
@@ -157,7 +149,6 @@ fn query_layer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher, const N
     positions: &[usize],
 ) -> FridaProofLayer {
     // build Merkle authentication paths for all query positions
-    println!("positions in query_layer: {:?}", positions);
     let proof = layer
         .tree
         .prove_batch(positions)
@@ -167,16 +158,10 @@ fn query_layer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher, const N
     // are stored in transposed form, a position refers to N evaluations which are committed
     // in a single leaf
     let evaluations: &[[E; N]] = group_slice_elements(&layer.evaluations);
-    println!("evaluations in query_layer: {:?}", evaluations);
-    println!(
-        "flattened evaluations in query_layer: {:?}",
-        flatten_vector_elements(evaluations.to_vec())
-    );
     let mut queried_values: Vec<[E; N]> = Vec::with_capacity(positions.len());
     for &position in positions.iter() {
         queried_values.push(evaluations[position]);
     }
 
-    println!("queried_values in query_layer: {:?}", queried_values);
     FridaProofLayer::new(queried_values, proof)
 }

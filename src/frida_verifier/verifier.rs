@@ -7,7 +7,9 @@ use winter_fri::{
 };
 use winter_math::{polynom, FieldElement, StarkField};
 
-pub struct FridaVerifier2<E, HRandom>
+use super::eval_horner;
+
+pub struct FridaVerifier<E, HRandom>
 where
     E: FieldElement,
     HRandom: ElementHasher<BaseField = E::BaseField>,
@@ -21,7 +23,7 @@ where
     num_partitions: usize,
 }
 
-impl<E, HRandom> FridaVerifier2<E, HRandom>
+impl<E, HRandom> FridaVerifier<E, HRandom>
 where
     E: FieldElement,
     HRandom: ElementHasher<BaseField = E::BaseField>,
@@ -202,14 +204,4 @@ fn get_query_values<E: FieldElement, const N: usize>(
     }
 
     result
-}
-
-// Evaluates a polynomial with coefficients in an extension field at a point in the base field.
-pub fn eval_horner<E>(p: &[E], x: E::BaseField) -> E
-where
-    E: FieldElement,
-{
-    p.iter()
-        .rev()
-        .fold(E::ZERO, |acc, &coeff| acc * E::from(x) + coeff)
 }
