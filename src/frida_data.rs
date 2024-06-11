@@ -61,14 +61,24 @@ pub fn build_evaluations_from_data<E: FieldElement>(
     let mut symbols: Vec<E> = data_to_field_element(&encoded_data, domain_size)?;
     symbols.resize(domain_size / blowup_factor, E::default());
 
-    let inv_twiddles = fft::get_inv_twiddles(symbols.len());
-    fft::interpolate_poly(&mut symbols, &inv_twiddles);
-
-    symbols.resize(domain_size, E::default());
-    let twiddles = fft::get_twiddles(domain_size);
-    fft::evaluate_poly(&mut symbols, &twiddles);
+    reed_solomon_encode_data(&mut symbols, domain_size / blowup_factor, blowup_factor);
 
     Ok(symbols)
+}
+
+pub fn reed_solomon_encode_data<E: FieldElement>(
+    symbols: &mut Vec<E>,
+    ori_domain_size: usize,
+    blowup_factor: usize,
+) {
+    let inv_twiddles = fft::get_inv_twiddles(ori_domain_size);
+    // let mut symbols = symbols.to_vec();
+    fft::interpolate_poly(symbols, &inv_twiddles);
+
+    let domain_size = ori_domain_size * blowup_factor;
+    symbols.resize(domain_size, E::default());
+    let twiddles = fft::get_twiddles(domain_size);
+    fft::evaluate_poly(symbols, &twiddles);
 }
 
 fn reconstruct_evaluations<E: FieldElement>(
@@ -219,6 +229,33 @@ mod tests {
             )
             .unwrap_err()
         );
+    }
+
+    #[test]
+    fn test_reed_solomon_encoding() {
+        let example_evaluation = vec![
+            BaseElement::new(1),
+            BaseElement::new(2),
+            BaseElement::new(3),
+            BaseElement::new(4),
+        ];
+
+        let mut reed_solomon_encoded_evaluation = example_evaluation.clone();
+
+        let blowup_factor = 8;
+        reed_solomon_encode_data(
+            &mut reed_solomon_encoded_evaluation,
+            example_evaluation.len(),
+            blowup_factor,
+        );
+
+        let positions = (0..4).map(|i| i * blowup_factor).collect::<Vec<_>>();
+        let rs_evaluations = positions
+            .iter()
+            .map(|p| reed_solomon_encoded_evaluation[*p])
+            .collect::<Vec<_>>();
+
+        assert_eq!(example_evaluation, rs_evaluations);
     }
 
     #[test]

@@ -67,6 +67,7 @@ where
         // Merkle authentication path.
         let transposed_evaluations = transpose_slice(evaluations);
         let hashed_evaluations = hash_values::<H, E, N>(&transposed_evaluations);
+
         let evaluation_tree =
             MerkleTree::<H>::new(hashed_evaluations).expect("failed to construct FRI layer tree");
         channel.commit_fri_layer(*evaluation_tree.root());

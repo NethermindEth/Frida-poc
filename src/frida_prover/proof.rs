@@ -130,14 +130,14 @@ impl FridaProof {
     /// * This proof is not consistent with the specified `domain_size` and `folding_factor`.
     /// * Any of the layers could not be parsed successfully.
     #[allow(clippy::type_complexity)]
-    pub fn parse_layers<H, E>(
+    pub fn parse_layers<HRandom, E>(
         self,
         mut domain_size: usize,
         folding_factor: usize,
-    ) -> Result<(Vec<Vec<E>>, Vec<BatchMerkleProof<H>>), DeserializationError>
+    ) -> Result<(Vec<Vec<E>>, Vec<BatchMerkleProof<HRandom>>), DeserializationError>
     where
         E: FieldElement,
-        H: ElementHasher<BaseField = E::BaseField>,
+        HRandom: ElementHasher<BaseField = E::BaseField>,
     {
         assert!(
             domain_size.is_power_of_two(),
