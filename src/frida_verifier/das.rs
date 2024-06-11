@@ -34,6 +34,7 @@ where
     _h_random: PhantomData<HRandom>,
 }
 
+// TODO: add a base trait for verifier similar to FridaProver
 impl<E, HHst, HRandom, R> FridaDasVerifier<E, HHst, HRandom, R>
 where
     E: FieldElement,
