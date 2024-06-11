@@ -286,6 +286,7 @@ where
         let commitment = Commitment {
             roots: channel.take_layer_commitments(),
             proof,
+            num_queries
         };
 
         Ok((commitment, data))

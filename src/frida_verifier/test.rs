@@ -5,6 +5,7 @@ mod test {
     use crate::frida_prover_channel::{BaseProverChannel, BaseProverChannelTest};
     use crate::frida_random::{FridaRandom, FridaRandomCoin};
     use crate::frida_verifier::verifier_deprecated::FridaVerifierDeprecated;
+    use crate::frida_verifier_channel::FridaVerifierChannel;
     use crate::utils::{build_evaluations, build_prover_channel};
     use winter_crypto::hashers::Blake3_256;
     use winter_fri::FriOptions;

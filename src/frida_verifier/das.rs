@@ -56,6 +56,7 @@ where
         public_coin: &mut R,
         options: FriOptions,
         max_poly_degree: usize,
+        batch_size: usize,
     ) -> Result<Self, FridaError> {
         let domain_size = max_poly_degree.next_power_of_two() * options.blowup_factor();
         let num_partitions = das_commitment.proof.num_partitions();
@@ -97,6 +98,7 @@ where
                 layer_commitments.clone(),
                 domain_size.clone(),
                 options.folding_factor(),
+                batch_size
             )
             .map_err(|_e| FridaError::InvalidDASCommitment)?;
             let position_indexes = map_positions_to_indexes(
@@ -162,6 +164,7 @@ where
             layer_commitments.clone(),
             domain_size.clone(),
             options.folding_factor(),
+            batch_size
         )
         .map_err(|_e| FridaError::InvalidDASCommitment)?;
 
@@ -196,12 +199,14 @@ where
         proof: FridaProof,
         evaluations: &[E],
         positions: &[usize],
+        batch_size: usize
     ) -> Result<(), FridaError> {
         let mut verifier_channel = FridaVerifierChannel::<E, HRandom>::new(
             proof,
             self.layer_commitments.clone(),
             self.domain_size.clone(),
             self.options.folding_factor(),
+            batch_size
         )
         .map_err(|_e| FridaError::DeserializationError())?;
 

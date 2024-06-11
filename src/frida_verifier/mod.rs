@@ -87,6 +87,7 @@ mod tests {
             &mut public_coin,
             options.clone(),
             encoded_element_count - 1,
+            0
         )
         .unwrap();
 
@@ -102,7 +103,7 @@ mod tests {
             .iter()
             .map(|&p| evaluations[p])
             .collect::<Vec<_>>();
-        let result = verifier.verify(proof, &queried_evaluations, &open_position);
+        let result = verifier.verify(proof, &queried_evaluations, &open_position, 0);
 
         assert!(result.is_ok(), "{:?}", result.err().unwrap());
     }
