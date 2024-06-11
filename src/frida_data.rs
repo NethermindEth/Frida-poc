@@ -61,28 +61,24 @@ pub fn build_evaluations_from_data<E: FieldElement>(
     let mut symbols: Vec<E> = data_to_field_element(&encoded_data, domain_size)?;
     symbols.resize(domain_size / blowup_factor, E::default());
 
-    Ok(reed_solomon_encode_data(
-        &symbols,
-        domain_size / blowup_factor,
-        blowup_factor,
-    ))
+    reed_solomon_encode_data(&mut symbols, domain_size / blowup_factor, blowup_factor);
+
+    Ok(symbols)
 }
 
 pub fn reed_solomon_encode_data<E: FieldElement>(
-    data: &[E],
+    symbols: &mut Vec<E>,
     ori_domain_size: usize,
     blowup_factor: usize,
-) -> Vec<E> {
+) {
     let inv_twiddles = fft::get_inv_twiddles(ori_domain_size);
-    let mut coeffs = data.to_vec();
-    fft::interpolate_poly(&mut coeffs, &inv_twiddles);
+    // let mut symbols = symbols.to_vec();
+    fft::interpolate_poly(symbols, &inv_twiddles);
 
     let domain_size = ori_domain_size * blowup_factor;
-    coeffs.resize(domain_size, E::default());
+    symbols.resize(domain_size, E::default());
     let twiddles = fft::get_twiddles(domain_size);
-    fft::evaluate_poly(&mut coeffs, &twiddles);
-
-    coeffs // coeffs is now the evaluation points
+    fft::evaluate_poly(symbols, &twiddles);
 }
 
 fn reconstruct_evaluations<E: FieldElement>(
@@ -244,9 +240,14 @@ mod tests {
             BaseElement::new(4),
         ];
 
+        let mut reed_solomon_encoded_evaluation = example_evaluation.clone();
+
         let blowup_factor = 8;
-        let reed_solomon_encoded_evaluation =
-            reed_solomon_encode_data(&example_evaluation, example_evaluation.len(), blowup_factor);
+        reed_solomon_encode_data(
+            &mut reed_solomon_encoded_evaluation,
+            example_evaluation.len(),
+            blowup_factor,
+        );
 
         let positions = (0..4).map(|i| i * blowup_factor).collect::<Vec<_>>();
         let rs_evaluations = positions
