@@ -15,7 +15,12 @@ mod tests {
     use winter_math::fields::f128::BaseElement;
 
     use crate::{
-        frida_prover::{proof::FridaProof, traits::BaseFriProver, FridaProver}, frida_prover_channel::BaseProverChannel, frida_random::{FridaRandom, FridaRandomCoin}, frida_verifier::verifier_deprecated::FridaVerifierDeprecated, frida_verifier_channel::FridaVerifierChannel, utils::{build_evaluations, build_prover_channel}
+        frida_prover::{proof::FridaProof, traits::BaseFriProver, FridaProver},
+        frida_prover_channel::BaseProverChannel,
+        frida_random::{FridaRandom, FridaRandomCoin},
+        frida_verifier::verifier_deprecated::FridaVerifierDeprecated,
+        frida_verifier_channel::FridaVerifierChannel,
+        utils::{build_evaluations, build_prover_channel},
     };
 
     #[test]

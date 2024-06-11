@@ -11,10 +11,10 @@ use crate::{
     frida_prover::{proof::FridaProof, Commitment},
     frida_random::FridaRandomCoin,
     frida_verifier::get_query_values,
-    frida_verifier_channel::FridaVerifierChannel,
+    frida_verifier_channel::{BaseVerifierChannel, FridaVerifierChannel},
 };
 
-use super::verifier::FridaVerifier;
+use super::{get_batch_query_values, verifier::FridaVerifier};
 
 pub struct FridaDasVerifier<E, HHst, HRandom, R>
 where
@@ -26,9 +26,11 @@ where
     max_poly_degree: usize,
     domain_size: usize,
     layer_commitments: Vec<HRandom::Digest>,
+    xi: Option<Vec<E>>,
     layer_alphas: Vec<E>,
     options: FriOptions,
     num_partitions: usize,
+    batch_size: usize,
     _public_coin: PhantomData<R>,
     _field_element: PhantomData<E>,
     _h_random: PhantomData<HRandom>,
@@ -56,16 +58,27 @@ where
         public_coin: &mut R,
         options: FriOptions,
         max_poly_degree: usize,
-        batch_size: usize,
     ) -> Result<Self, FridaError> {
         let domain_size = max_poly_degree.next_power_of_two() * options.blowup_factor();
         let num_partitions = das_commitment.proof.num_partitions();
 
         // read layer commitments from the channel and use them to build a list of alphas
+        let batch_size = das_commitment.batch_size;
         let layer_commitments = das_commitment.roots;
-        let mut layer_alphas = Vec::with_capacity(layer_commitments.len());
+        let mut alpha_commitments = &layer_commitments[..];
+
+        let xi = if batch_size > 0 {
+            alpha_commitments = &layer_commitments[1..];
+            let batch_layer_root = layer_commitments[0];
+            public_coin.reseed(&batch_layer_root.as_bytes());
+            Some(public_coin.draw_xi(batch_size)?)
+        } else {
+            None
+        };
+
+        let mut layer_alphas = Vec::with_capacity(alpha_commitments.len());
         let mut max_degree_plus_1 = max_poly_degree + 1;
-        for (depth, commitment) in layer_commitments.iter().enumerate() {
+        for (depth, commitment) in alpha_commitments.iter().enumerate() {
             public_coin.reseed(&commitment.as_bytes());
             let alpha = public_coin.draw().map_err(|_e| FridaError::DrawError())?;
 
@@ -73,7 +86,7 @@ where
 
             // make sure the degree can be reduced by the folding factor at all layers
             // but the remainder layer
-            if depth != layer_commitments.len() - 1
+            if depth != alpha_commitments.len() - 1
                 && max_degree_plus_1 % options.folding_factor() != 0
             {
                 return Err(FridaError::DegreeTruncation(
@@ -98,7 +111,7 @@ where
                 layer_commitments.clone(),
                 domain_size.clone(),
                 options.folding_factor(),
-                batch_size
+                batch_size,
             )
             .map_err(|_e| FridaError::InvalidDASCommitment)?;
             let position_indexes = map_positions_to_indexes(
@@ -111,50 +124,38 @@ where
 
             let folding_factor = options.folding_factor();
             match folding_factor {
-                2 => {
-                    let layer_values = verifier_channel
-                        .read_layer_queries(&position_indexes, &layer_commitment)
-                        .unwrap();
-                    Ok(get_query_values::<E, 2>(
-                        &layer_values,
-                        &positions,
-                        &folded_positions,
-                        domain_size,
-                    ))
-                }
-                4 => {
-                    let layer_values = verifier_channel
-                        .read_layer_queries(&position_indexes, &layer_commitment)
-                        .unwrap();
-                    Ok(get_query_values::<E, 4>(
-                        &layer_values,
-                        &positions,
-                        &folded_positions,
-                        domain_size,
-                    ))
-                }
-                8 => {
-                    let layer_values = verifier_channel
-                        .read_layer_queries(&position_indexes, &layer_commitment)
-                        .unwrap();
-                    Ok(get_query_values::<E, 8>(
-                        &layer_values,
-                        &positions,
-                        &folded_positions,
-                        domain_size,
-                    ))
-                }
-                16 => {
-                    let layer_values = verifier_channel
-                        .read_layer_queries(&position_indexes, &layer_commitment)
-                        .unwrap();
-                    Ok(get_query_values::<E, 16>(
-                        &layer_values,
-                        &positions,
-                        &folded_positions,
-                        domain_size,
-                    ))
-                }
+                2 => Ok(Self::get_query_values_from_commitment::<2>(
+                    &mut verifier_channel,
+                    layer_commitment,
+                    &positions,
+                    &position_indexes,
+                    &folded_positions,
+                    domain_size,
+                )),
+                4 => Ok(Self::get_query_values_from_commitment::<4>(
+                    &mut verifier_channel,
+                    layer_commitment,
+                    &positions,
+                    &position_indexes,
+                    &folded_positions,
+                    domain_size,
+                )),
+                8 => Ok(Self::get_query_values_from_commitment::<8>(
+                    &mut verifier_channel,
+                    layer_commitment,
+                    &positions,
+                    &position_indexes,
+                    &folded_positions,
+                    domain_size,
+                )),
+                16 => Ok(Self::get_query_values_from_commitment::<16>(
+                    &mut verifier_channel,
+                    layer_commitment,
+                    &positions,
+                    &position_indexes,
+                    &folded_positions,
+                    domain_size,
+                )),
                 _ => Err(FridaError::UnsupportedFoldingFactor(folding_factor)),
             }?
         };
@@ -164,12 +165,13 @@ where
             layer_commitments.clone(),
             domain_size.clone(),
             options.folding_factor(),
-            batch_size
+            batch_size,
         )
         .map_err(|_e| FridaError::InvalidDASCommitment)?;
 
         let frida_verifier = FridaVerifier::<E, HRandom>::new(
             layer_commitments.clone(),
+            xi.clone(),
             layer_alphas.clone(),
             num_partitions,
             options.clone(),
@@ -185,7 +187,9 @@ where
             max_poly_degree,
             domain_size,
             num_partitions,
+            batch_size,
             layer_commitments,
+            xi,
             layer_alphas,
             options,
             _field_element: PhantomData,
@@ -199,19 +203,19 @@ where
         proof: FridaProof,
         evaluations: &[E],
         positions: &[usize],
-        batch_size: usize
     ) -> Result<(), FridaError> {
         let mut verifier_channel = FridaVerifierChannel::<E, HRandom>::new(
             proof,
             self.layer_commitments.clone(),
             self.domain_size.clone(),
             self.options.folding_factor(),
-            batch_size
+            self.batch_size,
         )
         .map_err(|_e| FridaError::DeserializationError())?;
 
         let frida_verifier = FridaVerifier::<E, HRandom>::new(
             self.layer_commitments.clone(),
+            self.xi.clone(),
             self.layer_alphas.clone(),
             self.num_partitions,
             self.options.clone(),
@@ -222,5 +226,32 @@ where
         frida_verifier
             .check_auth(&mut verifier_channel, &evaluations, &positions)
             .map_err(|_e| FridaError::FailToVerify)
+    }
+
+    fn get_query_values_from_commitment<const N: usize>(
+        verifier_channel: &mut FridaVerifierChannel<E, HRandom>,
+        layer_commitment: HRandom::Digest,
+        positions: &[usize],
+        position_indexes: &[usize],
+        folded_positions: &[usize],
+        domain_size: usize,
+    ) -> Vec<E> {
+        if verifier_channel.batch_size() > 0 {
+            let layer_values = verifier_channel
+                .read_batch_layer_queries(&position_indexes)
+                .unwrap();
+            get_batch_query_values::<E, N>(
+                &layer_values,
+                &positions,
+                &folded_positions,
+                domain_size,
+                verifier_channel.batch_size(),
+            )
+        } else {
+            let layer_values = verifier_channel
+                .read_layer_queries(&position_indexes, &layer_commitment)
+                .unwrap();
+            get_query_values::<E, N>(&layer_values, &positions, &folded_positions, domain_size)
+        }
     }
 }

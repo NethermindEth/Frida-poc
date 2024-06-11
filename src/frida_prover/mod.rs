@@ -51,6 +51,7 @@ pub struct Commitment<HRoot: ElementHasher> {
     pub roots: Vec<HRoot::Digest>,
     pub proof: FridaProof,
     pub num_queries: usize,
+    pub batch_size: usize,
 }
 
 // PROVER IMPLEMENTATION
@@ -266,6 +267,7 @@ where
             roots: channel.take_layer_commitments(),
             proof,
             num_queries,
+            batch_size: 0,
         };
 
         Ok((commitment, data))
@@ -286,7 +288,8 @@ where
         let commitment = Commitment {
             roots: channel.take_layer_commitments(),
             proof,
-            num_queries
+            num_queries,
+            batch_size: data.len(),
         };
 
         Ok((commitment, data))
@@ -392,7 +395,8 @@ mod tests {
             Commitment {
                 roots: channel.layer_commitments().to_vec(),
                 proof: proof,
-                num_queries
+                num_queries,
+                batch_size: 0
             }
         );
         assert_eq!(state, data);
