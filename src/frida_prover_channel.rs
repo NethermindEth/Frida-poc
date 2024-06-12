@@ -4,7 +4,7 @@ use winter_crypto::{Digest, ElementHasher};
 use winter_fri::ProverChannel;
 use winter_math::FieldElement;
 
-use crate::{frida_const, frida_random::FridaRandomCoin};
+use crate::{frida_const, frida_error::FridaError, frida_random::FridaRandomCoin};
 
 #[cfg(test)]
 use crate::frida_random::FridaRandomCoinTest;
@@ -16,6 +16,7 @@ pub trait BaseProverChannel<E: FieldElement, HRoot: ElementHasher>:
     fn draw_query_positions(&mut self) -> Vec<usize>;
     fn layer_commitments(&self) -> &[HRoot::Digest];
     fn take_layer_commitments(self) -> Vec<HRoot::Digest>;
+    fn draw_xi(&mut self, count: usize) -> Result<Vec<E>, FridaError>;
 }
 
 pub struct FridaProverChannel<E, HHst, HRandom, R>
@@ -103,6 +104,11 @@ where
 
     fn take_layer_commitments(self) -> Vec<HRandom::Digest> {
         self.commitments
+    }
+
+    fn draw_xi(&mut self, count: usize) -> Result<Vec<E>, FridaError> {
+        let xi = self.public_coin.draw_xi(count)?;
+        Ok(xi)
     }
 }
 

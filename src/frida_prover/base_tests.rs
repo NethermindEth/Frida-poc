@@ -68,5 +68,7 @@ fn fri_trait_check(
         channel.layer_commitments(),
         frida_channel.layer_commitments()
     );
-    assert_eq!(proof.to_bytes(), frida_proof.to_bytes());
+
+    // Skipping 1 byte because frida_proof has batch layer information encoded
+    assert_eq!(proof.to_bytes(), frida_proof.to_bytes()[1..]);
 }

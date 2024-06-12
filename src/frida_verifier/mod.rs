@@ -26,6 +26,30 @@ fn get_query_values<E: FieldElement, const N: usize>(
     result
 }
 
+fn get_batch_query_values<E: FieldElement, const N: usize>(
+    values: &[Vec<E>],
+    positions: &[usize],
+    folded_positions: &[usize],
+    domain_size: usize,
+    batch_size: usize,
+) -> Vec<E> {
+    let row_length = domain_size / N;
+    let mut result = Vec::with_capacity(batch_size * positions.len());
+    for position in positions.iter() {
+        let idx = folded_positions
+            .iter()
+            .position(|&v| v == position % row_length)
+            .unwrap();
+        values[idx][(position / row_length) * batch_size
+            ..(position / row_length) * batch_size + batch_size]
+            .iter()
+            .for_each(|e| {
+                result.push(*e);
+            });
+    }
+    result
+}
+
 // Evaluates a polynomial with coefficients in an extension field at a point in the base field.
 pub fn eval_horner<E>(p: &[E], x: E::BaseField) -> E
 where

@@ -1,12 +1,21 @@
 #[cfg(test)]
 mod test {
-    use crate::frida_prover_channel::{BaseProverChannel, BaseProverChannelTest};
+    use crate::frida_prover::traits::BaseFriProver;
+    use crate::frida_prover::FridaProver;
+    use crate::frida_prover_channel::{
+        BaseProverChannel, BaseProverChannelTest, FridaProverChannel,
+    };
     use crate::frida_random::{FridaRandom, FridaRandomCoin};
+    use crate::frida_verifier::das::FridaDasVerifier;
+    use crate::frida_verifier::verifier::FridaVerifier;
     use crate::frida_verifier::verifier_deprecated::FridaVerifierDeprecated;
+    use crate::frida_verifier_channel::FridaVerifierChannel;
     use crate::utils::{build_evaluations, build_prover_channel};
     use winter_crypto::hashers::Blake3_256;
-    use winter_fri::{DefaultVerifierChannel, FriOptions, FriProver};
+    use winter_fri::folding::fold_positions;
+    use winter_fri::FriOptions;
     use winter_math::fields::f128::BaseElement;
+    use winter_rand_utils::{rand_value, rand_vector};
 
     type Blake3 = Blake3_256<BaseElement>;
 
@@ -28,7 +37,7 @@ mod test {
         let evaluations: Vec<_> = build_evaluations(trace_length, lde_blowup);
 
         // instantiate the prover and generate the proof
-        let mut prover = FriProver::new(options.clone());
+        let mut prover = FridaProver::new(options.clone());
         prover.build_layers(&mut channel, evaluations.clone());
         let prover_drawn_alpha = channel.drawn_alphas();
         let commitments = channel.layer_commitments().to_vec();
@@ -36,11 +45,12 @@ mod test {
         let positions = channel.draw_query_positions();
         let proof = prover.build_proof(&positions);
 
-        let mut channel = DefaultVerifierChannel::<BaseElement, Blake3>::new(
+        let mut channel = FridaVerifierChannel::<BaseElement, Blake3>::new(
             proof,
             commitments,
             domain_size,
             options.folding_factor(),
+            0,
         )
         .unwrap();
         let mut coin = FridaRandom::<Blake3, Blake3, BaseElement>::new(&[123]);
@@ -52,5 +62,68 @@ mod test {
         let layer_alpha = verifier.layer_alphas();
 
         assert_eq!(prover_drawn_alpha, layer_alpha[..layer_alpha.len() - 1])
+    }
+
+    #[test]
+    fn test_verify_batch() {
+        let batch_size = 10;
+        let mut data = vec![];
+        for _ in 0..batch_size {
+            data.push(rand_vector::<u8>(usize::min(
+                rand_value::<u64>() as usize,
+                128,
+            )));
+        }
+
+        let blowup_factor = 2;
+        let folding_factor = 2;
+        let options = FriOptions::new(blowup_factor, folding_factor, 0);
+        let mut prover: FridaProver<
+            BaseElement,
+            BaseElement,
+            FridaProverChannel<
+                BaseElement,
+                Blake3_256<BaseElement>,
+                Blake3_256<BaseElement>,
+                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
+            >,
+            Blake3_256<BaseElement>,
+        > = FridaProver::new(options.clone());
+
+        let (commitment, _) = prover.commit_batch(data, 1).unwrap();
+        let proof = commitment.proof.clone();
+
+        let mut coin =
+            FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[
+                123,
+            ]);
+
+        let verifier = FridaDasVerifier::new(
+            commitment,
+            &mut coin,
+            options.clone(),
+            prover.domain_size() / options.blowup_factor() - 1,
+        )
+        .unwrap();
+
+        let mut query_positions = coin.draw_query_positions(1, prover.domain_size()).unwrap();
+        query_positions.dedup();
+        query_positions = fold_positions(&query_positions, prover.domain_size(), folding_factor);
+
+        let mut evaluations = vec![];
+        for position in query_positions.iter() {
+            let bucket = position % (prover.domain_size() / folding_factor);
+            let start_index = (position / (prover.domain_size() / folding_factor)) * batch_size;
+            prover.get_batch_layer().as_ref().unwrap().evaluations[bucket]
+                [start_index..start_index + batch_size]
+                .iter()
+                .for_each(|e| {
+                    evaluations.push(*e);
+                });
+        }
+
+        verifier
+            .verify(proof, &evaluations, &query_positions)
+            .unwrap();
     }
 }
