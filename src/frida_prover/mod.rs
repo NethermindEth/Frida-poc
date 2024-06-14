@@ -1,5 +1,8 @@
 use core::marker::PhantomData;
 
+#[cfg(feature = "bench")]
+use std::time::{Duration, Instant};
+
 use traits::BaseFriProver;
 use winter_crypto::{ElementHasher, Hasher, MerkleTree};
 use winter_math::{FieldElement, StarkField};
@@ -55,6 +58,14 @@ pub struct Commitment<HRoot: ElementHasher> {
     pub proof: FridaProof,
     pub num_queries: usize,
     pub batch_size: usize,
+}
+
+#[cfg(feature = "bench")]
+pub mod bench {
+    use std::time::{Duration, Instant};
+    pub static mut timer: Option<Instant> = None;
+    pub static mut erasure_time: Option<Duration> = None;
+    pub static mut commit_time: Option<Duration> = None;
 }
 
 // PROVER IMPLEMENTATION
@@ -139,6 +150,11 @@ where
         data_list: &[Vec<u8>],
         num_queries: usize,
     ) -> Result<(), FridaError> {
+        #[cfg(feature = "bench")]
+        unsafe {
+            bench::timer = Some(Instant::now());
+        }
+
         let batch_size = data_list.len();
         let blowup_factor = self.options.blowup_factor();
         let mut max_data_len = 0;
@@ -172,6 +188,13 @@ where
                 .for_each(|(j, e)| {
                     evaluations[j % bucket_count][batch_size * (j / bucket_count) + i] = e;
                 });
+        }
+
+        #[cfg(feature = "bench")]
+        unsafe {
+            bench::erasure_time =
+                Some(bench::erasure_time.unwrap_or_default() + bench::timer.unwrap().elapsed());
+            bench::timer = Some(Instant::now());
         }
 
         let mut channel = if num_queries == 0 {
@@ -222,6 +245,11 @@ where
         data: &[u8],
         num_queries: usize,
     ) -> Result<(), FridaError> {
+        #[cfg(feature = "bench")]
+        unsafe {
+            bench::timer = Some(Instant::now());
+        }
+
         // TODO: Decide if we want to dynamically set domain_size like here
         let blowup_factor = self.options.blowup_factor();
         let encoded_element_count = encoded_data_element_count::<E>(data.len());
@@ -239,6 +267,13 @@ where
         }
 
         let evaluations = build_evaluations_from_data(&data, domain_size, blowup_factor)?;
+
+        #[cfg(feature = "bench")]
+        unsafe {
+            bench::erasure_time =
+                Some(bench::erasure_time.unwrap_or_default() + bench::timer.unwrap().elapsed());
+            bench::timer = Some(Instant::now());
+        }
 
         if num_queries == 0 {
             let mut channel = C::new(domain_size, 1);
@@ -264,6 +299,13 @@ where
         }
         self.build_layers_from_data(&data, num_queries)?;
         let proof = self.query();
+
+        #[cfg(feature = "bench")]
+        unsafe {
+            bench::commit_time =
+                Some(bench::commit_time.unwrap_or_default() + bench::timer.unwrap().elapsed());
+        }
+
         let channel = self.channel.take().unwrap();
 
         let commitment = Commitment {
@@ -286,6 +328,13 @@ where
         }
         self.build_layers_from_batched_data(&data, num_queries)?;
         let proof = self.query();
+
+        #[cfg(feature = "bench")]
+        unsafe {
+            bench::commit_time =
+                Some(bench::commit_time.unwrap_or_default() + bench::timer.unwrap().elapsed());
+        }
+
         let channel = self.channel.take().unwrap();
 
         let commitment = Commitment {

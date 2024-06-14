@@ -5,6 +5,10 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bin]]
+name = "benchmark"
+path = "bench/fri/main.rs"
+features = ["bench"]
 
 [features]
 concurrent = ["winter-crypto/concurrent", "winter-fri/concurrent", "winter-math/concurrent", "winter-utils/concurrent"]
