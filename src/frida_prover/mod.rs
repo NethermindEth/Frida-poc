@@ -9,6 +9,9 @@ use winter_fri::FriOptions;
 pub mod proof;
 pub mod traits;
 use proof::FridaProof;
+
+#[cfg(feature = "concurrent")]
+use winter_utils::iterators::*;
 use winter_utils::{iter_mut, uninit_vector};
 
 use crate::{
@@ -34,13 +37,13 @@ where
 
 pub struct FridaLayer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher> {
     tree: MerkleTree<H>,
-    evaluations: Vec<E>,
+    pub evaluations: Vec<E>,
     _base_field: PhantomData<B>,
 }
 
 pub struct BatchFridaLayer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher> {
     tree: MerkleTree<H>,
-    pub(crate) evaluations: Vec<Vec<E>>,
+    pub evaluations: Vec<Vec<E>>,
     _base_field: PhantomData<B>,
 }
 

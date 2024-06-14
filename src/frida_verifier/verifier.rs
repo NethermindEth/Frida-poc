@@ -5,6 +5,9 @@ use winter_fri::{
     folding::fold_positions, utils::map_positions_to_indexes, FriOptions, VerifierError,
 };
 use winter_math::{polynom, FieldElement, StarkField};
+
+#[cfg(feature = "concurrent")]
+use winter_utils::iterators::*;
 use winter_utils::{iter_mut, uninit_vector};
 
 use crate::frida_verifier_channel::BaseVerifierChannel;
@@ -232,7 +235,7 @@ where
         let mut next_eval = unsafe { uninit_vector(query_values.len() / batch_size) };
         iter_mut!(next_eval, 1024).enumerate().for_each(|(i, f)| {
             *f = E::default();
-            query_values[i..i + batch_size]
+            query_values[i * batch_size..i * batch_size + batch_size]
                 .iter()
                 .enumerate()
                 .for_each(|(j, e)| {
