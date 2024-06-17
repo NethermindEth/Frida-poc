@@ -22,3 +22,22 @@ pub fn run(data_path: &str, num_queries: usize, options: FriOptions) {
 
     println!("Data committed with commitment: {:?}", commitment);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_commit() {
+        let data_path = "data/data.bin";
+        assert!(
+            std::path::Path::new(data_path).exists(),
+            "Test data file does not exist"
+        );
+
+        let options = FriOptions::new(8, 2, 7);
+        run(data_path, 31, options);
+
+        // TODO: Check if the commitment file is correct
+    }
+}
