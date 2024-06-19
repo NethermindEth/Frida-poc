@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 
 #[cfg(feature = "bench")]
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use traits::BaseFriProver;
 use winter_crypto::{ElementHasher, Hasher, MerkleTree};
@@ -63,9 +63,9 @@ pub struct Commitment<HRoot: ElementHasher> {
 #[cfg(feature = "bench")]
 pub mod bench {
     use std::time::{Duration, Instant};
-    pub static mut timer: Option<Instant> = None;
-    pub static mut erasure_time: Option<Duration> = None;
-    pub static mut commit_time: Option<Duration> = None;
+    pub static mut TIMER: Option<Instant> = None;
+    pub static mut ERASURE_TIME: Option<Duration> = None;
+    pub static mut COMMIT_TIME: Option<Duration> = None;
 }
 
 // PROVER IMPLEMENTATION
@@ -152,7 +152,7 @@ where
     ) -> Result<(), FridaError> {
         #[cfg(feature = "bench")]
         unsafe {
-            bench::timer = Some(Instant::now());
+            bench::TIMER = Some(Instant::now());
         }
 
         let batch_size = data_list.len();
@@ -192,9 +192,9 @@ where
 
         #[cfg(feature = "bench")]
         unsafe {
-            bench::erasure_time =
-                Some(bench::erasure_time.unwrap_or_default() + bench::timer.unwrap().elapsed());
-            bench::timer = Some(Instant::now());
+            bench::ERASURE_TIME =
+                Some(bench::ERASURE_TIME.unwrap_or_default() + bench::TIMER.unwrap().elapsed());
+            bench::TIMER = Some(Instant::now());
         }
 
         let mut channel = if num_queries == 0 {
@@ -247,7 +247,7 @@ where
     ) -> Result<(), FridaError> {
         #[cfg(feature = "bench")]
         unsafe {
-            bench::timer = Some(Instant::now());
+            bench::TIMER = Some(Instant::now());
         }
 
         // TODO: Decide if we want to dynamically set domain_size like here
@@ -270,9 +270,9 @@ where
 
         #[cfg(feature = "bench")]
         unsafe {
-            bench::erasure_time =
-                Some(bench::erasure_time.unwrap_or_default() + bench::timer.unwrap().elapsed());
-            bench::timer = Some(Instant::now());
+            bench::ERASURE_TIME =
+                Some(bench::ERASURE_TIME.unwrap_or_default() + bench::TIMER.unwrap().elapsed());
+            bench::TIMER = Some(Instant::now());
         }
 
         if num_queries == 0 {
@@ -302,8 +302,8 @@ where
 
         #[cfg(feature = "bench")]
         unsafe {
-            bench::commit_time =
-                Some(bench::commit_time.unwrap_or_default() + bench::timer.unwrap().elapsed());
+            bench::COMMIT_TIME =
+                Some(bench::COMMIT_TIME.unwrap_or_default() + bench::TIMER.unwrap().elapsed());
         }
 
         let channel = self.channel.take().unwrap();
@@ -331,8 +331,8 @@ where
 
         #[cfg(feature = "bench")]
         unsafe {
-            bench::commit_time =
-                Some(bench::commit_time.unwrap_or_default() + bench::timer.unwrap().elapsed());
+            bench::COMMIT_TIME =
+                Some(bench::COMMIT_TIME.unwrap_or_default() + bench::TIMER.unwrap().elapsed());
         }
 
         let channel = self.channel.take().unwrap();

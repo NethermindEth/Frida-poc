@@ -6,7 +6,7 @@ use std::{
 
 use frida_poc::{
     frida_prover::{
-        bench::{commit_time, erasure_time},
+        bench::{COMMIT_TIME, ERASURE_TIME},
         traits::BaseFriProver,
         Commitment, FridaProver,
     },
@@ -22,7 +22,7 @@ use winter_math::{
 };
 use winter_rand_utils::rand_vector;
 
-const runs: u32 = 10;
+const RUNS: u32 = 10;
 
 fn data_sizes<E: StarkField>() -> Vec<usize> {
     vec![
@@ -103,7 +103,7 @@ fn run<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>() {
                 let mut commit_size = 0;
                 let mut proof_size = (0, 0, 0);
 
-                for _ in 0..runs {
+                for _ in 0..RUNS {
                     let (com, _) = prover.commit(data.clone(), *num_query).unwrap();
                     // +1 roots len, +1 batch_size, +1 num_query = +3 at the end
                     commit_size += com.proof.size() + com.roots.len() * 32 + 3;
@@ -165,24 +165,24 @@ fn run<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>() {
                     opt,
                     num_query,
                     data.len() / 1024,
-                    unsafe { erasure_time.unwrap() / runs },
-                    unsafe { commit_time.unwrap() / runs },
-                    prove_time.0 / runs,
-                    prove_time.1 / runs,
-                    prove_time.2 / runs,
-                    verify_time.0 / runs,
-                    verify_time.1 / runs,
-                    verify_time.2 / runs,
-                    verify_time.3 / runs,
-                    commit_size / runs as usize,
-                    proof_size.0 / runs as usize,
-                    proof_size.1 / runs as usize,
-                    proof_size.2 / runs as usize,
+                    unsafe { ERASURE_TIME.unwrap() / RUNS },
+                    unsafe { COMMIT_TIME.unwrap() / RUNS },
+                    prove_time.0 / RUNS,
+                    prove_time.1 / RUNS,
+                    prove_time.2 / RUNS,
+                    verify_time.0 / RUNS,
+                    verify_time.1 / RUNS,
+                    verify_time.2 / RUNS,
+                    verify_time.3 / RUNS,
+                    commit_size / RUNS as usize,
+                    proof_size.0 / RUNS as usize,
+                    proof_size.1 / RUNS as usize,
+                    proof_size.2 / RUNS as usize,
                 ));
 
                 unsafe {
-                    erasure_time = None;
-                    commit_time = None;
+                    ERASURE_TIME = None;
+                    COMMIT_TIME = None;
                 }
             }
         }
@@ -198,7 +198,7 @@ fn run_batched<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(batch_
         .into_iter()
         .map(|size| {
             let mut res = Vec::with_capacity(batch_size);
-            for i in 0..batch_size {
+            for _ in 0..batch_size {
                 res.push(rand_vector::<u8>(size));
             }
             res
@@ -241,7 +241,7 @@ fn run_batched<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(batch_
                 let mut commit_size = 0;
                 let mut proof_size = (0, 0, 0);
 
-                for _ in 0..runs {
+                for _ in 0..RUNS {
                     let (com, _) = prover.commit_batch(data.clone(), *num_query).unwrap();
 
                     // +1 roots len, +1 batch_size, +1 num_query = +3 at the end
@@ -307,24 +307,24 @@ fn run_batched<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(batch_
                     opt,
                     num_query,
                     data[0].len() / 1024 * batch_size,
-                    unsafe { erasure_time.unwrap() / runs },
-                    unsafe { commit_time.unwrap() / runs },
-                    prove_time.0 / runs,
-                    prove_time.1 / runs,
-                    prove_time.2 / runs,
-                    verify_time.0 / runs,
-                    verify_time.1 / runs,
-                    verify_time.2 / runs,
-                    verify_time.3 / runs,
-                    commit_size / runs as usize,
-                    proof_size.0 / runs as usize,
-                    proof_size.1 / runs as usize,
-                    proof_size.2 / runs as usize,
+                    unsafe { ERASURE_TIME.unwrap() / RUNS },
+                    unsafe { COMMIT_TIME.unwrap() / RUNS },
+                    prove_time.0 / RUNS,
+                    prove_time.1 / RUNS,
+                    prove_time.2 / RUNS,
+                    verify_time.0 / RUNS,
+                    verify_time.1 / RUNS,
+                    verify_time.2 / RUNS,
+                    verify_time.3 / RUNS,
+                    commit_size / RUNS as usize,
+                    proof_size.0 / RUNS as usize,
+                    proof_size.1 / RUNS as usize,
+                    proof_size.2 / RUNS as usize,
                 ));
 
                 unsafe {
-                    erasure_time = None;
-                    commit_time = None;
+                    ERASURE_TIME = None;
+                    COMMIT_TIME = None;
                 }
             }
         }
