@@ -1,4 +1,5 @@
 use frida_poc::{
+    frida_data::encoded_data_element_count,
     frida_prover::{traits::BaseFriProver, FridaProver},
     frida_prover_channel::FridaProverChannel,
     frida_random::FridaRandom,
@@ -16,11 +17,16 @@ pub fn run(data_path: &str, num_queries: usize, options: FriOptions) {
     let data = std::fs::read(data_path).expect("Unable to read data file");
     let mut prover: FridaProverType = FridaProver::new(options.clone());
 
-    let (commitment, _) = prover.commit(data.clone(), num_queries).unwrap();
+    let encoded_element_count =
+        encoded_data_element_count::<BaseElement>(data.len()).next_power_of_two();
 
+    let (commitment, _) = prover.commit(data.clone(), num_queries).unwrap();
     // TODO: Save commitment to file
 
-    println!("Data committed with commitment: {:?}", commitment);
+    println!(
+        "Data committed with commitment: {:?} and encoded element count: {}",
+        commitment, encoded_element_count
+    );
 }
 
 #[cfg(test)]

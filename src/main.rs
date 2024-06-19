@@ -20,7 +20,7 @@ enum Commands {
         /// Size of the data
         size: usize,
         /// Path to the data file
-        #[arg(long)]
+        #[arg(long, default_value = "data/data.bin")]
         file_path: Option<String>,
     },
     /// Commit data and generate a proof
@@ -84,7 +84,7 @@ fn main() {
 
     match &cli.command {
         Commands::GenerateData { size, file_path } => {
-            commands::generate_data::run(*size, file_path.as_deref().unwrap_or("data/data.bin"));
+            commands::generate_data::run(*size, file_path.as_deref().unwrap());
         }
         Commands::Commit {
             data,
