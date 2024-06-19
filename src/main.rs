@@ -31,7 +31,7 @@ enum Commands {
         num_queries: usize,
         /// Path to the FriOptions file (optional)
         #[arg(long)]
-        fri_options: Option<String>,
+        fri_options_path: Option<String>,
     },
     /// Open a proof for a given position
     Open {
@@ -41,7 +41,7 @@ enum Commands {
         position: usize,
         /// Path to the FriOptions file (optional)
         #[arg(long)]
-        fri_options: Option<String>,
+        fri_options_path: Option<String>,
     },
     /// Verify a proof
     Verify {
@@ -53,7 +53,7 @@ enum Commands {
         position: usize,
         /// Path to the FriOptions file (optional)
         #[arg(long)]
-        fri_options: Option<String>,
+        fri_options_path: Option<String>,
     },
 }
 
@@ -89,26 +89,26 @@ fn main() {
         Commands::Commit {
             data,
             num_queries,
-            fri_options,
+            fri_options_path,
         } => {
-            let options = load_fri_options(fri_options.as_ref());
+            let options = load_fri_options(fri_options_path.as_ref());
             commands::commit::run(data, *num_queries, options);
         }
         Commands::Open {
             proof,
             position,
-            fri_options,
+            fri_options_path,
         } => {
-            let options = load_fri_options(fri_options.as_ref());
+            let options = load_fri_options(fri_options_path.as_ref());
             commands::open::run(proof, *position, options);
         }
         Commands::Verify {
             proof,
             data,
             position,
-            fri_options,
+            fri_options_path,
         } => {
-            let options = load_fri_options(fri_options.as_ref());
+            let options = load_fri_options(fri_options_path.as_ref());
             commands::verify::run(proof, data, *position, options);
         }
     }
