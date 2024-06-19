@@ -90,7 +90,7 @@ mod test {
             Blake3_256<BaseElement>,
         > = FridaProver::new(options.clone());
 
-        let (commitment, _) = prover.commit_batch(data, 1).unwrap();
+        let (commitment, _) = prover.commit_batch(data, 4).unwrap();
         let proof = commitment.proof.clone();
 
         let mut coin =
@@ -106,7 +106,7 @@ mod test {
         )
         .unwrap();
 
-        let mut query_positions = coin.draw_query_positions(1, prover.domain_size()).unwrap();
+        let mut query_positions = coin.draw_query_positions(4, prover.domain_size()).unwrap();
         query_positions.dedup();
         query_positions = fold_positions(&query_positions, prover.domain_size(), folding_factor);
 
