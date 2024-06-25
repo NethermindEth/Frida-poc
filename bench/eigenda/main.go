@@ -56,6 +56,7 @@ func test(prover *prover.Prover, verifier *verifier.Verifier, data_size int, ope
 	rand.Read(data)
 	i := runs
 	convert_sum := time.Duration(0)
+	erasure_sum := time.Duration(0)
 	commit_sum := time.Duration(0)
 	proof_sum := time.Duration(0)
 	verify_sum := time.Duration(0)
@@ -117,9 +118,13 @@ func test(prover *prover.Prover, verifier *verifier.Verifier, data_size int, ope
 		}
 		commit_sum += time.Since(startTime)
 
-		// FRAMING AND PROOF GENERATION
+		// RS Encoding
 		startTime = time.Now()
 		polyEvals, _, err := enc.ExtendPolyEval(polyCoeffs)
+		erasure_sum += time.Since(startTime)
+
+		// FRAMING AND PROOF GENERATION
+		startTime = time.Now()
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -196,7 +201,7 @@ func test(prover *prover.Prover, verifier *verifier.Verifier, data_size int, ope
 		chunk_size += len(kzgFrames[0].Proof.Bytes())
 	}
 
-	logs = append(logs, fmt.Sprintf("%d, %d, %dKb, %v, %v, %v, %v, %d, %d", threads, operator_count, data_size/Kb, convert_sum/time.Duration(runs), commit_sum/time.Duration(runs), proof_sum/time.Duration(runs), verify_sum/time.Duration(runs), commit_size, chunk_size))
+	logs = append(logs, fmt.Sprintf("%d, %d, %dKb, %v, %v, %v, %v, %v, %d, %d", threads, operator_count, data_size/Kb, convert_sum/time.Duration(runs), erasure_sum/time.Duration(runs), commit_sum/time.Duration(runs), proof_sum/time.Duration(runs), verify_sum/time.Duration(runs), commit_size, chunk_size))
 }
 
 func main() {
@@ -251,7 +256,7 @@ func main() {
 		}
 	}
 
-	fmt.Println("Threads, Operators, Data Size, Conversion, Commitment, Proofs, Verification, Commitment Size, Chunk Size")
+	fmt.Println("Threads, Operators, Data Size, Conversion, Erasure Coding, Commitment, Proofs, Verification, Commitment Size, Chunk Size")
 	for _, l := range logs {
 		fmt.Println(l)
 	}

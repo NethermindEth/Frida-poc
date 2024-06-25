@@ -1,5 +1,8 @@
 use core::marker::PhantomData;
 
+#[cfg(feature = "bench")]
+use std::time::Instant;
+
 use traits::BaseFriProver;
 use winter_crypto::{ElementHasher, Hasher, MerkleTree};
 use winter_math::{FieldElement, StarkField};
@@ -9,6 +12,9 @@ use winter_fri::FriOptions;
 pub mod proof;
 pub mod traits;
 use proof::FridaProof;
+
+#[cfg(feature = "concurrent")]
+use winter_utils::iterators::*;
 use winter_utils::{iter_mut, uninit_vector};
 
 use crate::{
@@ -34,13 +40,13 @@ where
 
 pub struct FridaLayer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher> {
     tree: MerkleTree<H>,
-    evaluations: Vec<E>,
+    pub evaluations: Vec<E>,
     _base_field: PhantomData<B>,
 }
 
 pub struct BatchFridaLayer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher> {
     tree: MerkleTree<H>,
-    pub(crate) evaluations: Vec<Vec<E>>,
+    pub evaluations: Vec<Vec<E>>,
     _base_field: PhantomData<B>,
 }
 
@@ -52,6 +58,14 @@ pub struct Commitment<HRoot: ElementHasher> {
     pub proof: FridaProof,
     pub num_queries: usize,
     pub batch_size: usize,
+}
+
+#[cfg(feature = "bench")]
+pub mod bench {
+    use std::time::{Duration, Instant};
+    pub static mut TIMER: Option<Instant> = None;
+    pub static mut ERASURE_TIME: Option<Duration> = None;
+    pub static mut COMMIT_TIME: Option<Duration> = None;
 }
 
 // PROVER IMPLEMENTATION
@@ -136,6 +150,11 @@ where
         data_list: &[Vec<u8>],
         num_queries: usize,
     ) -> Result<(), FridaError> {
+        #[cfg(feature = "bench")]
+        unsafe {
+            bench::TIMER = Some(Instant::now());
+        }
+
         let batch_size = data_list.len();
         let blowup_factor = self.options.blowup_factor();
         let mut max_data_len = 0;
@@ -169,6 +188,13 @@ where
                 .for_each(|(j, e)| {
                     evaluations[j % bucket_count][batch_size * (j / bucket_count) + i] = e;
                 });
+        }
+
+        #[cfg(feature = "bench")]
+        unsafe {
+            bench::ERASURE_TIME =
+                Some(bench::ERASURE_TIME.unwrap_or_default() + bench::TIMER.unwrap().elapsed());
+            bench::TIMER = Some(Instant::now());
         }
 
         let mut channel = if num_queries == 0 {
@@ -219,6 +245,11 @@ where
         data: &[u8],
         num_queries: usize,
     ) -> Result<(), FridaError> {
+        #[cfg(feature = "bench")]
+        unsafe {
+            bench::TIMER = Some(Instant::now());
+        }
+
         // TODO: Decide if we want to dynamically set domain_size like here
         let blowup_factor = self.options.blowup_factor();
         let encoded_element_count = encoded_data_element_count::<E>(data.len());
@@ -236,6 +267,13 @@ where
         }
 
         let evaluations = build_evaluations_from_data(&data, domain_size, blowup_factor)?;
+
+        #[cfg(feature = "bench")]
+        unsafe {
+            bench::ERASURE_TIME =
+                Some(bench::ERASURE_TIME.unwrap_or_default() + bench::TIMER.unwrap().elapsed());
+            bench::TIMER = Some(Instant::now());
+        }
 
         if num_queries == 0 {
             let mut channel = C::new(domain_size, 1);
@@ -261,6 +299,13 @@ where
         }
         self.build_layers_from_data(&data, num_queries)?;
         let proof = self.query();
+
+        #[cfg(feature = "bench")]
+        unsafe {
+            bench::COMMIT_TIME =
+                Some(bench::COMMIT_TIME.unwrap_or_default() + bench::TIMER.unwrap().elapsed());
+        }
+
         let channel = self.channel.take().unwrap();
 
         let commitment = Commitment {
@@ -283,6 +328,13 @@ where
         }
         self.build_layers_from_batched_data(&data, num_queries)?;
         let proof = self.query();
+
+        #[cfg(feature = "bench")]
+        unsafe {
+            bench::COMMIT_TIME =
+                Some(bench::COMMIT_TIME.unwrap_or_default() + bench::TIMER.unwrap().elapsed());
+        }
+
         let channel = self.channel.take().unwrap();
 
         let commitment = Commitment {
