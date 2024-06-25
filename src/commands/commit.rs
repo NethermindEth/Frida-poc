@@ -1,3 +1,6 @@
+use serde_json;
+use std::fs;
+
 use frida_poc::{
     frida_data::encoded_data_element_count,
     frida_prover::{traits::BaseFriProver, FridaProver},
@@ -13,20 +16,29 @@ type FridaChannel =
     FridaProverChannel<BaseElement, Blake3, Blake3, FridaRandom<Blake3, Blake3, BaseElement>>;
 type FridaProverType = FridaProver<BaseElement, BaseElement, FridaChannel, Blake3>;
 
-pub fn run(data_path: &str, num_queries: usize, options: FriOptions) {
-    let data = std::fs::read(data_path).expect("Unable to read data file");
+pub fn run(
+    data_path: &str,
+    num_queries: usize,
+    options: FriOptions,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let data = fs::read(data_path)?;
     let mut prover: FridaProverType = FridaProver::new(options.clone());
 
     let encoded_element_count =
         encoded_data_element_count::<BaseElement>(data.len()).next_power_of_two();
 
     let (commitment, _) = prover.commit(data.clone(), num_queries).unwrap();
-    // TODO: Save commitment to file
 
-    println!(
-        "Data committed with commitment: {:?} and encoded element count: {}",
-        commitment, encoded_element_count
-    );
+    let commitment_json = serde_json::to_string(&commitment).unwrap();
+    fs::write("data/commitment.json", commitment_json)?;
+
+    println!("Commitment saved to data/commitment.json");
+
+    fs::write("data/count.txt", encoded_element_count.to_string())?;
+
+    println!("Encoded element count saved to data/count.txt");
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -42,7 +54,7 @@ mod tests {
         );
 
         let options = FriOptions::new(8, 2, 7);
-        run(data_path, 31, options);
+        run(data_path, 31, options).expect("Failed to commit data");
 
         // TODO: Check if the commitment file is correct
     }

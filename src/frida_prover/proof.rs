@@ -1,3 +1,4 @@
+use serde::Serialize;
 use winter_crypto::{BatchMerkleProof, ElementHasher, Hasher};
 use winter_math::FieldElement;
 use winter_utils::{
@@ -6,7 +7,7 @@ use winter_utils::{
 
 // FRI PROOF
 // ================================================================================================
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct FridaProof {
     batch_layer: Option<FridaProofBatchLayer>,
     layers: Vec<FridaProofLayer>,
@@ -270,7 +271,7 @@ impl Deserializable for FridaProof {
 
 // FRI PROOF LAYER
 // ================================================================================================
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct FridaProofLayer {
     values: Vec<u8>,
     paths: Vec<u8>,
@@ -412,7 +413,7 @@ impl Deserializable for FridaProofLayer {
 
 // FRI PROOF LAYER FOR BATCH LAYER
 // ================================================================================================
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct FridaProofBatchLayer {
     values: Vec<u8>,
     paths: Vec<u8>,

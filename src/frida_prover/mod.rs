@@ -3,8 +3,9 @@ use core::marker::PhantomData;
 #[cfg(feature = "bench")]
 use std::time::Instant;
 
+use serde::ser::{Serialize, SerializeStruct, Serializer};
 use traits::BaseFriProver;
-use winter_crypto::{ElementHasher, Hasher, MerkleTree};
+use winter_crypto::{Digest, ElementHasher, Hasher, MerkleTree};
 use winter_math::{FieldElement, StarkField};
 
 use winter_fri::FriOptions;
@@ -58,6 +59,20 @@ pub struct Commitment<HRoot: ElementHasher> {
     pub proof: FridaProof,
     pub num_queries: usize,
     pub batch_size: usize,
+}
+
+impl<HRoot: ElementHasher> Serialize for Commitment<HRoot> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut state = serializer.serialize_struct("Commitment", 4)?;
+        state.serialize_field(
+            "roots",
+            &self.roots.iter().map(|d| d.as_bytes()).collect::<Vec<_>>(),
+        )?;
+        state.serialize_field("proof", &self.proof)?;
+        state.serialize_field("num_queries", &self.num_queries)?;
+        state.serialize_field("batch_size", &self.batch_size)?;
+        state.end()
+    }
 }
 
 #[cfg(feature = "bench")]
