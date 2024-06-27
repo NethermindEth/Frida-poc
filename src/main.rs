@@ -1,9 +1,6 @@
 use clap::{Parser, Subcommand};
-use serde::Deserialize;
-use std::fs;
-use winter_fri::FriOptions;
-
-mod commands;
+use frida_poc::commands;
+use frida_poc::utils;
 
 #[derive(Parser)]
 #[command(name = "frida_cli")]
@@ -21,12 +18,16 @@ enum Commands {
         size: usize,
         /// Path to the data file
         #[arg(long, default_value = "data/data.bin")]
-        file_path: Option<String>,
+        file_path: String,
     },
     /// Commit data and generate a proof
     Commit {
         /// Path to the data file
+        #[arg(long, default_value = "data/data.bin")]
         data: String,
+        /// Path to the commitment file
+        #[arg(long, default_value = "data/commitment.bin")]
+        commitment_path: String,
         /// Number of queries to generate
         num_queries: usize,
         /// Path to the FriOptions file (optional)
@@ -57,49 +58,28 @@ enum Commands {
     },
 }
 
-#[derive(Deserialize)]
-struct FriOptionsConfig {
-    blowup_factor: usize,
-    folding_factor: usize,
-    max_remainder_degree: usize,
-}
-
-fn load_fri_options(file_path: Option<&String>) -> FriOptions {
-    if let Some(path) = file_path {
-        let file_content = fs::read_to_string(path).expect("Unable to read FriOptions file");
-        let config: FriOptionsConfig =
-            serde_json::from_str(&file_content).expect("Invalid FriOptions file format");
-        FriOptions::new(
-            config.blowup_factor,
-            config.folding_factor,
-            config.max_remainder_degree,
-        )
-    } else {
-        FriOptions::new(8, 2, 7)
-    }
-}
-
 fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
         Commands::GenerateData { size, file_path } => {
-            commands::generate_data::run(*size, file_path.as_deref().unwrap());
+            commands::generate_data::run(*size, file_path).unwrap();
         }
         Commands::Commit {
             data,
+            commitment_path,
             num_queries,
             fri_options_path,
         } => {
-            let options = load_fri_options(fri_options_path.as_ref());
-            commands::commit::run(data, *num_queries, options);
+            let options = utils::load_fri_options(fri_options_path.as_ref());
+            commands::commit::run(data, commitment_path, *num_queries, options).unwrap();
         }
         Commands::Open {
             proof,
             position,
             fri_options_path,
         } => {
-            let options = load_fri_options(fri_options_path.as_ref());
+            let options = utils::load_fri_options(fri_options_path.as_ref());
             commands::open::run(proof, *position, options);
         }
         Commands::Verify {
@@ -108,7 +88,7 @@ fn main() {
             position,
             fri_options_path,
         } => {
-            let options = load_fri_options(fri_options_path.as_ref());
+            let options = utils::load_fri_options(fri_options_path.as_ref());
             commands::verify::run(proof, data, *position, options);
         }
     }

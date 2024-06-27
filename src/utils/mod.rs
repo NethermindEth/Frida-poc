@@ -1,3 +1,6 @@
+use serde::Deserialize;
+use std::fs;
+
 use winter_crypto::hashers::Blake3_256;
 use winter_fri::FriOptions;
 use winter_math::{fft, fields::f128::BaseElement, FieldElement};
@@ -30,4 +33,26 @@ pub fn build_evaluations(trace_length: usize, lde_blowup: usize) -> Vec<BaseElem
 
     fft::evaluate_poly(&mut p, &twiddles);
     p
+}
+
+#[derive(Deserialize)]
+pub struct FriOptionsConfig {
+    blowup_factor: usize,
+    folding_factor: usize,
+    max_remainder_degree: usize,
+}
+
+pub fn load_fri_options(file_path: Option<&String>) -> FriOptions {
+    if let Some(path) = file_path {
+        let file_content = fs::read_to_string(path).expect("Unable to read FriOptions file");
+        let config: FriOptionsConfig =
+            serde_json::from_str(&file_content).expect("Invalid FriOptions file format");
+        FriOptions::new(
+            config.blowup_factor,
+            config.folding_factor,
+            config.max_remainder_degree,
+        )
+    } else {
+        FriOptions::new(8, 2, 7)
+    }
 }

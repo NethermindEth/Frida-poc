@@ -3,9 +3,8 @@ use core::marker::PhantomData;
 #[cfg(feature = "bench")]
 use std::time::Instant;
 
-use serde::ser::{Serialize, SerializeStruct, Serializer};
 use traits::BaseFriProver;
-use winter_crypto::{Digest, ElementHasher, Hasher, MerkleTree};
+use winter_crypto::{ElementHasher, Hasher, MerkleTree};
 use winter_math::{FieldElement, StarkField};
 
 use winter_fri::FriOptions;
@@ -16,7 +15,9 @@ use proof::FridaProof;
 
 #[cfg(feature = "concurrent")]
 use winter_utils::iterators::*;
-use winter_utils::{iter_mut, uninit_vector};
+use winter_utils::{
+    iter_mut, uninit_vector, ByteReader, Deserializable, DeserializationError, Serializable,
+};
 
 use crate::{
     frida_const,
@@ -61,17 +62,39 @@ pub struct Commitment<HRoot: ElementHasher> {
     pub batch_size: usize,
 }
 
-impl<HRoot: ElementHasher> Serialize for Commitment<HRoot> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut state = serializer.serialize_struct("Commitment", 4)?;
-        state.serialize_field(
-            "roots",
-            &self.roots.iter().map(|d| d.as_bytes()).collect::<Vec<_>>(),
-        )?;
-        state.serialize_field("proof", &self.proof)?;
-        state.serialize_field("num_queries", &self.num_queries)?;
-        state.serialize_field("batch_size", &self.batch_size)?;
-        state.end()
+impl<HRoot: ElementHasher> Serializable for Commitment<HRoot>
+where
+    HRoot::Digest: Serializable,
+{
+    fn write_into<W: winter_utils::ByteWriter>(&self, target: &mut W) {
+        self.roots.write_into(target);
+        self.proof.write_into(target);
+        self.num_queries.write_into(target);
+        self.batch_size.write_into(target);
+    }
+
+    fn get_size_hint(&self) -> usize {
+        // 24 + 104 + 8 + 8
+        136
+    }
+}
+
+impl<HRoot: ElementHasher> Deserializable for Commitment<HRoot>
+where
+    HRoot::Digest: Deserializable,
+{
+    fn read_from<R: ByteReader>(source: &mut R) -> Result<Self, DeserializationError> {
+        let roots = Vec::<HRoot::Digest>::read_from(source)?;
+        let proof = FridaProof::read_from(source)?;
+        let num_queries = usize::read_from(source)?;
+        let batch_size = usize::read_from(source)?;
+
+        Ok(Commitment {
+            roots,
+            proof,
+            num_queries,
+            batch_size,
+        })
     }
 }
 
