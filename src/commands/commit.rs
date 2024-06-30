@@ -1,18 +1,19 @@
-use std::fs;
-use std::fs::File;
-use std::io::BufWriter;
-use std::io::Write;
-
 use crate::{
     frida_data::encoded_data_element_count,
     frida_prover::{traits::BaseFriProver, Commitment, FridaProver},
     frida_prover_channel::FridaProverChannel,
     frida_random::FridaRandom,
 };
+use std::fs;
+use std::fs::File;
+use std::io::BufReader;
+use std::io::BufWriter;
+use std::io::Read;
+use std::io::Write;
 use winter_crypto::hashers::Blake3_256;
 use winter_fri::FriOptions;
 use winter_math::fields::f128::BaseElement;
-use winter_utils::Serializable;
+use winter_utils::{Deserializable, Serializable};
 
 type Blake3 = Blake3_256<BaseElement>;
 type FridaChannel =
@@ -78,13 +79,33 @@ fn write_commitment_to_file(
     Ok(())
 }
 
+/// Reads the commitment and encoded element count from a file.
+pub fn read_commitment_from_file(
+    file_path: &str,
+) -> Result<(usize, Commitment<Blake3>), Box<dyn std::error::Error>> {
+    // Open the file and create a buffered reader
+    let file = File::open(file_path)?;
+    let mut reader = BufReader::new(file);
+
+    // Read the encoded element count
+    let mut encoded_element_count_bytes = [0u8; 8];
+    reader.read_exact(&mut encoded_element_count_bytes)?;
+    let encoded_element_count = usize::from_le_bytes(encoded_element_count_bytes);
+
+    // Read the commitment bytes
+    let mut commitment_bytes = Vec::new();
+    reader.read_to_end(&mut commitment_bytes)?;
+
+    // Deserialize the commitment
+    let commitment = Commitment::<Blake3>::read_from_bytes(&commitment_bytes).unwrap();
+
+    Ok((encoded_element_count, commitment))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{commands::generate_data, utils::load_fri_options};
-    use std::io::BufReader;
-    use std::io::Read;
-    use winter_utils::Deserializable;
 
     #[test]
     fn test_commit() {
@@ -117,28 +138,5 @@ mod tests {
         // Cleanup
         fs::remove_file(data_path).unwrap();
         fs::remove_file(commitment_path).unwrap();
-    }
-
-    /// Reads the commitment and encoded element count from a file.
-    fn read_commitment_from_file(
-        file_path: &str,
-    ) -> Result<(usize, Commitment<Blake3>), Box<dyn std::error::Error>> {
-        // Open the file and create a buffered reader
-        let file = File::open(file_path)?;
-        let mut reader = BufReader::new(file);
-
-        // Read the encoded element count
-        let mut encoded_element_count_bytes = [0u8; 8];
-        reader.read_exact(&mut encoded_element_count_bytes)?;
-        let encoded_element_count = usize::from_le_bytes(encoded_element_count_bytes);
-
-        // Read the commitment bytes
-        let mut commitment_bytes = Vec::new();
-        reader.read_to_end(&mut commitment_bytes)?;
-
-        // Deserialize the commitment
-        let commitment = Commitment::<Blake3>::read_from_bytes(&commitment_bytes).unwrap();
-
-        Ok((encoded_element_count, commitment))
     }
 }
