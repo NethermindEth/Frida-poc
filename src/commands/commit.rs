@@ -1,6 +1,5 @@
 use crate::{
-    frida_data::encoded_data_element_count,
-    frida_prover::{traits::BaseFriProver, Commitment, FridaProver},
+    frida_prover::{Commitment, FridaProver},
     frida_prover_channel::FridaProverChannel,
     frida_random::FridaRandom,
 };
@@ -11,7 +10,6 @@ use std::io::BufWriter;
 use std::io::Read;
 use std::io::Write;
 use winter_crypto::hashers::Blake3_256;
-use winter_fri::FriOptions;
 use winter_math::fields::f128::BaseElement;
 use winter_utils::{Deserializable, Serializable};
 
@@ -22,75 +20,61 @@ type FridaProverType = FridaProver<BaseElement, BaseElement, FridaChannel, Blake
 
 /// Runs the commitment process, saving the commitment to a file.
 pub fn run(
+    prover: &mut FridaProverType,
+    num_queries: usize,
     data_path: &str,
     commitment_path: &str,
-    num_queries: usize,
-    options: FriOptions,
-) -> Result<(usize, Commitment<Blake3>), Box<dyn std::error::Error>> {
+) -> Result<Commitment<Blake3>, Box<dyn std::error::Error>> {
     // Create commitment from the data file
-    let (encoded_element_count, commitment) =
-        create_commitment_from_file(data_path, num_queries, options)?;
+    let commitment = create_commitment_from_file(prover, num_queries, data_path)?;
 
     // Write the commitment to the specified file
-    write_commitment_to_file(encoded_element_count, &commitment, commitment_path)?;
+    write_commitment_to_file(&commitment, commitment_path)?;
 
     // Print success message with detail
     println!("Commitment created and saved to {}", commitment_path);
 
-    Ok((encoded_element_count, commitment))
+    Ok(commitment)
 }
 
 /// Creates a commitment from the data file.
 fn create_commitment_from_file(
-    data_path: &str,
+    prover: &mut FridaProverType,
     num_queries: usize,
-    options: FriOptions,
-) -> Result<(usize, Commitment<Blake3>), Box<dyn std::error::Error>> {
+    data_path: &str,
+) -> Result<Commitment<Blake3>, Box<dyn std::error::Error>> {
     // Read data from the file
     let data = fs::read(data_path)?;
-    let mut prover: FridaProverType = FridaProver::new(options.clone());
-
-    // Calculate the encoded element count
-    let encoded_element_count =
-        encoded_data_element_count::<BaseElement>(data.len()).next_power_of_two();
 
     // Generate the commitment
     let (commitment, _) = prover.commit(data, num_queries).unwrap();
 
-    Ok((encoded_element_count, commitment))
+    Ok(commitment)
 }
 
-/// Writes the commitment and encoded element count to a file.
+/// Writes the commitment to a file.
 fn write_commitment_to_file(
-    encoded_element_count: usize,
     commitment: &Commitment<Blake3>,
     file_path: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Serialize the commitment and encoded element count
+    // Serialize the commitment
     let commitment_bytes = commitment.to_bytes();
-    let encoded_element_count_bytes = encoded_element_count.to_le_bytes();
 
     // Write to the file
     let mut file = File::create(file_path)?;
     let mut writer = BufWriter::new(&mut file);
-    writer.write_all(&encoded_element_count_bytes)?;
     writer.write_all(&commitment_bytes)?;
 
     Ok(())
 }
 
-/// Reads the commitment and encoded element count from a file.
+/// Reads the commitment from a file.
 pub fn read_commitment_from_file(
     file_path: &str,
-) -> Result<(usize, Commitment<Blake3>), Box<dyn std::error::Error>> {
+) -> Result<Commitment<Blake3>, Box<dyn std::error::Error>> {
     // Open the file and create a buffered reader
     let file = File::open(file_path)?;
     let mut reader = BufReader::new(file);
-
-    // Read the encoded element count
-    let mut encoded_element_count_bytes = [0u8; 8];
-    reader.read_exact(&mut encoded_element_count_bytes)?;
-    let encoded_element_count = usize::from_le_bytes(encoded_element_count_bytes);
 
     // Read the commitment bytes
     let mut commitment_bytes = Vec::new();
@@ -99,13 +83,15 @@ pub fn read_commitment_from_file(
     // Deserialize the commitment
     let commitment = Commitment::<Blake3>::read_from_bytes(&commitment_bytes).unwrap();
 
-    Ok((encoded_element_count, commitment))
+    Ok(commitment)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{commands::generate_data, utils::load_fri_options};
+    use crate::commands::generate_data;
+    use crate::frida_prover::traits::BaseFriProver;
+    use winter_fri::FriOptions;
 
     #[test]
     fn test_commit() {
@@ -116,21 +102,13 @@ mod tests {
             generate_data::run(200, data_path).unwrap();
         }
 
-        let options = load_fri_options(None);
+        let mut prover = FridaProverType::new(FriOptions::new(8, 2, 7));
 
         // Run the commitment process
-        let (encoded_element_count, commitment) =
-            run(data_path, commitment_path, 31, options).unwrap();
+        let commitment = run(&mut prover, 31, data_path, commitment_path).unwrap();
 
         // Read the commitment from the file
-        let (encoded_element_count_file, commitment_file) =
-            read_commitment_from_file(commitment_path).unwrap();
-
-        // Verify the encoded element count
-        assert_eq!(
-            encoded_element_count, encoded_element_count_file,
-            "Encoded element count does not match."
-        );
+        let commitment_file = read_commitment_from_file(commitment_path).unwrap();
 
         // Verify the commitment
         assert_eq!(commitment, commitment_file, "Commitment does not match.");

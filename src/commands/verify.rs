@@ -1,3 +1,1 @@
-use winter_fri::FriOptions;
-
-pub fn run(proof_path: &str, data_path: &str, position: usize, options: FriOptions) {}
+pub fn run(commitment_path: &str, positions_path: &str, evaluations_path: &str, proof_path: &str) {}
