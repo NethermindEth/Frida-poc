@@ -1,0 +1,265 @@
+[package]
+name = "da-runtime"
+version = "7.0.1"
+description = "Avail Runtime"
+license = "GNU GPLv3"
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+tokio = { version = "1.35", features = ["full"] }
+tokio-retry = "0.3"
+tokio-stream = { version = "0.1.14", features = ["sync"] }
+tokio-util = "0.7.10"
+tracing = "0.1.35"
+tracing-subscriber = { version = "0.3.15", features = ["json", "env-filter"] }
+rand = "0.8.5"
+
+# Internal
+avail-base = { workspace = true, default-features = false }
+avail-core = { workspace = true, default-features = false }
+kate = { workspace = true, default-features = false }
+kate-recovery = { version = "0.9", git = "https://github.com/availproject/avail-core", tag = "node-v2100-rc1" }
+
+da-control = { workspace = true, default-features = false }
+pallet-mandate = { workspace = true, default-features = false }
+pallet-vector = { workspace = true, default-features = false }
+
+# External 
+static_assertions.workspace = true
+log.workspace = true
+hex-literal.workspace = true
+rayon.workspace = true
+serde = { workspace = true, optional = true, features = ["derive"] }
+thiserror-no-std.workspace = true
+derive_more.workspace = true
+
+# Substrate
+scale-info = { workspace = true, default-features = false, features = [ "derive" ] }
+codec = { package = "parity-scale-codec", version = "3", default-features = false, features = [ "derive", ] }
+binary-merkle-tree = { workspace = true, default-features = false }
+
+## primitives
+sp-consensus-grandpa = { workspace = true, default-features = false }
+sp-io = { workspace = true, default-features = false }
+sp-core = { workspace = true, default-features = false }
+sp-api = { workspace = true, default-features = false }
+sp-runtime = { workspace = true, default-features = false }
+sp-runtime-interface = { workspace = true, default-features = false }
+sp-authority-discovery = { workspace = true, default-features = false }
+sp-version = { workspace = true, default-features = false }
+sp-consensus-babe = { workspace = true, default-features = false }
+sp-genesis-builder = { workspace = true, default-features = false }
+sp-staking = { workspace = true, default-features = false }
+sp-transaction-pool = { workspace = true, default-features = false }
+sp-offchain = { workspace = true, default-features = false }
+sp-session = { workspace = true, default-features = false }
+sp-block-builder = { workspace = true, default-features = false }
+sp-inherents = { workspace = true, default-features = false }
+sp-std = { workspace = true, default-features = false }
+sp-storage = { workspace = true, default-features = false }
+
+## frame dependencies
+frame-support = { workspace = true, default-features = false }
+frame-system = { workspace = true, default-features = false, features = ["serde"] }
+frame-executive = { workspace = true, default-features = false }
+frame-try-runtime = { workspace = true, default-features = false, optional = true }
+
+pallet-balances = { workspace = true, default-features = false }
+pallet-session = { workspace = true, default-features = false, features = ['historical'] }
+pallet-im-online = { workspace = true, default-features = false }
+pallet-grandpa = { workspace = true, default-features = false }
+pallet-timestamp = { workspace = true, default-features = false }
+pallet-transaction-payment = { workspace = true, default-features = false }
+pallet-staking = { workspace = true, default-features = false }
+pallet-staking-reward-curve = { workspace = true, default-features = false }
+pallet-staking-runtime-api = { workspace = true, default-features = false }
+pallet-utility = { workspace = true, default-features = false }
+pallet-scheduler = { workspace = true, default-features = false }
+pallet-babe = { workspace = true, default-features = false }
+pallet-authorship = { workspace = true, default-features = false }
+pallet-indices = { workspace = true, default-features = false }
+pallet-offences = { workspace = true, default-features = false }
+pallet-treasury = { workspace = true, default-features = false }
+pallet-collective = { workspace = true, default-features = false }
+pallet-sudo = { workspace = true, default-features = false }
+pallet-authority-discovery = { workspace = true, default-features = false }
+pallet-bags-list = { workspace = true, default-features = false }
+pallet-election-provider-multi-phase = { workspace = true, default-features = false }
+frame-election-provider-support = { workspace = true, default-features = false }
+pallet-mmr = { workspace = true, default-features = false }
+pallet-multisig = { workspace = true, default-features = false }
+pallet-preimage = { workspace = true, default-features = false }
+pallet-nomination-pools = { workspace = true, default-features = false }
+pallet-nomination-pools-runtime-api = { workspace = true, default-features = false }
+pallet-identity = { workspace = true, default-features = false }
+pallet-proxy = { workspace = true, default-features = false }
+pallet-tx-pause = { workspace = true, default-features = false }
+
+## RPCs
+pallet-transaction-payment-rpc-runtime-api = { workspace = true, default-features = false }
+frame-system-rpc-runtime-api = { workspace = true , default-features = false }
+
+## benchmarking
+frame-benchmarking = { workspace = true, default-features = false, optional = true }
+frame-system-benchmarking = { workspace = true, default-features = false, optional = true }
+
+[dev-dependencies]
+test-case.workspace = true
+hex.workspace = true
+hex-literal.workspace = true
+serde_json.workspace = true
+sp-keyring = { workspace = true, default-features = false }
+env_logger.workspace = true
+pallet-staking-reward-fn = { workspace = true, default-features = false }
+iai.workspace = true
+iai-callgrind.workspace = true
+criterion.workspace = true
+# codspeed-criterion-compat.workspace = true
+divan.workspace = true
+
+[features]
+default = [ "std" ]
+with-tracing = [ "frame-executive/with-tracing" ]
+fast-runtime = []
+testing-environment = [ "frame-system/testing-environment" ]
+# codspeed = []
+header_commitment_corruption = [ "frame-system/header_commitment_corruption" ]
+std = [
+	"avail-base/std",
+	"avail-core/std",
+	"codec/std",
+	"da-control/std",
+	"frame-benchmarking?/std",
+	"frame-election-provider-support/std",
+	"frame-executive/std",
+	"frame-support/std",
+	"frame-system-benchmarking?/std",
+	"frame-system-rpc-runtime-api/std",
+	"frame-system/std",
+	"frame-try-runtime?/std",
+	"kate/std",
+	"log/std",
+	"pallet-authority-discovery/std",
+	"pallet-authorship/std",
+	"pallet-babe/std",
+	"pallet-bags-list/std",
+	"pallet-balances/std",
+	"pallet-collective/std",
+	"pallet-election-provider-multi-phase/std",
+	"pallet-grandpa/std",
+	"pallet-identity/std",
+	"pallet-im-online/std",
+	"pallet-indices/std",
+	"pallet-mandate/std",
+	"pallet-mmr/std",
+	"pallet-multisig/std",
+	"pallet-nomination-pools-runtime-api/std",
+	"pallet-nomination-pools/std",
+	"pallet-offences/std",
+	"pallet-preimage/std",
+	"pallet-proxy/std",
+	"pallet-scheduler/std",
+	"pallet-session/std",
+	"pallet-staking/std",
+	"pallet-staking-runtime-api/std",
+	"pallet-sudo/std",
+	"pallet-timestamp/std",
+	"pallet-transaction-payment-rpc-runtime-api/std",
+	"pallet-transaction-payment/std",
+	"pallet-treasury/std",
+	"pallet-tx-pause/std",
+	"pallet-utility/std",
+	"pallet-vector/std",
+	"scale-info/std",
+	"serde",
+	"sp-api/std",
+	"sp-authority-discovery/std",
+	"sp-block-builder/std",
+	"sp-consensus-babe/std",
+	"sp-consensus-grandpa/std",
+	"sp-core/std",
+	"sp-genesis-builder/std",
+	"sp-inherents/std",
+	"sp-io/std",
+	"sp-offchain/std",
+	"sp-runtime-interface/std",
+	"sp-runtime/std",
+	"sp-session/std",
+	"sp-staking/std",
+	"sp-std/std",
+	"sp-transaction-pool/std",
+	"sp-version/std",
+]
+
+runtime-benchmarks = [
+	"da-control/runtime-benchmarks",
+	"frame-benchmarking/runtime-benchmarks",
+	"frame-support/runtime-benchmarks",
+	"frame-system-benchmarking/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
+	"pallet-babe/runtime-benchmarks",
+	"pallet-bags-list/runtime-benchmarks",
+	"pallet-balances/runtime-benchmarks",
+	"pallet-collective/runtime-benchmarks",
+	"pallet-election-provider-multi-phase/runtime-benchmarks",
+	"pallet-grandpa/runtime-benchmarks",
+	"pallet-identity/runtime-benchmarks",
+	"pallet-im-online/runtime-benchmarks",
+	"pallet-indices/runtime-benchmarks",
+	"pallet-mandate/runtime-benchmarks",
+	"pallet-mmr/runtime-benchmarks",
+	"pallet-multisig/runtime-benchmarks",
+	"pallet-preimage/runtime-benchmarks",
+	"pallet-proxy/runtime-benchmarks",
+	"pallet-scheduler/runtime-benchmarks",
+	"pallet-staking/runtime-benchmarks",
+	"pallet-timestamp/runtime-benchmarks",
+	"pallet-treasury/runtime-benchmarks",
+	"pallet-tx-pause/runtime-benchmarks",
+	"pallet-utility/runtime-benchmarks",
+	"pallet-vector/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
+]
+
+try-runtime = [
+	"avail-core/try-runtime",
+	"da-control/try-runtime",
+	"frame-executive/try-runtime",
+	"frame-support/try-runtime",
+	"frame-system/try-runtime",
+	"frame-try-runtime/try-runtime",
+	"pallet-authority-discovery/try-runtime",
+	"pallet-authorship/try-runtime",
+	"pallet-babe/try-runtime",
+	"pallet-bags-list/try-runtime",
+	"pallet-balances/try-runtime",
+	"pallet-collective/try-runtime",
+	"pallet-election-provider-multi-phase/try-runtime",
+	"pallet-grandpa/try-runtime",
+	"pallet-identity/try-runtime",
+	"pallet-im-online/try-runtime",
+	"pallet-indices/try-runtime",
+	"pallet-mandate/try-runtime",
+	"pallet-mmr/try-runtime",
+	"pallet-multisig/try-runtime",
+	"pallet-nomination-pools/try-runtime",
+	"pallet-offences/try-runtime",
+	"pallet-preimage/try-runtime",
+	"pallet-proxy/try-runtime",
+	"pallet-scheduler/try-runtime",
+	"pallet-session/try-runtime",
+	"pallet-staking/try-runtime",
+	"pallet-sudo/try-runtime",
+	"pallet-timestamp/try-runtime",
+	"pallet-transaction-payment/try-runtime",
+	"pallet-treasury/try-runtime",
+	"pallet-tx-pause/try-runtime",
+	"pallet-utility/try-runtime",
+	"pallet-vector/try-runtime",
+	"sp-runtime/try-runtime",
+]
