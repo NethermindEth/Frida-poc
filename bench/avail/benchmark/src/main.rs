@@ -2,27 +2,25 @@ use avail_core::{
     kate_commitment as kc, AppExtrinsic, BlockLengthColumns, BlockLengthRows, BLOCK_CHUNK_SIZE,
     DA_DISPATCH_RATIO,
 };
-use da_runtime::kate::GRawScalar;
 use frame_system::{limits::BlockLength, native::hosted_header_builder::MIN_WIDTH};
-use kate_recovery::matrix::{Dimensions, Position};
+use kate_recovery::{matrix::{Dimensions, Position}, data::Cell};
 use rand::{thread_rng, RngCore};
 use sp_core::H256;
 use sp_runtime::SaturatedConversion;
-
 use kate::{
     couscous::multiproof_params,
     gridgen::{AsBytes, EvaluationGrid, PolynomialGrid},
     pmp::m1_blst::M1NoPrecomp,
     PublicParameters,
 };
-use kate_recovery::data::Cell;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::{
     num::NonZeroU16,
     sync::Arc,
     time::{Duration, Instant},
+    sync::OnceLock,
+    vec::Vec
 };
-use std::{sync::OnceLock, vec::Vec};
 use tokio::task::JoinSet;
 use tracing::Instrument;
 
@@ -63,11 +61,10 @@ fn get_proof(grid: &EvaluationGrid, poly: &PolynomialGrid, cell_count: u32) -> V
         .into_par_iter()
         .map(|row| -> Cell {
             let col = row;
-            let data: GRawScalar = grid
+            let data = grid
                 .get(row as usize, col as usize)
                 .unwrap()
                 .to_bytes()
-                .map(GRawScalar::from)
                 .unwrap();
 
             let proof = poly
@@ -85,7 +82,10 @@ fn get_proof(grid: &EvaluationGrid, poly: &PolynomialGrid, cell_count: u32) -> V
                 proof_bytes[j] = b;
                 j += 1;
             }
-            data.to_big_endian(&mut proof_bytes[j..]);
+            for b in data {
+                proof_bytes[j] = b;
+                j += 1;
+            }
 
             Cell {
                 position: Position {

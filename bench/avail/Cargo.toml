@@ -1,15 +1,11 @@
 [workspace]
 resolver = "2"
 members = [
-	"runtime",
+	"benchmark",
 ]
 
 [workspace.package]
-authors = ["Avail Project <info@availproject.org>"]
 edition = "2021"
-license = "GNU GPLv3"
-homepage = "https://www.availproject.org/"
-
 
 [workspace.dependencies]
 avail-core = { git = "https://github.com/availproject/avail-core", tag = "node-v2230-rc2", default-features = false, features = [ "runtime"] }

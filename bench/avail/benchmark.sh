@@ -6,4 +6,4 @@ mkdir -p bench/avail/logs
 echo "Running..."
 cd "bench/avail"
 cargo build --release &> /dev/null
-./target/release/da-runtime > logs/log.txt
+./target/release/benchmark > logs/log.txt

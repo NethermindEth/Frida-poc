@@ -1,11 +1,6 @@
 [package]
-name = "da-runtime"
-version = "7.0.1"
-description = "Avail Runtime"
-license = "GNU GPLv3"
-authors.workspace = true
+name = "benchmark"
 edition.workspace = true
-homepage.workspace = true
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
