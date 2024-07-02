@@ -3,23 +3,26 @@ use avail_core::{
     DA_DISPATCH_RATIO,
 };
 use frame_system::{limits::BlockLength, native::hosted_header_builder::MIN_WIDTH};
-use kate_recovery::{matrix::{Dimensions, Position}, data::Cell};
-use rand::{thread_rng, RngCore};
-use sp_core::H256;
-use sp_runtime::SaturatedConversion;
 use kate::{
     couscous::multiproof_params,
     gridgen::{AsBytes, EvaluationGrid, PolynomialGrid},
     pmp::m1_blst::M1NoPrecomp,
     PublicParameters,
 };
+use kate_recovery::{
+    data::Cell,
+    matrix::{Dimensions, Position},
+};
+use rand::{thread_rng, RngCore};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use sp_core::H256;
+use sp_runtime::SaturatedConversion;
 use std::{
     num::NonZeroU16,
     sync::Arc,
-    time::{Duration, Instant},
     sync::OnceLock,
-    vec::Vec
+    time::{Duration, Instant},
+    vec::Vec,
 };
 use tokio::task::JoinSet;
 use tracing::Instrument;
