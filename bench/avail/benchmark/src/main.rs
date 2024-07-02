@@ -80,15 +80,9 @@ fn get_proof(grid: &EvaluationGrid, poly: &PolynomialGrid, cell_count: u32) -> V
                 .unwrap();
 
             let mut proof_bytes = [0; 80];
-            let mut j = 0;
-            for b in proof {
-                proof_bytes[j] = b;
-                j += 1;
-            }
-            for b in data {
-                proof_bytes[j] = b;
-                j += 1;
-            }
+            let (proof_bytes_1, proof_bytes_2) = proof_bytes.split_at_mut(proof.len());
+            proof_bytes_1.copy_from_slice(&proof);
+            proof_bytes_2.copy_from_slice(&data);
 
             Cell {
                 position: Position {
@@ -120,6 +114,7 @@ async fn main() {
 
     let max_cols = [64, 128, 256, 512, 1024];
     let max_rows = [64, 128, 256, 512, 1024];
+    let lims = [1, 16, 32];
 
     println!("Options, Data Size, Commitment, Proofs (1, 16, 32), Verification (1, 16, 32), Commitment Size, Proof Size (1, 16, 32)");
     for cols in max_cols {
@@ -128,16 +123,8 @@ async fn main() {
 
             let mut commit_time = Duration::default();
             let mut erasure_time = Duration::default();
-            let mut proof_time = (
-                Duration::default(),
-                Duration::default(),
-                Duration::default(),
-            );
-            let mut verify_time = (
-                Duration::default(),
-                Duration::default(),
-                Duration::default(),
-            );
+            let mut proof_time = vec![Duration::default(); 3];
+            let mut verify_time = vec![Duration::default(); 3];
             let mut commit_size = 0;
             let mut proof_size = 0;
 
@@ -191,18 +178,12 @@ async fn main() {
 
                 // Proof
                 let mut data_proofs = Vec::new();
-                let lims = [1, 16, 32];
-                timer = Instant::now();
-                data_proofs.push(get_proof(&grid, &poly, lims[0]));
-                proof_time.0 += timer.elapsed();
 
-                timer = Instant::now();
-                data_proofs.push(get_proof(&grid, &poly, lims[1]));
-                proof_time.1 += timer.elapsed();
-
-                timer = Instant::now();
-                data_proofs.push(get_proof(&grid, &poly, lims[2]));
-                proof_time.2 += timer.elapsed();
+                for (index, lim) in lims.iter().enumerate() {
+                    timer = Instant::now();
+                    data_proofs.push(get_proof(&grid, &poly, *lim));
+                    proof_time[index] += timer.elapsed();
+                }
 
                 // Verification
                 let commitments =
@@ -224,18 +205,14 @@ async fn main() {
                         );
                     }
                     while let Some(result) = tasks.join_next().await {
-                        let res = result.unwrap();
-                        if res.1 != true {
-                            println!("{:?}", res.0);
+                        let (cell_position, successfully_verified) = result.unwrap();
+                        if successfully_verified != true {
+                            println!("{:?}", cell_position);
                             panic!("FAILED A PROOF VERIFICATION");
                         }
                     }
-                    match index {
-                        0 => verify_time.0 += timer.elapsed(),
-                        1 => verify_time.1 += timer.elapsed(),
-                        2 => verify_time.2 += timer.elapsed(),
-                        _ => panic!("UNEXPECTED INDEX"),
-                    };
+
+                    verify_time[index] += timer.elapsed();
                 }
 
                 // Commitment size (rows: u16 + cols: u16 + data_root: hash (assume 32) + commitment)
@@ -244,18 +221,23 @@ async fn main() {
                 // Proof Size
                 proof_size = 4 + 80; // row: u16, col: u16, proof: 80 (data: 32, proof: 48)
             }
-            println!("({}, {}), {}Kb, {:?}, {:?}, ({:?}, {:?}, {:?}), ({:?}, {:?}, {:?}), {}, ({}, {}, {})",
+            println!(
+                "({}, {}), {}Kb, {:?}, {:?}, ({}), ({}), {}, ({}, {}, {})",
                 rows,
                 cols,
                 total_data_size / 1024,
                 erasure_time / RUNS,
                 commit_time / RUNS,
-                proof_time.0 / RUNS,
-                proof_time.1 / RUNS,
-                proof_time.2 / RUNS,
-                verify_time.0 / RUNS,
-                verify_time.1 / RUNS,
-                verify_time.2 / RUNS,
+                proof_time
+                    .iter()
+                    .map(|t| { format!("{:?}", *t / RUNS) })
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                verify_time
+                    .iter()
+                    .map(|t| { format!("{:?}", *t / RUNS) })
+                    .collect::<Vec<_>>()
+                    .join(", "),
                 commit_size,
                 proof_size,
                 proof_size * 16,
