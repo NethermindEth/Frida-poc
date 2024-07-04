@@ -96,7 +96,8 @@ where
             evaluations.to_vec()
         };
 
-        for depth in 0..options.num_fri_layers(original_domain_size) {
+        let num_fri_layers = options.num_fri_layers(original_domain_size);
+        for depth in 0..num_fri_layers {
             // determine which evaluations were queried in the folded layer
             let mut folded_positions =
                 fold_positions(&positions, domain_size, options.folding_factor());
