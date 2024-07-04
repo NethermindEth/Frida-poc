@@ -2,7 +2,7 @@ use winter_math::FieldElement;
 
 pub mod das;
 mod test;
-mod verifier;
+pub mod traits;
 
 fn get_query_values<E: FieldElement, const N: usize>(
     values: &[[E; N]],
@@ -71,7 +71,7 @@ mod tests {
         frida_prover::{traits::BaseFriProver, FridaProver},
         frida_prover_channel::FridaProverChannel,
         frida_random::{FridaRandom, FridaRandomCoin},
-        frida_verifier::das::FridaDasVerifier,
+        frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
     };
 
     #[test]
