@@ -40,7 +40,7 @@ where
     fn num_partitions(&self) -> usize;
     fn get_layer_commitment(&self, depth: usize) -> HRandom::Digest;
     fn get_layer_alpha(&self, depth: usize) -> E;
-    fn xi(&self) -> &Option<Vec<E>>;
+    fn xi(&self) -> Option<&[E]>;
 
     fn check_auth<C: BaseVerifierChannel<E, Hasher = HRandom>>(
         &self,
@@ -210,9 +210,7 @@ where
             return Err(VerifierError::InvalidLayerFolding(0));
         }
 
-        let xi = self.xi();
-        let xi_ref = xi.as_ref().unwrap();
-
+        let xi = self.xi().unwrap();
         let mut next_eval = unsafe { uninit_vector(query_values.len() / batch_size) };
         iter_mut!(next_eval, 1024).enumerate().for_each(|(i, f)| {
             *f = E::default();
@@ -220,7 +218,7 @@ where
                 .iter()
                 .enumerate()
                 .for_each(|(j, e)| {
-                    *f += *e * xi_ref[j];
+                    *f += *e * xi[j];
                 });
         });
         Ok(next_eval)

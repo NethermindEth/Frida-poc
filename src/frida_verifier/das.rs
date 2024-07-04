@@ -264,7 +264,11 @@ where
         self.layer_alphas[depth]
     }
 
-    fn xi(&self) -> &Option<Vec<E>> {
-        &self.xi
+    fn xi(&self) -> Option<&[E]> {
+        if self.xi.is_none() {
+            None
+        } else {
+            Some(self.xi.as_ref().unwrap())
+        }
     }
 }
