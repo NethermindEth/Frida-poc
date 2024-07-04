@@ -1,10 +1,9 @@
 use std::marker::PhantomData;
 
 use winter_crypto::{Digest, ElementHasher};
-use winter_fri::{
-    folding::fold_positions, utils::map_positions_to_indexes, FriOptions, VerifierChannel,
-};
+use winter_fri::{folding::fold_positions, FriOptions};
 use winter_math::{FieldElement, StarkField};
+use winter_utils::group_slice_elements;
 
 use crate::{
     frida_error::FridaError,
@@ -59,7 +58,7 @@ where
         let mut verifier_channel = FridaVerifierChannel::<E, HRandom>::new(
             proof,
             self.layer_commitments.clone(),
-            self.domain_size.clone(),
+            self.domain_size,
             self.options.folding_factor(),
             self.batch_size,
         )
@@ -71,15 +70,17 @@ where
 
     fn get_query_values_from_commitment<const N: usize>(
         verifier_channel: &mut FridaVerifierChannel<E, HRandom>,
-        layer_commitment: HRandom::Digest,
         positions: &[usize],
-        position_indexes: &[usize],
         folded_positions: &[usize],
         domain_size: usize,
     ) -> Vec<E> {
         if verifier_channel.batch_size() > 0 {
             let layer_values = verifier_channel
-                .read_batch_layer_queries(&position_indexes)
+                .batch_data
+                .as_ref()
+                .unwrap()
+                .batch_layer_queries
+                .as_ref()
                 .unwrap();
 
             get_batch_query_values::<E, N>(
@@ -90,9 +91,7 @@ where
                 verifier_channel.batch_size(),
             )
         } else {
-            let layer_values = verifier_channel
-                .read_layer_queries(&position_indexes, &layer_commitment)
-                .unwrap();
+            let layer_values = group_slice_elements(&verifier_channel.layer_queries[0]);
             get_query_values::<E, N>(&layer_values, &positions, &folded_positions, domain_size)
         }
     }
@@ -168,73 +167,49 @@ where
         let positions =
             public_coin.draw_query_positions(das_commitment.num_queries, domain_size)?;
 
+        let mut verifier_channel = FridaVerifierChannel::<E, HRandom>::new(
+            das_commitment.proof,
+            layer_commitments.clone(),
+            domain_size,
+            options.folding_factor(),
+            batch_size,
+        )
+        .map_err(|_e| FridaError::InvalidDASCommitment)?;
+
         // get query value from commitment
         let query_values = {
             let folded_positions =
                 fold_positions(&positions, domain_size, options.folding_factor());
 
-            let mut verifier_channel = FridaVerifierChannel::<E, HRandom>::new(
-                das_commitment.proof.clone(),
-                layer_commitments.clone(),
-                domain_size.clone(),
-                options.folding_factor(),
-                batch_size,
-            )
-            .map_err(|_e| FridaError::InvalidDASCommitment)?;
-            let position_indexes = map_positions_to_indexes(
-                &folded_positions,
-                domain_size,
-                options.folding_factor(),
-                num_partitions,
-            );
-            let layer_commitment = layer_commitments[0];
-
             let folding_factor = options.folding_factor();
             match folding_factor {
                 2 => Ok(Self::get_query_values_from_commitment::<2>(
                     &mut verifier_channel,
-                    layer_commitment,
                     &positions,
-                    &position_indexes,
                     &folded_positions,
                     domain_size,
                 )),
                 4 => Ok(Self::get_query_values_from_commitment::<4>(
                     &mut verifier_channel,
-                    layer_commitment,
                     &positions,
-                    &position_indexes,
                     &folded_positions,
                     domain_size,
                 )),
                 8 => Ok(Self::get_query_values_from_commitment::<8>(
                     &mut verifier_channel,
-                    layer_commitment,
                     &positions,
-                    &position_indexes,
                     &folded_positions,
                     domain_size,
                 )),
                 16 => Ok(Self::get_query_values_from_commitment::<16>(
                     &mut verifier_channel,
-                    layer_commitment,
                     &positions,
-                    &position_indexes,
                     &folded_positions,
                     domain_size,
                 )),
                 _ => Err(FridaError::UnsupportedFoldingFactor(folding_factor)),
             }?
         };
-
-        let mut verifier_channel = FridaVerifierChannel::<E, HRandom>::new(
-            das_commitment.proof,
-            layer_commitments.clone(),
-            domain_size.clone(),
-            options.folding_factor(),
-            batch_size,
-        )
-        .map_err(|_e| FridaError::InvalidDASCommitment)?;
 
         let domain_generator = E::BaseField::get_root_of_unity(domain_size.ilog2());
 
