@@ -40,7 +40,7 @@ where
     fn num_partitions(&self) -> usize;
     fn get_layer_commitment(&self, depth: usize) -> HRandom::Digest;
     fn get_layer_alpha(&self, depth: usize) -> E;
-    fn xi(&self) -> Option<&[E]>;
+    fn xi(&self) -> Option<&Vec<E>>;
 
     fn check_auth<C: BaseVerifierChannel<E, Hasher = HRandom>>(
         &self,
