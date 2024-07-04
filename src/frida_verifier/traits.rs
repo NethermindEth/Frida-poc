@@ -91,7 +91,7 @@ where
         let mut layer_index_modifier = 0;
         let mut evaluations = if channel.batch_size() > 0 {
             layer_index_modifier = 1;
-            self.verify_batch_layer::<C, N>(channel, &evaluations, &positions)?
+            self.verify_batch_layer::<C, N>(channel, evaluations, &positions)?
         } else {
             evaluations.to_vec()
         };
@@ -188,7 +188,7 @@ where
         let domain_size = self.domain_size();
 
         // determine which evaluations were queried in the folded layer
-        let folded_positions = fold_positions(&positions, domain_size, options.folding_factor());
+        let folded_positions = fold_positions(positions, domain_size, options.folding_factor());
         // determine where these evaluations are in the commitment Merkle tree
         let position_indexes = map_positions_to_indexes(
             &folded_positions,

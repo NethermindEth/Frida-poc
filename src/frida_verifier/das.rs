@@ -64,7 +64,7 @@ where
         )
         .map_err(|_e| FridaError::DeserializationError())?;
 
-        self.check_auth(&mut verifier_channel, &evaluations, &positions)
+        self.check_auth(&mut verifier_channel, evaluations, positions)
             .map_err(|_e| FridaError::FailToVerify)
     }
 
@@ -84,15 +84,15 @@ where
                 .unwrap();
 
             get_batch_query_values::<E, N>(
-                &layer_values,
-                &positions,
-                &folded_positions,
+                layer_values,
+                positions,
+                folded_positions,
                 domain_size,
                 verifier_channel.batch_size(),
             )
         } else {
             let layer_values = group_slice_elements(&verifier_channel.layer_queries[0]);
-            get_query_values::<E, N>(&layer_values, &positions, &folded_positions, domain_size)
+            get_query_values::<E, N>(layer_values, positions, folded_positions, domain_size)
         }
     }
 
