@@ -8,16 +8,16 @@ use crate::frida_prover::proof::FridaProof;
 pub struct FridaVerifierChannel<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>> {
     layer_commitments: Vec<H::Digest>,
     batch_size: usize,
-    batch_data: Option<BatchData<E, H>>,
+    pub(crate) batch_data: Option<BatchData<E, H>>,
     layer_proofs: Vec<BatchMerkleProof<H>>,
-    layer_queries: Vec<Vec<E>>,
+    pub(crate) layer_queries: Vec<Vec<E>>,
     remainder: Vec<E>,
     num_partitions: usize,
 }
 
 pub struct BatchData<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>> {
     batch_commitment: Option<H::Digest>,
-    batch_layer_queries: Option<Vec<Vec<E>>>,
+    pub(crate) batch_layer_queries: Option<Vec<Vec<E>>>,
     batch_layer_proof: Option<BatchMerkleProof<H>>,
 }
 
