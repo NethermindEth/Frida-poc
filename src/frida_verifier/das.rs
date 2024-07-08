@@ -6,6 +6,7 @@ use winter_math::{FieldElement, StarkField};
 use winter_utils::group_slice_elements;
 
 use crate::{
+    frida_const,
     frida_error::FridaError,
     frida_prover::{proof::FridaProof, Commitment},
     frida_random::FridaRandomCoin,
@@ -125,7 +126,11 @@ where
         options: FriOptions,
         max_poly_degree: usize,
     ) -> Result<Self, FridaError> {
-        let domain_size = max_poly_degree.next_power_of_two() * options.blowup_factor();
+        let domain_size = usize::max(
+            max_poly_degree.next_power_of_two() * options.blowup_factor(),
+            frida_const::MIN_DOMAIN_SIZE,
+        );
+
         let num_partitions = das_commitment.proof.num_partitions();
 
         // read layer commitments from the channel and use them to build a list of alphas

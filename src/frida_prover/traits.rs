@@ -49,7 +49,8 @@ where
 
         // reduce the degree by folding_factor at each iteration until the remaining polynomial
         // has small enough degree
-        for _ in 0..self.options().num_fri_layers(evaluations.len()) {
+        let num_fri_layers = self.options().num_fri_layers(evaluations.len());
+        for _ in 0..num_fri_layers {
             match self.folding_factor() {
                 2 => self.build_layer::<2>(channel, &mut evaluations),
                 4 => self.build_layer::<4>(channel, &mut evaluations),
