@@ -26,6 +26,7 @@ enum Commands {
     /// Commit data and generate a proof
     Commit {
         /// Path to the data file
+        #[arg(long, default_value = "data/data.bin")]
         data: String,
         /// Number of queries to generate
         num_queries: usize,
