@@ -131,6 +131,10 @@ where
             frida_const::MIN_DOMAIN_SIZE,
         );
 
+        if domain_size > frida_const::MAX_DOMAIN_SIZE {
+            return Err(FridaError::DomainSizeTooBig(domain_size));
+        }
+
         let num_partitions = das_commitment.proof.num_partitions();
 
         // read layer commitments from the channel and use them to build a list of alphas
