@@ -74,6 +74,63 @@ mod tests {
         frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
     };
 
+    type FridaTestProver = FridaProver<
+        BaseElement,
+        BaseElement,
+        FridaProverChannel<
+            BaseElement,
+            Blake3_256<BaseElement>,
+            Blake3_256<BaseElement>,
+            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
+        >,
+        Blake3_256<BaseElement>,
+    >;
+
+    // FIXME: This test fails with InvalidDASCommitment!
+    #[test]
+    fn test_frida_das_verify_short() {
+        let max_remainder_degree = 1;
+        let folding_factor = 2;
+        let blowup_factor = 2;
+
+        let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
+
+        // instantiate the prover and generate the proof
+        let mut prover: FridaTestProver = FridaProver::new(options.clone());
+
+        let data: Vec<_> = (0..20).collect();
+        let encoded_element_count =
+            encoded_data_element_count::<BaseElement>(data.len()).next_power_of_two();
+        let (commitment, _) = prover.commit(data.clone(), 3).unwrap();
+
+        let mut public_coin =
+            FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[
+                123,
+            ]);
+
+        let verifier = FridaDasVerifier::new(
+            commitment,
+            &mut public_coin,
+            options.clone(),
+            encoded_element_count - 1,
+        )
+        .unwrap();
+
+        // query for a position
+        let open_position = [1];
+        let proof = prover.open(&open_position);
+
+        let domain_size = (encoded_element_count - 1).next_power_of_two() * options.blowup_factor();
+        let evaluations: Vec<BaseElement> =
+            build_evaluations_from_data(&data, domain_size, options.blowup_factor()).unwrap();
+
+        let queried_evaluations = open_position
+            .iter()
+            .map(|&p| evaluations[p])
+            .collect::<Vec<_>>();
+        verifier.verify(proof, &queried_evaluations, &open_position).unwrap();
+    }
+
     #[test]
     fn test_frida_das_verify() {
         let max_remainder_degree = 7;
@@ -83,17 +140,7 @@ mod tests {
         let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
 
         // instantiate the prover and generate the proof
-        let mut prover: FridaProver<
-            BaseElement,
-            BaseElement,
-            FridaProverChannel<
-                BaseElement,
-                Blake3_256<BaseElement>,
-                Blake3_256<BaseElement>,
-                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
-            >,
-            Blake3_256<BaseElement>,
-        > = FridaProver::new(options.clone());
+        let mut prover: FridaTestProver = FridaProver::new(options.clone());
 
         let data = rand_vector::<u8>(200);
         let encoded_element_count =
@@ -125,8 +172,6 @@ mod tests {
             .iter()
             .map(|&p| evaluations[p])
             .collect::<Vec<_>>();
-        let result = verifier.verify(proof, &queried_evaluations, &open_position);
-
-        assert!(result.is_ok(), "{:?}", result.err().unwrap());
+        verifier.verify(proof, &queried_evaluations, &open_position).unwrap();
     }
 }
