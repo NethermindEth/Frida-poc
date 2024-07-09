@@ -86,7 +86,6 @@ mod tests {
         Blake3_256<BaseElement>,
     >;
 
-    // FIXME: This test fails with DegreeTruncation(0, 2, 1) or InvalidDASCommitment!
     #[test]
     fn test_frida_das_verify_short() {
         for max_remainder_degree in [0, 1] {

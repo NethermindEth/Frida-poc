@@ -74,7 +74,6 @@ mod tests {
             // instantiate the prover and generate the proof
             let mut prover = FridaProver::new(options.clone());
             prover.build_layers(&mut channel, evaluations.clone());
-            let domain_size = prover.domain_size();
 
             let positions = channel.draw_query_positions();
             let proof = prover.build_proof(&positions);
