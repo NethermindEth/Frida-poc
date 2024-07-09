@@ -89,48 +89,44 @@ mod tests {
     // FIXME: This test fails with DegreeTruncation(0, 2, 1) or InvalidDASCommitment!
     #[test]
     fn test_frida_das_verify_short() {
-        let max_remainder_degree = 0;
-        // TODO: Alternatively:
-        let max_remainder_degree = 1;
-        let folding_factor = 2;
-        let blowup_factor = 2;
+        for max_remainder_degree in [0, 1] {
+            let folding_factor = 2;
+            let blowup_factor = 2;
 
-        let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
+            let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
 
-        // instantiate the prover and generate the proof
-        let mut prover: FridaTestProver = FridaProver::new(options.clone());
+            // instantiate the prover and generate the proof
+            let mut prover: FridaTestProver = FridaProver::new(options.clone());
 
-        let data: Vec<_> = (0..20).collect();
-        let encoded_element_count =
-            encoded_data_element_count::<BaseElement>(data.len()).next_power_of_two();
-        let (commitment, _) = prover.commit(data.clone(), 3).unwrap();
+            let data: Vec<_> = (0..20).collect();
+            let (commitment, _) = prover.commit(data.clone(), 3).unwrap();
 
-        let mut public_coin =
-            FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[
-                123,
-            ]);
+            let mut public_coin =
+                FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[
+                    123,
+                ]);
 
-        let verifier = FridaDasVerifier::new(
-            commitment,
-            &mut public_coin,
-            options.clone(),
-            encoded_element_count - 1,
-        )
-        .unwrap();
+            let verifier = FridaDasVerifier::new(
+                commitment,
+                &mut public_coin,
+                options.clone(),
+            )
+            .unwrap();
 
-        // query for a position
-        let open_position = [1];
-        let proof = prover.open(&open_position);
+            // query for a position
+            let open_position = [1];
+            let proof = prover.open(&open_position);
 
-        let domain_size = (encoded_element_count - 1).next_power_of_two() * options.blowup_factor();
-        let evaluations: Vec<BaseElement> =
-            build_evaluations_from_data(&data, domain_size, options.blowup_factor()).unwrap();
+            let domain_size = 8;
+            let evaluations: Vec<BaseElement> =
+                build_evaluations_from_data(&data, domain_size, options.blowup_factor()).unwrap();
 
-        let queried_evaluations = open_position
-            .iter()
-            .map(|&p| evaluations[p])
-            .collect::<Vec<_>>();
-        verifier.verify(proof, &queried_evaluations, &open_position).unwrap();
+            let queried_evaluations = open_position
+                .iter()
+                .map(|&p| evaluations[p])
+                .collect::<Vec<_>>();
+            verifier.verify(proof, &queried_evaluations, &open_position).unwrap();
+        }
     }
 
     #[test]
@@ -158,7 +154,6 @@ mod tests {
             commitment,
             &mut public_coin,
             options.clone(),
-            encoded_element_count - 1,
         )
         .unwrap();
 

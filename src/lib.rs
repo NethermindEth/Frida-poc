@@ -32,7 +32,7 @@ mod tests {
             proof: FridaProof,
             roots: Vec<<Blake3 as Hasher>::Digest>,
             evaluations: &[BaseElement],
-            max_degree: usize,
+            domain_size: usize,
             positions: &[usize],
             options: &FriOptions,
         ) -> Result<(), FridaError> {
@@ -42,12 +42,12 @@ mod tests {
                 Commitment {
                     roots,
                     proof,
+                    domain_size,
                     num_queries: 32,
                     batch_size: 0,
                 },
                 &mut coin,
                 options.clone(),
-                max_degree,
             )?;
 
             let queried_evaluations = positions
@@ -74,6 +74,7 @@ mod tests {
             // instantiate the prover and generate the proof
             let mut prover = FridaProver::new(options.clone());
             prover.build_layers(&mut channel, evaluations.clone());
+            let domain_size = prover.domain_size();
 
             let positions = channel.draw_query_positions();
             let proof = prover.build_proof(&positions);
@@ -86,25 +87,25 @@ mod tests {
 
             // make sure the proof can be verified
             let commitments = channel.layer_commitments().to_vec();
-            let max_degree = trace_length - 1;
+            let domain_size = trace_length * lde_blowup;
             let result = verify_proof(
                 opening_proof.clone(),
                 proof.clone(),
                 commitments.clone(),
                 &evaluations,
-                max_degree,
+                domain_size,
                 &positions,
                 &options,
             );
             assert!(result.is_ok(), "{:?}", result.err().unwrap());
 
-            // make sure proof fails for invalid degree
+            // make sure proof fails for invalid domain size
             let result = verify_proof(
                 opening_proof,
                 proof,
                 commitments,
                 &evaluations,
-                max_degree - 8,
+                domain_size / 2,
                 &positions,
                 &options,
             );

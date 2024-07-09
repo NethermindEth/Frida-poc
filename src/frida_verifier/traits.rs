@@ -29,7 +29,6 @@ where
         das_commitment: Commitment<HRandom>,
         public_coin: &mut R,
         options: FriOptions,
-        max_poly_degree: usize,
     ) -> Result<Self, FridaError>;
 
     /// Returns protocol configuration options for this verifier.

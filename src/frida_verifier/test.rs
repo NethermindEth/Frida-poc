@@ -27,7 +27,7 @@ mod test {
         let trace_length = 1 << trace_length_e;
         let lde_blowup = 1 << lde_blowup_e;
         let folding_factor = 1 << folding_factor_e;
-        let max_degree = trace_length - 1;
+        let domain_size = trace_length * lde_blowup;
 
         let options = FriOptions::new(lde_blowup, folding_factor, max_remainder_degree);
         let mut channel = build_prover_channel(trace_length, &options);
@@ -47,12 +47,12 @@ mod test {
             Commitment {
                 proof,
                 roots,
+                domain_size,
                 num_queries: 32,
                 batch_size: 0,
             },
             &mut coin,
             options.clone(),
-            max_degree,
         )
         .unwrap();
 
@@ -98,7 +98,6 @@ mod test {
             commitment,
             &mut coin,
             options.clone(),
-            prover.domain_size() / options.blowup_factor() - 1,
         )
         .unwrap();
 

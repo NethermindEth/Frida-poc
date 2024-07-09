@@ -56,6 +56,7 @@ pub struct FridaRemainder<E: FieldElement>(Vec<E>);
 pub struct Commitment<HRoot: ElementHasher> {
     pub roots: Vec<HRoot::Digest>,
     pub proof: FridaProof,
+    pub domain_size: usize,
     pub num_queries: usize,
     pub batch_size: usize,
 }
@@ -311,6 +312,7 @@ where
         let commitment = Commitment {
             roots: channel.take_layer_commitments(),
             proof,
+            domain_size: self.domain_size(),
             num_queries,
             batch_size: 0,
         };
@@ -340,6 +342,7 @@ where
         let commitment = Commitment {
             roots: channel.take_layer_commitments(),
             proof,
+            domain_size: self.domain_size(),
             num_queries,
             batch_size: data.len(),
         };
@@ -428,6 +431,7 @@ mod tests {
 
         let data = rand_vector::<u8>(200);
         let num_queries: usize = 31;
+        let domain_size: usize = 32;
         let (commitment, state) = prover.commit(data.clone(), num_queries).unwrap();
 
         let evaluations = build_evaluations_from_data(&data, 32, 2).unwrap();
@@ -437,7 +441,7 @@ mod tests {
             Blake3_256<BaseElement>,
             Blake3_256<BaseElement>,
             FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
-        >::new(32, num_queries);
+        >::new(domain_size, num_queries);
         prover.build_layers(&mut channel, evaluations.clone());
         let positions = channel.draw_query_positions();
         let proof = prover.build_proof(&positions);
@@ -447,6 +451,7 @@ mod tests {
             Commitment {
                 roots: channel.layer_commitments().to_vec(),
                 proof: proof,
+                domain_size,
                 num_queries,
                 batch_size: 0
             }

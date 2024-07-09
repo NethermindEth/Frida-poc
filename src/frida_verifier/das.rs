@@ -123,13 +123,10 @@ where
     fn new(
         das_commitment: Commitment<HRandom>,
         public_coin: &mut R,
-        options: FriOptions,
-        max_poly_degree: usize,
+        options: FriOptions
     ) -> Result<Self, FridaError> {
-        let domain_size = usize::max(
-            max_poly_degree.next_power_of_two() * options.blowup_factor(),
-            frida_const::MIN_DOMAIN_SIZE,
-        );
+        let domain_size = das_commitment.domain_size;
+        let max_poly_degree = domain_size / options.blowup_factor() - 1;
 
         if domain_size > frida_const::MAX_DOMAIN_SIZE {
             return Err(FridaError::DomainSizeTooBig(domain_size));
