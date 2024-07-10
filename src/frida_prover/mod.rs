@@ -56,6 +56,7 @@ pub struct FridaRemainder<E: FieldElement>(Vec<E>);
 pub struct Commitment<HRoot: ElementHasher> {
     pub roots: Vec<HRoot::Digest>,
     pub proof: FridaProof,
+    // In a real protocol, domain size will likely be predefined and won't be part of a block.
     pub domain_size: usize,
     pub num_queries: usize,
     pub batch_size: usize,
