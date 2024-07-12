@@ -122,11 +122,11 @@ where
     fn new(
         das_commitment: Commitment<HRandom>,
         public_coin: &mut R,
-        options: FriOptions,
-        max_poly_degree: usize,
+        options: FriOptions
     ) -> Result<Self, FridaError> {
-        let domain_size = max_poly_degree.next_power_of_two() * options.blowup_factor();
+        let domain_size = das_commitment.domain_size;
         let num_partitions = das_commitment.proof.num_partitions();
+        let max_poly_degree = domain_size / options.blowup_factor() - 1;
 
         // read layer commitments from the channel and use them to build a list of alphas
         let batch_size = das_commitment.batch_size;
