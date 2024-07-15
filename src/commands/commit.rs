@@ -2,13 +2,8 @@ use crate::{
     frida_prover::{Commitment, FridaProver},
     frida_prover_channel::FridaProverChannel,
     frida_random::FridaRandom,
+    utils::{read_file_to_vec, write_to_file},
 };
-use std::fs;
-use std::fs::File;
-use std::io::BufReader;
-use std::io::BufWriter;
-use std::io::Read;
-use std::io::Write;
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
 use winter_utils::{Deserializable, Serializable};
@@ -25,64 +20,33 @@ pub fn run(
     data_path: &str,
     commitment_path: &str,
 ) -> Result<Commitment<Blake3>, Box<dyn std::error::Error>> {
-    // Create commitment from the data file
-    let commitment = create_commitment_from_file(prover, num_queries, data_path)?;
+    // Read data from file
+    let data = read_file_to_vec(data_path)?;
 
-    // Write the commitment to the specified file
-    write_commitment_to_file(&commitment, commitment_path)?;
+    // Create commitment from data
+    let (commitment, _) =
+        prover
+            .commit(data, num_queries)
+            .map_err(|e| -> Box<dyn std::error::Error> {
+                format!("Prover commit error: {}", e).into()
+            })?;
 
-    // Print success message with detail
-    println!("Commitment created and saved to {}", commitment_path);
-
-    Ok(commitment)
-}
-
-/// Creates a commitment from the data file.
-fn create_commitment_from_file(
-    prover: &mut FridaProverType,
-    num_queries: usize,
-    data_path: &str,
-) -> Result<Commitment<Blake3>, Box<dyn std::error::Error>> {
-    // Read data from the file
-    let data = fs::read(data_path)?;
-
-    // Generate the commitment
-    let (commitment, _) = prover.commit(data, num_queries).unwrap();
-
-    Ok(commitment)
-}
-
-/// Writes the commitment to a file.
-fn write_commitment_to_file(
-    commitment: &Commitment<Blake3>,
-    file_path: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    // Serialize the commitment
+    // Write commitment to file
     let commitment_bytes = commitment.to_bytes();
+    write_to_file(commitment_path, &commitment_bytes)?;
 
-    // Write to the file
-    let mut file = File::create(file_path)?;
-    let mut writer = BufWriter::new(&mut file);
-    writer.write_all(&commitment_bytes)?;
-
-    Ok(())
+    println!("Commitment created and saved to {}", commitment_path);
+    Ok(commitment)
 }
 
 /// Reads the commitment from a file.
 pub fn read_commitment_from_file(
     file_path: &str,
 ) -> Result<Commitment<Blake3>, Box<dyn std::error::Error>> {
-    // Open the file and create a buffered reader
-    let file = File::open(file_path)?;
-    let mut reader = BufReader::new(file);
-
-    // Read the commitment bytes
-    let mut commitment_bytes = Vec::new();
-    reader.read_to_end(&mut commitment_bytes)?;
-
-    // Deserialize the commitment
-    let commitment = Commitment::<Blake3>::read_from_bytes(&commitment_bytes).unwrap();
-
+    let commitment_bytes = read_file_to_vec(file_path)?;
+    let commitment = Commitment::<Blake3>::read_from_bytes(&commitment_bytes).map_err(
+        |e| -> Box<dyn std::error::Error> { format!("Deserialization error: {}", e).into() },
+    )?;
     Ok(commitment)
 }
 
@@ -91,6 +55,7 @@ mod tests {
     use super::*;
     use crate::commands::generate_data;
     use crate::frida_prover::traits::BaseFriProver;
+    use std::fs;
     use winter_fri::FriOptions;
 
     #[test]

@@ -137,30 +137,19 @@ fn main() {
                 folding_factor,
                 max_remainder_degree,
             } => {
-                println!(
-                    "Initializing prover with data path: {}, blowup factor: {}, folding factor: {}, max remainder degree: {}",
-                    data_path, blowup_factor, folding_factor, max_remainder_degree
+                handle_init(
+                    &mut prover,
+                    data_path,
+                    *blowup_factor,
+                    *folding_factor,
+                    *max_remainder_degree,
+                    &mut encoded_element_count,
+                    &mut init_done,
                 );
-                let options =
-                    FriOptions::new(*blowup_factor, *folding_factor, *max_remainder_degree);
-                prover = FridaProverType::new(options);
-                if let Err(err) = fs::read(data_path) {
-                    eprintln!(
-                        "Failed to read data file: {}\nUse `generate-data <SIZE>` command.",
-                        err
-                    );
-                    continue;
-                }
-                encoded_element_count =
-                    encoded_data_element_count::<BaseElement>(fs::read(data_path).unwrap().len())
-                        .next_power_of_two();
-                init_done = true;
             }
 
             Commands::GenerateData { size, file_path } => {
-                if let Err(err) = commands::generate_data::run(*size, file_path) {
-                    eprintln!("Failed to generate data: {}", err);
-                }
+                handle_generate_data(*size, file_path);
             }
 
             Commands::Commit {
@@ -172,11 +161,7 @@ fn main() {
                     eprintln!("Please call the init command first.");
                     continue;
                 }
-                if let Err(err) =
-                    commands::commit::run(&mut prover, *num_queries, data_path, commitment_path)
-                {
-                    eprintln!("Failed to commit data: {}", err);
-                }
+                handle_commit(&mut prover, *num_queries, data_path, commitment_path);
             }
 
             Commands::Open {
@@ -189,16 +174,13 @@ fn main() {
                     eprintln!("Please call the init command first.");
                     continue;
                 }
-
-                if let Err(err) = commands::open::run(
+                handle_open(
                     &mut prover,
                     positions,
                     positions_path,
                     evaluations_path,
                     proof_path,
-                ) {
-                    eprintln!("Failed to open proof: {}", err);
-                }
+                );
             }
 
             Commands::Verify {
@@ -211,22 +193,102 @@ fn main() {
                     eprintln!("Please call the init command first.");
                     continue;
                 }
-
-                if commands::verify::run(
+                handle_verify(
                     commitment_path,
                     positions_path,
                     evaluations_path,
                     proof_path,
                     encoded_element_count,
                     prover.options().clone(),
-                )
-                .is_err()
-                {
-                    eprintln!("Verification failed");
-                    continue;
-                }
-                println!("Verification successful");
+                );
             }
         }
     }
+}
+
+fn handle_init(
+    prover: &mut FridaProverType,
+    data_path: &str,
+    blowup_factor: usize,
+    folding_factor: usize,
+    max_remainder_degree: usize,
+    encoded_element_count: &mut usize,
+    init_done: &mut bool,
+) {
+    println!(
+        "Initializing prover with data path: {}, blowup factor: {}, folding factor: {}, max remainder degree: {}",
+        data_path, blowup_factor, folding_factor, max_remainder_degree
+    );
+    let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
+    *prover = FridaProverType::new(options);
+    if let Err(err) = fs::read(data_path) {
+        eprintln!(
+            "Failed to read data file: {}\nUse `generate-data <SIZE>` command.",
+            err
+        );
+        return;
+    }
+    *encoded_element_count =
+        encoded_data_element_count::<BaseElement>(fs::read(data_path).unwrap().len())
+            .next_power_of_two();
+    *init_done = true;
+}
+
+fn handle_generate_data(size: usize, file_path: &str) {
+    if let Err(err) = commands::generate_data::run(size, file_path) {
+        eprintln!("Failed to generate data: {}", err);
+    }
+}
+
+fn handle_commit(
+    prover: &mut FridaProverType,
+    num_queries: usize,
+    data_path: &str,
+    commitment_path: &str,
+) {
+    if let Err(err) = commands::commit::run(prover, num_queries, data_path, commitment_path) {
+        eprintln!("Failed to commit data: {}", err);
+    }
+}
+
+fn handle_open(
+    prover: &mut FridaProverType,
+    positions: &[usize],
+    positions_path: &str,
+    evaluations_path: &str,
+    proof_path: &str,
+) {
+    if let Err(err) = commands::open::run(
+        prover,
+        positions,
+        positions_path,
+        evaluations_path,
+        proof_path,
+    ) {
+        eprintln!("Failed to open proof: {}", err);
+    }
+}
+
+fn handle_verify(
+    commitment_path: &str,
+    positions_path: &str,
+    evaluations_path: &str,
+    proof_path: &str,
+    encoded_element_count: usize,
+    options: FriOptions,
+) {
+    if commands::verify::run(
+        commitment_path,
+        positions_path,
+        evaluations_path,
+        proof_path,
+        encoded_element_count,
+        options,
+    )
+    .is_err()
+    {
+        eprintln!("Verification failed");
+        return;
+    }
+    println!("Verification successful");
 }

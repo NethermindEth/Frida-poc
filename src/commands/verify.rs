@@ -1,10 +1,10 @@
 use crate::{
     commands::open::read_and_deserialize_proof,
-    frida_error::FridaError,
     frida_prover::Commitment,
     frida_random::{FridaRandom, FridaRandomCoin},
     frida_verifier::das::FridaDasVerifier,
 };
+use std::error::Error;
 use std::fs;
 use winter_crypto::hashers::Blake3_256;
 use winter_fri::FriOptions;
@@ -18,13 +18,14 @@ pub fn run(
     proof_path: &str,
     encoded_element_count: usize,
     fri_options: FriOptions,
-) -> Result<(), FridaError> {
+) -> Result<(), Box<dyn Error>> {
     // Read and deserialize
-    let commitment =
-        Commitment::<Blake3_256<BaseElement>>::read_from_bytes(&fs::read(commitment_path).unwrap())
-            .unwrap();
+    let commitment_bytes = fs::read(commitment_path)?;
+    let commitment = Commitment::<Blake3_256<BaseElement>>::read_from_bytes(&commitment_bytes)
+        .map_err(|e| format!("Deserialization error: {}", e))?;
+
     let (positions, evaluations, proof) =
-        read_and_deserialize_proof(positions_path, evaluations_path, proof_path).unwrap();
+        read_and_deserialize_proof(positions_path, evaluations_path, proof_path)?;
 
     // Instantiate the verifier
     let mut public_coin =
@@ -36,10 +37,14 @@ pub fn run(
         fri_options.clone(),
         encoded_element_count - 1,
     )
-    .unwrap();
+    .map_err(|e| format!("Verifier initialization error: {}", e))?;
 
     // Verify the proof
-    verifier.verify(proof, &evaluations, &positions)
+    verifier
+        .verify(proof, &evaluations, &positions)
+        .map_err(|e| format!("Verification error: {}", e))?;
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -84,7 +89,7 @@ mod tests {
         commit::run(&mut prover, num_queries, data_path, commitment_path).unwrap();
 
         // Open the commitment
-        let (_, _, _) = open::run(
+        open::run(
             &mut prover,
             &[1, 2, 3],
             positions_path,
