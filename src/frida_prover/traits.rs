@@ -173,8 +173,6 @@ where
             let mut positions = positions.to_vec();
             let mut domain_size = self.domain_size();
             let folding_factor = self.options().folding_factor();
-
-            
             if self.is_batch() {
                 positions = fold_positions(&positions, domain_size, folding_factor);
                 let proof = self
@@ -260,10 +258,9 @@ fn apply_drp_batched<B: StarkField, E: FieldElement<BaseField = B>, const N: usi
     let bucket_count = domain_size / options.folding_factor();
     let bucket_size = poly_count * N;
 
-    let mut final_eval: Vec<[E; N]> = unsafe { uninit_vector(bucket_count) };
+    let mut final_eval: Vec<[E; N]> = vec![[E::default(); N]; bucket_count];
     iter_mut!(final_eval, 1024).enumerate().for_each(|(i, b)| {
         iter_mut!(b, 1024).enumerate().for_each(|(j, f)| {
-            *f = E::default();
             let start = i * bucket_size + poly_count * j;
             evaluations[start..start + poly_count]
                 .iter()

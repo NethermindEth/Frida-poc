@@ -158,7 +158,11 @@ where
         let blowup_factor = self.options.blowup_factor();
 
         let max_data_len = encoded_data_element_count::<E>(
-            data_list.iter().map(|data| data.len()).max().unwrap_or_default()    
+            data_list
+                .iter()
+                .map(|data| data.len())
+                .max()
+                .unwrap_or_default(),
         );
 
         let domain_size = usize::max(

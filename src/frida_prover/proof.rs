@@ -72,7 +72,7 @@ impl FridaProof {
     // --------------------------------------------------------------------------------------------
 
     pub fn has_batch_layer(&self) -> bool {
-        return self.batch_layer.is_some()
+        self.batch_layer.is_some()
     }
 
     /// Returns the number of layers in this proof.

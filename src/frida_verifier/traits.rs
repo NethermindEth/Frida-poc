@@ -6,9 +6,9 @@ use winter_fri::{
 };
 use winter_math::{polynom, FieldElement};
 
+use winter_utils::iter_mut;
 #[cfg(feature = "concurrent")]
 use winter_utils::iterators::*;
-use winter_utils::{iter_mut, uninit_vector};
 
 use crate::{
     frida_error::FridaError, frida_prover::Commitment, frida_random::FridaRandomCoin,
@@ -110,12 +110,11 @@ where
                 let layer_values =
                     channel.read_batch_layer_queries(&position_indexes, &layer_commitment)?;
                 let mut combined_layer_values: Vec<[E; N]> =
-                    unsafe { uninit_vector(layer_values.len() / poly_count / N) };
+                    vec![[E::default(); N]; layer_values.len() / poly_count / N];
                 iter_mut!(combined_layer_values, 1024)
                     .enumerate()
                     .for_each(|(i, b)| {
                         iter_mut!(b, 1024).enumerate().for_each(|(j, f)| {
-                            *f = E::default();
                             let start = i * (poly_count * N) + poly_count * j;
                             layer_values[start..start + poly_count]
                                 .iter()
@@ -126,9 +125,8 @@ where
                         });
                     });
 
-                let mut new_eval = unsafe { uninit_vector(evaluations.len() / poly_count) };
+                let mut new_eval = vec![E::default(); evaluations.len() / poly_count];
                 iter_mut!(new_eval, 1024).enumerate().for_each(|(i, f)| {
-                    *f = E::default();
                     evaluations[i * poly_count..i * poly_count + poly_count]
                         .iter()
                         .enumerate()
