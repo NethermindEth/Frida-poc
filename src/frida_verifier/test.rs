@@ -11,7 +11,7 @@ mod test {
     use crate::frida_verifier::traits::BaseFridaVerifier;
     use crate::utils::{build_evaluations, build_prover_channel};
     use winter_crypto::hashers::Blake3_256;
-    use winter_fri::folding::{self, fold_positions};
+    use winter_fri::folding::fold_positions;
     use winter_fri::{FriOptions, ProverChannel};
     use winter_math::fields::f128::BaseElement;
     use winter_rand_utils::{rand_value, rand_vector};
