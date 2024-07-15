@@ -150,8 +150,8 @@ where
             bench::TIMER = Some(Instant::now());
         }
 
-        self.poly_count = data_list.len();
-        if self.poly_count <= 1 {
+        let poly_count = data_list.len();
+        if poly_count <= 1 {
             return Err(FridaError::SinglePolyBatch);
         }
 
@@ -168,7 +168,7 @@ where
 
         let folding_factor = self.folding_factor();
         let bucket_count = domain_size / folding_factor;
-        let bucket_size = self.poly_count * folding_factor;
+        let bucket_size = poly_count * folding_factor;
 
         if domain_size > frida_const::MAX_DOMAIN_SIZE {
             return Err(FridaError::DomainSizeTooBig(domain_size));
@@ -177,14 +177,14 @@ where
             return Err(FridaError::BadNumQueries(num_queries));
         }
 
-        let mut evaluations = unsafe { uninit_vector(self.poly_count * domain_size) };
+        let mut evaluations = unsafe { uninit_vector(poly_count * domain_size) };
         for (i, data) in data_list.iter().enumerate() {
             build_evaluations_from_data::<E>(data, domain_size, blowup_factor)?
                 .into_iter()
                 .enumerate()
                 .for_each(|(j, e)| {
                     let bucket = j % bucket_count;
-                    let position = i + self.poly_count * (j / bucket_count);
+                    let position = i + poly_count * (j / bucket_count);
                     evaluations[bucket * bucket_size + position] = e;
                 });
         }
@@ -205,6 +205,7 @@ where
             self.channel = Some(channel);
         }
 
+        self.poly_count = poly_count;
         Ok(())
     }
 
@@ -245,10 +246,10 @@ where
 
         if num_queries == 0 {
             let mut channel = C::new(domain_size, 1);
-            self.build_layers(&mut channel, evaluations);
+            self.build_layers(&mut channel, evaluations, false);
         } else {
             let mut channel = C::new(domain_size, num_queries);
-            self.build_layers(&mut channel, evaluations);
+            self.build_layers(&mut channel, evaluations, false);
             self.channel = Some(channel);
         }
 
@@ -295,12 +296,7 @@ where
         if num_queries == 0 {
             return Err(FridaError::BadNumQueries(num_queries));
         }
-        let build_layers = self.build_layers_from_batched_data(&data, num_queries);
-        if build_layers.is_err() {
-            self.poly_count = 1;
-            build_layers?;
-        }
-
+        self.build_layers_from_batched_data(&data, num_queries)?;
         let proof = self.query();
 
         #[cfg(feature = "bench")]
@@ -414,7 +410,7 @@ mod tests {
             Blake3_256<BaseElement>,
             FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
         >::new(domain_size, num_queries);
-        prover.build_layers(&mut channel, evaluations.clone());
+        prover.build_layers(&mut channel, evaluations.clone(), false);
         let positions = channel.draw_query_positions();
         let proof = prover.build_proof(&positions);
 

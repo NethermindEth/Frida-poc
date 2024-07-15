@@ -54,7 +54,7 @@ where
         evaluations: Vec<E>,
         domain_size: usize,
     ) -> Result<(), FridaError> {
-        let poly_count = self.poly_count();
+        let poly_count = evaluations.len() / domain_size;
         let folding_factor = self.folding_factor();
         let bucket_count = domain_size / folding_factor;
         let bucket_size = poly_count * folding_factor;
@@ -86,17 +86,17 @@ where
             evaluations,
             _base_field: PhantomData,
         });
-        self.build_layers(channel, second_layer);
+        self.build_layers(channel, second_layer, true);
         Ok(())
     }
 
-    fn build_layers(&mut self, channel: &mut C, mut evaluations: Vec<E>) {
+    fn build_layers(&mut self, channel: &mut C, mut evaluations: Vec<E>, is_batched: bool) {
         assert!(
-            self.num_layers() == 0 || (self.is_batch() && self.num_layers() == 1),
+            self.num_layers() == 0 || (is_batched && self.num_layers() == 1),
             "a prior proof generation request has not been completed yet"
         );
-        let domain_size = if self.is_batch() {
-            self.domain_size()
+        let domain_size = if is_batched {
+            evaluations.len() * self.options().folding_factor()
         } else {
             evaluations.len()
         };
@@ -104,7 +104,7 @@ where
         // reduce the degree by folding_factor at each iteration until the remaining polynomial
         // has small enough degree
         let num_fri_layers = self.options().num_fri_layers(domain_size);
-        let start = if self.is_batch() { 1 } else { 0 };
+        let start = if is_batched { 1 } else { 0 };
         for _ in start..num_fri_layers {
             match self.folding_factor() {
                 2 => self.build_layer::<2>(channel, &mut evaluations),
