@@ -12,7 +12,7 @@ use frida_poc::{
     },
     frida_prover_channel::FridaProverChannel,
     frida_random::{FridaRandom, FridaRandomCoin},
-    frida_verifier::das::FridaDasVerifier,
+    frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
 };
 use winter_crypto::{hashers::Blake3_256, ElementHasher};
 use winter_fri::FriOptions;

@@ -1,15 +1,13 @@
 #[cfg(test)]
 mod test {
     use crate::frida_prover::traits::BaseFriProver;
-    use crate::frida_prover::FridaProver;
+    use crate::frida_prover::{Commitment, FridaProver};
     use crate::frida_prover_channel::{
         BaseProverChannel, BaseProverChannelTest, FridaProverChannel,
     };
     use crate::frida_random::{FridaRandom, FridaRandomCoin};
     use crate::frida_verifier::das::FridaDasVerifier;
-    use crate::frida_verifier::verifier::FridaVerifier;
-    use crate::frida_verifier::verifier_deprecated::FridaVerifierDeprecated;
-    use crate::frida_verifier_channel::FridaVerifierChannel;
+    use crate::frida_verifier::traits::BaseFridaVerifier;
     use crate::utils::{build_evaluations, build_prover_channel};
     use winter_crypto::hashers::Blake3_256;
     use winter_fri::folding::fold_positions;
@@ -30,7 +28,6 @@ mod test {
         let lde_blowup = 1 << lde_blowup_e;
         let folding_factor = 1 << folding_factor_e;
         let domain_size = trace_length * lde_blowup;
-        let max_degree = trace_length - 1;
 
         let options = FriOptions::new(lde_blowup, folding_factor, max_remainder_degree);
         let mut channel = build_prover_channel(trace_length, &options);
@@ -40,27 +37,26 @@ mod test {
         let mut prover = FridaProver::new(options.clone());
         prover.build_layers(&mut channel, evaluations.clone());
         let prover_drawn_alpha = channel.drawn_alphas();
-        let commitments = channel.layer_commitments().to_vec();
+        let roots = channel.layer_commitments().to_vec();
 
         let positions = channel.draw_query_positions();
         let proof = prover.build_proof(&positions);
 
-        let mut channel = FridaVerifierChannel::<BaseElement, Blake3>::new(
-            proof,
-            commitments,
-            domain_size,
-            options.folding_factor(),
-            0,
+        let mut coin = FridaRandom::<Blake3, Blake3, BaseElement>::new(&[123]);
+        let verifier = FridaDasVerifier::new(
+            Commitment {
+                proof,
+                roots,
+                domain_size,
+                num_queries: 32,
+                batch_size: 0,
+            },
+            &mut coin,
+            options.clone(),
         )
         .unwrap();
-        let mut coin = FridaRandom::<Blake3, Blake3, BaseElement>::new(&[123]);
-
-        let verifier =
-            FridaVerifierDeprecated::new(&mut channel, &mut coin, options.clone(), max_degree)
-                .unwrap();
 
         let layer_alpha = verifier.layer_alphas();
-
         assert_eq!(prover_drawn_alpha, layer_alpha[..layer_alpha.len() - 1])
     }
 
@@ -102,7 +98,6 @@ mod test {
             commitment,
             &mut coin,
             options.clone(),
-            prover.domain_size() / options.blowup_factor() - 1,
         )
         .unwrap();
 

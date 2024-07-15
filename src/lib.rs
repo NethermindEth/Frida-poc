@@ -12,15 +12,16 @@ pub mod utils;
 #[cfg(test)]
 mod tests {
     use winter_crypto::{hashers::Blake3_256, Hasher};
-    use winter_fri::{FriOptions, VerifierError};
+    use winter_fri::FriOptions;
     use winter_math::fields::f128::BaseElement;
+    use winter_rand_utils::rand_array;
 
     use crate::{
-        frida_prover::{proof::FridaProof, traits::BaseFriProver, FridaProver},
+        frida_error::FridaError,
+        frida_prover::{proof::FridaProof, traits::BaseFriProver, Commitment, FridaProver},
         frida_prover_channel::BaseProverChannel,
         frida_random::{FridaRandom, FridaRandomCoin},
-        frida_verifier::verifier_deprecated::FridaVerifierDeprecated,
-        frida_verifier_channel::FridaVerifierChannel,
+        frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
         utils::{build_evaluations, build_prover_channel},
     };
 
@@ -28,33 +29,33 @@ mod tests {
     fn test_verify() {
         type Blake3 = Blake3_256<BaseElement>;
         pub fn verify_proof(
+            opening_proof: FridaProof,
             proof: FridaProof,
-            commitments: Vec<<Blake3 as Hasher>::Digest>,
+            roots: Vec<<Blake3 as Hasher>::Digest>,
             evaluations: &[BaseElement],
-            max_degree: usize,
             domain_size: usize,
             positions: &[usize],
             options: &FriOptions,
-        ) -> Result<(), VerifierError> {
+        ) -> Result<(), FridaError> {
             // verify the proof
-            let mut channel = FridaVerifierChannel::<BaseElement, Blake3>::new(
-                proof,
-                commitments,
-                domain_size,
-                options.folding_factor(),
-                0,
-            )
-            .unwrap();
             let mut coin = FridaRandom::<Blake3, Blake3, BaseElement>::new(&[123]);
-
-            let verifier =
-                FridaVerifierDeprecated::new(&mut channel, &mut coin, options.clone(), max_degree)?;
+            let verifier = FridaDasVerifier::new(
+                Commitment {
+                    roots,
+                    proof,
+                    domain_size,
+                    num_queries: 32,
+                    batch_size: 0,
+                },
+                &mut coin,
+                options.clone(),
+            )?;
 
             let queried_evaluations = positions
                 .iter()
                 .map(|&p| evaluations[p])
                 .collect::<Vec<_>>();
-            verifier.check_auth(&mut channel, &queried_evaluations, positions)
+            verifier.verify(opening_proof, &queried_evaluations, positions)
         }
 
         fn fri_prove_verify(
@@ -78,27 +79,33 @@ mod tests {
             let positions = channel.draw_query_positions();
             let proof = prover.build_proof(&positions);
 
+            let positions = rand_array::<u64, 5>()
+                .iter()
+                .map(|v| usize::min(*v as usize, lde_blowup * trace_length - 1))
+                .collect::<Vec<_>>();
+            let opening_proof = prover.build_proof(&positions);
+
             // make sure the proof can be verified
             let commitments = channel.layer_commitments().to_vec();
-            let max_degree = trace_length - 1;
+            let domain_size = trace_length * lde_blowup;
             let result = verify_proof(
+                opening_proof.clone(),
                 proof.clone(),
                 commitments.clone(),
                 &evaluations,
-                max_degree,
-                trace_length * lde_blowup,
+                domain_size,
                 &positions,
                 &options,
             );
-            assert!(result.is_ok(), "{:}", result.err().unwrap());
+            assert!(result.is_ok(), "{:?}", result.err().unwrap());
 
-            // make sure proof fails for invalid degree
+            // make sure proof fails for invalid domain size
             let result = verify_proof(
+                opening_proof,
                 proof,
                 commitments,
                 &evaluations,
-                max_degree - 8,
-                trace_length * lde_blowup,
+                domain_size / 2,
                 &positions,
                 &options,
             );
