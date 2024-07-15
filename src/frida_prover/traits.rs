@@ -249,7 +249,7 @@ fn query_layer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher, const N
 }
 
 fn apply_drp_batched<B: StarkField, E: FieldElement<BaseField = B>, const N: usize>(
-    evaluations: &Vec<E>,
+    evaluations: &[E],
     poly_count: usize,
     options: &FriOptions,
     xi: Vec<E>,
