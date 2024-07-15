@@ -15,7 +15,7 @@ use proof::FridaProof;
 
 #[cfg(feature = "concurrent")]
 use winter_utils::iterators::*;
-use winter_utils::{iter_mut, uninit_vector};
+use winter_utils::uninit_vector;
 
 use crate::{
     frida_const,
@@ -32,8 +32,8 @@ where
     H: ElementHasher<BaseField = B>,
 {
     options: FriOptions,
-    batch_layer: Option<BatchFridaLayer<B, E, H>>,
     layers: Vec<FridaLayer<B, E, H>>,
+    poly_count: usize,
     remainder_poly: FridaRemainder<E>,
     channel: Option<C>,
 }
@@ -41,12 +41,6 @@ where
 pub struct FridaLayer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher> {
     tree: MerkleTree<H>,
     pub evaluations: Vec<E>,
-    _base_field: PhantomData<B>,
-}
-
-pub struct BatchFridaLayer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher> {
-    tree: MerkleTree<H>,
-    pub evaluations: Vec<Vec<E>>,
     _base_field: PhantomData<B>,
 }
 
@@ -59,7 +53,7 @@ pub struct Commitment<HRoot: ElementHasher> {
     // In a real protocol, domain size will likely be predefined and won't be part of a block.
     pub domain_size: usize,
     pub num_queries: usize,
-    pub batch_size: usize,
+    pub poly_count: usize,
 }
 
 #[cfg(feature = "bench")]
@@ -83,8 +77,8 @@ where
     fn new(options: FriOptions) -> Self {
         FridaProver {
             options,
-            batch_layer: None,
             layers: Vec::new(),
+            poly_count: 1,
             remainder_poly: FridaRemainder(vec![]),
             channel: None,
         }
@@ -99,7 +93,7 @@ where
     }
 
     fn domain_size(&self) -> usize {
-        self.layers[0].evaluations.len()
+        self.layers[0].evaluations.len() / self.poly_count
     }
 
     fn domain_offset(&self) -> B {
@@ -116,6 +110,7 @@ where
 
     fn reset(&mut self) {
         self.layers.clear();
+        self.poly_count = 1;
         self.remainder_poly.0.clear();
         self.channel = None;
     }
@@ -127,16 +122,17 @@ where
     fn get_layer(&self, index: usize) -> &FridaLayer<B, E, H> {
         &self.layers[index]
     }
-    fn get_batch_layer(&self) -> &Option<BatchFridaLayer<B, E, H>> {
-        &self.batch_layer
-    }
 
     fn set_remainer_poly(&mut self, remainder: FridaRemainder<E>) {
         self.remainder_poly = remainder;
     }
 
     fn is_batch(&self) -> bool {
-        !self.batch_layer.is_none()
+        self.poly_count > 1
+    }
+
+    fn poly_count(&self) -> usize {
+        self.poly_count
     }
 }
 
@@ -157,19 +153,27 @@ where
             bench::TIMER = Some(Instant::now());
         }
 
-        let batch_size = data_list.len();
+        self.poly_count = data_list.len();
+        if self.poly_count <= 1 {
+            return Err(FridaError::SinglePolyBatch());
+        }
+
         let blowup_factor = self.options.blowup_factor();
+
         let mut max_data_len = 0;
         data_list.iter().for_each(|data| {
-            max_data_len = usize::max(encoded_data_element_count::<E>(data.len()), max_data_len);
+            max_data_len = usize::max(data.len(), max_data_len);
         });
+        max_data_len = encoded_data_element_count::<E>(max_data_len);
 
         let domain_size = usize::max(
             (max_data_len * blowup_factor).next_power_of_two(),
             frida_const::MIN_DOMAIN_SIZE,
         );
+
         let folding_factor = self.folding_factor();
         let bucket_count = domain_size / folding_factor;
+        let bucket_size = self.poly_count * folding_factor;
 
         if domain_size > frida_const::MAX_DOMAIN_SIZE {
             return Err(FridaError::DomainSizeTooBig(domain_size));
@@ -178,17 +182,15 @@ where
             return Err(FridaError::BadNumQueries(num_queries));
         }
 
-        let mut evaluations = vec![
-            unsafe { uninit_vector(batch_size * folding_factor) };
-            domain_size / folding_factor
-        ];
-
+        let mut evaluations = unsafe { uninit_vector(self.poly_count * domain_size) };
         for (i, data) in data_list.iter().enumerate() {
             build_evaluations_from_data::<E>(data, domain_size, blowup_factor)?
                 .into_iter()
                 .enumerate()
                 .for_each(|(j, e)| {
-                    evaluations[j % bucket_count][batch_size * (j / bucket_count) + i] = e;
+                    let bucket = j % bucket_count;
+                    let position = i + self.poly_count * (j / bucket_count);
+                    evaluations[bucket * bucket_size + position] = e;
                 });
         }
 
@@ -199,46 +201,15 @@ where
             bench::TIMER = Some(Instant::now());
         }
 
-        let mut channel = if num_queries == 0 {
-            C::new(domain_size, 1)
+        if num_queries == 0 {
+            let mut channel = C::new(domain_size, 1);
+            self.build_layers_batched(&mut channel, evaluations, domain_size)?;
         } else {
-            C::new(domain_size, num_queries)
-        };
-
-        let len = evaluations.len();
-        let mut hashed_evaluations: Vec<H::Digest> = unsafe { uninit_vector(len) };
-        iter_mut!(hashed_evaluations, 1024)
-            .zip(&evaluations)
-            .for_each(|(r, v)| {
-                *r = H::hash_elements(v);
-            });
-        let evaluation_tree =
-            MerkleTree::<H>::new(hashed_evaluations).expect("failed to construct FRI layer tree");
-
-        channel.commit_fri_layer(*evaluation_tree.root());
-        let xi = channel.draw_xi(batch_size)?;
-        let mut final_eval = unsafe { uninit_vector(domain_size) };
-        iter_mut!(final_eval, 1024).enumerate().for_each(|(i, f)| {
-            *f = E::default();
-            let start = batch_size * (i / bucket_count);
-            evaluations[i % bucket_count][start..start + batch_size]
-                .iter()
-                .enumerate()
-                .for_each(|(j, e)| {
-                    *f += *e * xi[j];
-                });
-        });
-
-        self.batch_layer = Some(BatchFridaLayer {
-            tree: evaluation_tree,
-            evaluations: evaluations,
-            _base_field: PhantomData,
-        });
-        self.build_layers(&mut channel, final_eval);
-
-        if num_queries != 0 {
+            let mut channel = C::new(domain_size, num_queries);
+            self.build_layers_batched(&mut channel, evaluations, domain_size)?;
             self.channel = Some(channel);
         }
+
         Ok(())
     }
 
@@ -268,7 +239,7 @@ where
             return Err(FridaError::BadNumQueries(num_queries));
         }
 
-        let evaluations = build_evaluations_from_data(&data, domain_size, blowup_factor)?;
+        let evaluations = build_evaluations_from_data(data, domain_size, blowup_factor)?;
 
         #[cfg(feature = "bench")]
         unsafe {
@@ -315,7 +286,7 @@ where
             proof,
             domain_size: self.domain_size(),
             num_queries,
-            batch_size: 0,
+            poly_count: 1,
         };
 
         Ok((commitment, data))
@@ -329,7 +300,12 @@ where
         if num_queries == 0 {
             return Err(FridaError::BadNumQueries(num_queries));
         }
-        self.build_layers_from_batched_data(&data, num_queries)?;
+        let build_layers = self.build_layers_from_batched_data(&data, num_queries);
+        if build_layers.is_err() {
+            self.poly_count = 1;
+            build_layers?;
+        }
+
         let proof = self.query();
 
         #[cfg(feature = "bench")]
@@ -345,7 +321,7 @@ where
             proof,
             domain_size: self.domain_size(),
             num_queries,
-            batch_size: data.len(),
+            poly_count: data.len(),
         };
 
         Ok((commitment, data))
@@ -454,7 +430,7 @@ mod tests {
                 proof: proof,
                 domain_size,
                 num_queries,
-                batch_size: 0
+                poly_count: 1
             }
         );
         assert_eq!(state, data);
@@ -514,9 +490,9 @@ mod tests {
 
     #[test]
     fn test_batching() {
-        let batch_size = 10;
+        let poly_count = 10;
         let mut data = vec![];
-        for _ in 0..batch_size {
+        for _ in 0..poly_count {
             data.push(rand_vector::<u8>(usize::min(
                 rand_value::<u64>() as usize,
                 1024,
@@ -559,25 +535,7 @@ mod tests {
             Blake3_256<BaseElement>,
             FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
         >::new(prover.domain_size(), 1);
-        channel.commit_fri_layer(commitment.roots[0]);
-        let xi = channel.draw_xi(batch_size).unwrap();
-
-        // Sanity checks
-        for i in 0..prover.domain_size() {
-            assert_eq!(
-                opening_prover.layers[0].evaluations[i],
-                prover.batch_layer.as_ref().unwrap().evaluations[i / folding_factor]
-                    .iter()
-                    .skip(i % folding_factor * batch_size)
-                    .take(batch_size)
-                    .enumerate()
-                    .fold(BaseElement::default(), |accum, (j, e)| {
-                        accum + xi[j] * *e
-                    })
-            );
-        }
-
-        for layer_root in commitment.roots[1..].iter() {
+        for layer_root in commitment.roots.iter() {
             channel.commit_fri_layer(*layer_root);
         }
         let query_positions = fold_positions(
@@ -588,7 +546,7 @@ mod tests {
         let mut opening_prover_query_proof = opening_prover.open(&query_positions);
         assert_eq!(commitment.proof, opening_prover_query_proof);
 
-        let (values, merkle_proof) = opening_prover_query_proof
+        let (_, merkle_proof) = opening_prover_query_proof
             .parse_batch_layer::<Blake3_256<BaseElement>, BaseElement>(
                 prover.domain_size(),
                 folding_factor,
@@ -602,7 +560,7 @@ mod tests {
         )
         .unwrap();
 
-        let (layers, _) = commitment
+        commitment
             .proof
             .parse_layers::<Blake3_256<BaseElement>, BaseElement>(
                 prover.domain_size(),
@@ -610,18 +568,10 @@ mod tests {
             )
             .unwrap();
 
-        for (i, value) in layers[0].iter().enumerate() {
-            assert_eq!(
-                *value,
-                values[0]
-                    .iter()
-                    .skip(i * batch_size)
-                    .take(batch_size)
-                    .enumerate()
-                    .fold(BaseElement::default(), |accumulator, (j, val)| {
-                        accumulator + xi[j] * *val
-                    })
-            )
-        }
+        prover.reset();
+        assert_eq!(
+            FridaError::SinglePolyBatch(),
+            prover.commit_batch(vec![vec![]], 1).unwrap_err()
+        );
     }
 }
