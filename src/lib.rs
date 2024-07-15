@@ -44,7 +44,7 @@ mod tests {
                     proof,
                     domain_size,
                     num_queries: 32,
-                    batch_size: 0,
+                    poly_count: 1,
                 },
                 &mut coin,
                 options.clone(),

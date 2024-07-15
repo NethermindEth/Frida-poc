@@ -37,12 +37,12 @@ where
 
         let remainder = proof
             .parse_remainder()
-            .map_err(|e| FridaError::DeserializationError(e))?;
+            .map_err(FridaError::DeserializationError)?;
 
         let batch_data = if poly_count > 1 {
             let (batch_layer_queries, batch_layer_proof) = proof
                 .parse_batch_layer::<H, E>(domain_size, folding_factor, poly_count)
-                .map_err(|e| FridaError::DeserializationError(e))?;
+                .map_err(FridaError::DeserializationError)?;
             domain_size /= folding_factor;
             Some(BatchData {
                 batch_layer_queries: Some(batch_layer_queries),
@@ -57,7 +57,7 @@ where
 
         let (layer_queries, layer_proofs) = proof
             .parse_layers::<H, E>(domain_size, folding_factor)
-            .map_err(|e| FridaError::DeserializationError(e))?;
+            .map_err(FridaError::DeserializationError)?;
         Ok(Self {
             layer_commitments,
             poly_count,

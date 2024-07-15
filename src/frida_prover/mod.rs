@@ -12,9 +12,6 @@ use winter_fri::FriOptions;
 pub mod proof;
 pub mod traits;
 use proof::FridaProof;
-
-#[cfg(feature = "concurrent")]
-use winter_utils::iterators::*;
 use winter_utils::uninit_vector;
 
 use crate::{

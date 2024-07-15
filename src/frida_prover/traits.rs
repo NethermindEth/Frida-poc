@@ -2,6 +2,8 @@ use core::marker::PhantomData;
 
 use winter_crypto::{ElementHasher, Hasher, MerkleTree};
 use winter_math::{fft, FieldElement, StarkField};
+#[cfg(feature = "concurrent")]
+use winter_utils::iterators::*;
 use winter_utils::{
     flatten_vector_elements, group_slice_elements, iter_mut, transpose_slice, uninit_vector,
 };
@@ -55,12 +57,13 @@ where
         let poly_count = self.poly_count();
         let folding_factor = self.folding_factor();
         let bucket_count = domain_size / folding_factor;
+        let bucket_size = poly_count * folding_factor;
 
         let mut hashed_evaluations: Vec<H::Digest> = unsafe { uninit_vector(bucket_count) };
         iter_mut!(hashed_evaluations, 1024)
-            .zip(evaluations.chunks(poly_count * folding_factor))
-            .for_each(|(r, v)| {
-                *r = H::hash_elements(v);
+            .enumerate()
+            .for_each(|(i, r)| {
+                *r = H::hash_elements(&evaluations[i * bucket_size..i * bucket_size + bucket_size]);
             });
         let evaluation_tree =
             MerkleTree::<H>::new(hashed_evaluations).expect("failed to construct FRI layer tree");
@@ -69,34 +72,12 @@ where
         let xi = channel.draw_xi(poly_count)?;
         let alpha = channel.draw_fri_alpha();
         let second_layer = match folding_factor {
-            2 => apply_drp_batched::<E::BaseField, E, 2>(
-                &evaluations,
-                poly_count,
-                self.options(),
-                xi,
-                alpha,
-            ),
-            4 => apply_drp_batched::<E::BaseField, E, 4>(
-                &evaluations,
-                poly_count,
-                self.options(),
-                xi,
-                alpha,
-            ),
-            8 => apply_drp_batched::<E::BaseField, E, 8>(
-                &evaluations,
-                poly_count,
-                self.options(),
-                xi,
-                alpha,
-            ),
-            16 => apply_drp_batched::<E::BaseField, E, 16>(
-                &evaluations,
-                poly_count,
-                self.options(),
-                xi,
-                alpha,
-            ),
+            2 => apply_drp_batched::<_, _, 2>(&evaluations, poly_count, self.options(), xi, alpha),
+            4 => apply_drp_batched::<_, _, 4>(&evaluations, poly_count, self.options(), xi, alpha),
+            8 => apply_drp_batched::<_, _, 8>(&evaluations, poly_count, self.options(), xi, alpha),
+            16 => {
+                apply_drp_batched::<_, _, 16>(&evaluations, poly_count, self.options(), xi, alpha)
+            }
             _ => unimplemented!("folding factor {} is not supported", self.folding_factor()),
         };
 
