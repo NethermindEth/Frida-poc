@@ -71,13 +71,14 @@ where
     fn write_into<W: winter_utils::ByteWriter>(&self, target: &mut W) {
         self.roots.write_into(target);
         self.proof.write_into(target);
+        self.domain_size.write_into(target);
         self.num_queries.write_into(target);
         self.batch_size.write_into(target);
     }
 
     fn get_size_hint(&self) -> usize {
-        // 24 + 104 + 8 + 8
-        136
+        // 24 + 104 + 8 + 8 + 8
+        152
     }
 }
 
@@ -88,12 +89,14 @@ where
     fn read_from<R: ByteReader>(source: &mut R) -> Result<Self, DeserializationError> {
         let roots = Vec::<HRoot::Digest>::read_from(source)?;
         let proof = FridaProof::read_from(source)?;
+        let domain_size = usize::read_from(source)?;
         let num_queries = usize::read_from(source)?;
         let batch_size = usize::read_from(source)?;
 
         Ok(Commitment {
             roots,
             proof,
+            domain_size,
             num_queries,
             batch_size,
         })

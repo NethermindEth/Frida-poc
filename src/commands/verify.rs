@@ -2,7 +2,7 @@ use crate::{
     commands::open::read_and_deserialize_proof,
     frida_prover::Commitment,
     frida_random::{FridaRandom, FridaRandomCoin},
-    frida_verifier::das::FridaDasVerifier,
+    frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
 };
 use std::error::Error;
 use std::fs;
@@ -16,7 +16,6 @@ pub fn run(
     positions_path: &str,
     evaluations_path: &str,
     proof_path: &str,
-    encoded_element_count: usize,
     fri_options: FriOptions,
 ) -> Result<(), Box<dyn Error>> {
     // Read and deserialize
@@ -31,13 +30,8 @@ pub fn run(
     let mut public_coin =
         FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[123]);
 
-    let verifier = FridaDasVerifier::new(
-        commitment,
-        &mut public_coin,
-        fri_options.clone(),
-        encoded_element_count - 1,
-    )
-    .map_err(|e| format!("Verifier initialization error: {}", e))?;
+    let verifier = FridaDasVerifier::new(commitment, &mut public_coin, fri_options.clone())
+        .map_err(|e| format!("Verifier initialization error: {}", e))?;
 
     // Verify the proof
     verifier
@@ -52,7 +46,6 @@ mod tests {
     use super::*;
     use crate::{
         commands::{commit, generate_data, open},
-        frida_data::encoded_data_element_count,
         frida_prover::{traits::BaseFriProver, FridaProver},
         frida_prover_channel::FridaProverChannel,
     };
@@ -77,9 +70,6 @@ mod tests {
 
         // Generate data
         generate_data::run(200, data_path).unwrap();
-        let encoded_element_count =
-            encoded_data_element_count::<BaseElement>(fs::read(data_path).unwrap().len())
-                .next_power_of_two();
 
         // Initialize prover
         let mut prover = FridaProverType::new(FriOptions::new(8, 2, 7));
@@ -104,7 +94,6 @@ mod tests {
             positions_path,
             evaluations_path,
             proof_path,
-            encoded_element_count,
             prover.options().clone(),
         );
         assert!(result.is_ok(), "{:?}", result.err().unwrap());

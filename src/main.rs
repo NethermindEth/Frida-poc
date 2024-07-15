@@ -94,7 +94,6 @@ enum Commands {
 fn main() {
     // Initialize prover with default options
     let mut prover = FridaProverType::new(utils::load_fri_options(None));
-    let mut encoded_element_count: usize = 0;
     let mut init_done = false;
 
     loop {
@@ -143,7 +142,6 @@ fn main() {
                     *blowup_factor,
                     *folding_factor,
                     *max_remainder_degree,
-                    &mut encoded_element_count,
                     &mut init_done,
                 );
             }
@@ -198,7 +196,6 @@ fn main() {
                     positions_path,
                     evaluations_path,
                     proof_path,
-                    encoded_element_count,
                     prover.options().clone(),
                 );
             }
@@ -212,7 +209,6 @@ fn handle_init(
     blowup_factor: usize,
     folding_factor: usize,
     max_remainder_degree: usize,
-    encoded_element_count: &mut usize,
     init_done: &mut bool,
 ) {
     println!(
@@ -228,9 +224,6 @@ fn handle_init(
         );
         return;
     }
-    *encoded_element_count =
-        encoded_data_element_count::<BaseElement>(fs::read(data_path).unwrap().len())
-            .next_power_of_two();
     *init_done = true;
 }
 
@@ -274,7 +267,6 @@ fn handle_verify(
     positions_path: &str,
     evaluations_path: &str,
     proof_path: &str,
-    encoded_element_count: usize,
     options: FriOptions,
 ) {
     if commands::verify::run(
@@ -282,7 +274,6 @@ fn handle_verify(
         positions_path,
         evaluations_path,
         proof_path,
-        encoded_element_count,
         options,
     )
     .is_err()
