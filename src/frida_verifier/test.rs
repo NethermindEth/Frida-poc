@@ -17,6 +17,17 @@ mod test {
     use winter_rand_utils::{rand_value, rand_vector};
 
     type Blake3 = Blake3_256<BaseElement>;
+    type Prover = FridaProver<
+        BaseElement,
+        BaseElement,
+        FridaProverChannel<
+            BaseElement,
+            Blake3_256<BaseElement>,
+            Blake3_256<BaseElement>,
+            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
+        >,
+        Blake3_256<BaseElement>,
+    >;
 
     #[test]
     fn test_drawn_alpha() {
@@ -115,17 +126,7 @@ mod test {
         let options = FriOptions::new(lde_blowup, folding_factor, max_remainder_degree);
 
         // instantiate the prover and generate the proof
-        let mut prover: FridaProver<
-            BaseElement,
-            BaseElement,
-            FridaProverChannel<
-                BaseElement,
-                Blake3_256<BaseElement>,
-                Blake3_256<BaseElement>,
-                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
-            >,
-            Blake3_256<BaseElement>,
-        > = FridaProver::new(options.clone());
+        let mut prover: Prover = FridaProver::new(options.clone());
         let poly_count = 10;
         let mut data = vec![];
         for _ in 0..poly_count {
@@ -222,17 +223,7 @@ mod test {
         let blowup_factor = 2;
         let folding_factor = 2;
         let options = FriOptions::new(blowup_factor, folding_factor, 0);
-        let mut prover: FridaProver<
-            BaseElement,
-            BaseElement,
-            FridaProverChannel<
-                BaseElement,
-                Blake3_256<BaseElement>,
-                Blake3_256<BaseElement>,
-                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
-            >,
-            Blake3_256<BaseElement>,
-        > = FridaProver::new(options.clone());
+        let mut prover: Prover = FridaProver::new(options.clone());
 
         let (commitment, _) = prover.commit_batch(data, 4).unwrap();
         let proof = commitment.proof.clone();
@@ -257,17 +248,7 @@ mod test {
         let blowup_factor = 2;
         let folding_factor = 4;
         let options = FriOptions::new(blowup_factor, folding_factor, 0);
-        let mut prover: FridaProver<
-            BaseElement,
-            BaseElement,
-            FridaProverChannel<
-                BaseElement,
-                Blake3_256<BaseElement>,
-                Blake3_256<BaseElement>,
-                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
-            >,
-            Blake3_256<BaseElement>,
-        > = FridaProver::new(options.clone());
+        let mut prover: Prover = FridaProver::new(options.clone());
 
         let (commitment, _) = prover.commit_batch(data, 4).unwrap();
         let proof = commitment.proof.clone();

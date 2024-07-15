@@ -174,8 +174,8 @@ where
             let mut domain_size = self.domain_size();
             let folding_factor = self.options().folding_factor();
 
-            let start = if self.is_batch() { 1 } else { 0 };
-            if start == 1 {
+            
+            if self.is_batch() {
                 positions = fold_positions(&positions, domain_size, folding_factor);
                 let proof = self
                     .get_layer(0)
@@ -198,6 +198,7 @@ where
 
             // for all FRI layers, except the last one, record tree root, determine a set of query
             // positions, and query the layer at these positions.
+            let start = if self.is_batch() { 1 } else { 0 };
             for i in start..layers_len {
                 positions = fold_positions(&positions, domain_size, folding_factor);
 

@@ -8,7 +8,7 @@ use winter_utils::{
 // ================================================================================================
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct FridaProof {
-    pub(crate) batch_layer: Option<FridaProofBatchLayer>,
+    batch_layer: Option<FridaProofBatchLayer>,
     layers: Vec<FridaProofLayer>,
     remainder: Vec<u8>,
     num_partitions: u8, // stored as power of 2
@@ -70,6 +70,10 @@ impl FridaProof {
 
     // PUBLIC ACCESSORS
     // --------------------------------------------------------------------------------------------
+
+    pub fn has_batch_layer(&self) -> bool {
+        return self.batch_layer.is_some()
+    }
 
     /// Returns the number of layers in this proof.
     pub fn num_layers(&self) -> usize {
@@ -179,7 +183,7 @@ impl FridaProof {
             return layer.parse::<H, E>(domain_size, folding_factor, poly_count);
         }
         Err(DeserializationError::InvalidValue(
-            "failed to parse Batch Layer: it does not exist".to_string(),
+            "failed to parse Batch Layer: it does not exist".to_owned(),
         ))
     }
 

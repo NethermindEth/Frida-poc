@@ -152,16 +152,14 @@ where
 
         self.poly_count = data_list.len();
         if self.poly_count <= 1 {
-            return Err(FridaError::SinglePolyBatch());
+            return Err(FridaError::SinglePolyBatch);
         }
 
         let blowup_factor = self.options.blowup_factor();
 
-        let mut max_data_len = 0;
-        data_list.iter().for_each(|data| {
-            max_data_len = usize::max(data.len(), max_data_len);
-        });
-        max_data_len = encoded_data_element_count::<E>(max_data_len);
+        let max_data_len = encoded_data_element_count::<E>(
+            data_list.iter().map(|data| data.len()).max().unwrap_or_default()    
+        );
 
         let domain_size = usize::max(
             (max_data_len * blowup_factor).next_power_of_two(),
@@ -567,7 +565,7 @@ mod tests {
 
         prover.reset();
         assert_eq!(
-            FridaError::SinglePolyBatch(),
+            FridaError::SinglePolyBatch,
             prover.commit_batch(vec![vec![]], 1).unwrap_err()
         );
     }

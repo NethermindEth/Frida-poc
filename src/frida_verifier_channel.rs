@@ -27,12 +27,13 @@ where
     pub fn new(
         mut proof: FridaProof,
         layer_commitments: Vec<H::Digest>,
-        mut domain_size: usize,
+        domain_size: usize,
         folding_factor: usize,
         poly_count: usize,
     ) -> Result<Self, FridaError> {
         assert!(poly_count != 0, "poly_count must be greater than 0");
 
+        let mut domain_size = domain_size;
         let num_partitions = proof.num_partitions();
 
         let remainder = proof
@@ -49,8 +50,8 @@ where
                 batch_layer_proof: Some(batch_layer_proof),
             })
         } else {
-            if proof.batch_layer.is_some() {
-                return Err(FridaError::ProofPolyCountMismatch());
+            if proof.has_batch_layer() {
+                return Err(FridaError::ProofPolyCountMismatch);
             }
             None
         };

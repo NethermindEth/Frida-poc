@@ -141,7 +141,7 @@ where
                 xi = Some(public_coin.draw_xi(poly_count)?)
             }
 
-            let alpha = public_coin.draw().map_err(|_e| FridaError::DrawError())?;
+            let alpha = public_coin.draw()?;
             layer_alphas.push(alpha);
 
             // make sure the degree can be reduced by the folding factor at all layers
