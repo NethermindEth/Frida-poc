@@ -17,17 +17,9 @@ mod test {
     use winter_rand_utils::{rand_value, rand_vector};
 
     type Blake3 = Blake3_256<BaseElement>;
-    type Prover = FridaProver<
-        BaseElement,
-        BaseElement,
-        FridaProverChannel<
-            BaseElement,
-            Blake3_256<BaseElement>,
-            Blake3_256<BaseElement>,
-            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
-        >,
-        Blake3_256<BaseElement>,
-    >;
+    type FriRandom = FridaRandom<Blake3, Blake3, BaseElement>;
+    type FriProverChannel = FridaProverChannel<BaseElement, Blake3, Blake3, FriRandom>;
+    type FriProver = FridaProver<BaseElement, BaseElement, FriProverChannel, Blake3>;
 
     #[test]
     fn test_drawn_alpha() {
@@ -54,7 +46,7 @@ mod test {
         let positions = channel.draw_query_positions();
         let proof = prover.build_proof(&positions);
 
-        let mut coin = FridaRandom::<Blake3, Blake3, BaseElement>::new(&[123]);
+        let mut coin = FriRandom::new(&[123]);
         let verifier = FridaDasVerifier::new(
             Commitment {
                 proof,
@@ -81,12 +73,7 @@ mod test {
             )));
         }
         let (commitment, _) = prover.commit_batch(data, 32).unwrap();
-        let mut channel = FridaProverChannel::<
-            BaseElement,
-            Blake3_256<BaseElement>,
-            Blake3_256<BaseElement>,
-            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
-        >::new(prover.domain_size(), 32);
+        let mut channel = FriProverChannel::new(prover.domain_size(), 32);
         for layer_root in commitment.roots.iter() {
             channel.commit_fri_layer(*layer_root);
             channel.draw_fri_alpha();
@@ -96,7 +83,7 @@ mod test {
         let positions = channel.draw_query_positions();
         let proof = prover.build_proof(&positions);
 
-        let mut coin = FridaRandom::<Blake3, Blake3, BaseElement>::new(&[123]);
+        let mut coin = FriRandom::new(&[123]);
         let verifier = FridaDasVerifier::new(
             Commitment {
                 proof,
@@ -126,7 +113,7 @@ mod test {
         let options = FriOptions::new(lde_blowup, folding_factor, max_remainder_degree);
 
         // instantiate the prover and generate the proof
-        let mut prover: Prover = FridaProver::new(options.clone());
+        let mut prover: FriProver = FridaProver::new(options.clone());
         let poly_count = 10;
         let mut data = vec![];
         for _ in 0..poly_count {
@@ -136,12 +123,7 @@ mod test {
             )));
         }
         let (commitment, _) = prover.commit_batch(data, 32).unwrap();
-        let mut channel = FridaProverChannel::<
-            BaseElement,
-            Blake3_256<BaseElement>,
-            Blake3_256<BaseElement>,
-            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
-        >::new(prover.domain_size(), 32);
+        let mut channel = FriProverChannel::new(prover.domain_size(), 32);
         for layer_root in commitment.roots.iter() {
             channel.commit_fri_layer(*layer_root);
             channel.draw_fri_alpha();
@@ -151,7 +133,7 @@ mod test {
         let positions = channel.draw_query_positions();
         let proof = prover.build_proof(&positions);
 
-        let mut coin = FridaRandom::<Blake3, Blake3, BaseElement>::new(&[123]);
+        let mut coin = FriRandom::new(&[123]);
         let verifier = FridaDasVerifier::new(
             Commitment {
                 proof,
@@ -174,17 +156,14 @@ mod test {
     fn verify_batch(
         data_evaluations: &Vec<BaseElement>,
         proof: FridaProof,
-        commitment: Commitment<Blake3_256<BaseElement>>,
+        commitment: Commitment<Blake3>,
         options: FriOptions,
         domain_size: usize,
     ) {
         let poly_count = commitment.poly_count;
         let folding_factor = options.folding_factor();
 
-        let mut coin =
-            FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[
-                123,
-            ]);
+        let mut coin = FriRandom::new(&[123]);
 
         let verifier = FridaDasVerifier::new(commitment, &mut coin, options.clone()).unwrap();
 
@@ -223,7 +202,7 @@ mod test {
         let blowup_factor = 2;
         let folding_factor = 2;
         let options = FriOptions::new(blowup_factor, folding_factor, 0);
-        let mut prover: Prover = FridaProver::new(options.clone());
+        let mut prover: FriProver = FridaProver::new(options.clone());
 
         let (commitment, _) = prover.commit_batch(data, 4).unwrap();
         let proof = commitment.proof.clone();
@@ -248,7 +227,7 @@ mod test {
         let blowup_factor = 2;
         let folding_factor = 4;
         let options = FriOptions::new(blowup_factor, folding_factor, 0);
-        let mut prover: Prover = FridaProver::new(options.clone());
+        let mut prover: FriProver = FridaProver::new(options.clone());
 
         let (commitment, _) = prover.commit_batch(data, 4).unwrap();
         let proof = commitment.proof.clone();
