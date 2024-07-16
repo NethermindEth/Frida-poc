@@ -122,4 +122,87 @@ mod test {
             .verify(proof, &evaluations, &query_positions)
             .unwrap();
     }
+    
+    #[test]
+    fn test_verify_corrupt_data() {
+        let batch_size = 10;
+        let mut data = vec![];
+        for _ in 0..batch_size {
+            data.push(rand_vector::<u8>(usize::min(
+                rand_value::<u64>() as usize,
+                128,
+            )));
+        }
+        
+        let mut data_mod: Vec<Vec<u8>> = vec![];
+        for i in 0..batch_size {
+            let mut t_data = data[i].clone();
+            if i == 0 {
+                t_data[0] = t_data[0] ^ 1; // This is the modification
+            }
+            data_mod.push(t_data);
+        }
+        
+        let blowup_factor = 2;
+        let folding_factor = 2;
+        let options = FriOptions::new(blowup_factor, folding_factor, 0);
+        let mut prover: FridaProver<
+            BaseElement,
+            BaseElement,
+            FridaProverChannel<
+                BaseElement,
+                Blake3_256<BaseElement>,
+                Blake3_256<BaseElement>,
+                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
+            >,
+            Blake3_256<BaseElement>,
+        > = FridaProver::new(options.clone());
+        
+        let (commitment, _) = prover.commit_batch(data, 4).unwrap();
+        
+        let mut prover_mod: FridaProver<
+            BaseElement,
+            BaseElement,
+            FridaProverChannel<
+                BaseElement,
+                Blake3_256<BaseElement>,
+                Blake3_256<BaseElement>,
+                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
+            >,
+            Blake3_256<BaseElement>,
+        > = FridaProver::new(options.clone());
+        let (commitment_mod, _) = prover_mod.commit_batch(data_mod, 4).unwrap();
+        let proof = commitment_mod.proof.clone();
+        
+        let mut coin =
+            FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[
+                123,
+            ]);
+        
+        let verifier = FridaDasVerifier::new(
+            commitment,
+            &mut coin,
+            options.clone(),
+            prover.domain_size() / options.blowup_factor() - 1,
+        )
+        .unwrap();
+        
+        let mut query_positions = coin.draw_query_positions(4, prover.domain_size()).unwrap();
+        query_positions.dedup();
+        query_positions = fold_positions(&query_positions, prover.domain_size(), folding_factor);
+        
+        let mut evaluations = vec![];
+        for position in query_positions.iter() {
+            let bucket = position % (prover.domain_size() / folding_factor);
+            let start_index = (position / (prover.domain_size() / folding_factor)) * batch_size;
+            prover.get_batch_layer().as_ref().unwrap().evaluations[bucket]
+                [start_index..start_index + batch_size]
+                .iter()
+                .for_each(|e| {
+                    evaluations.push(*e);
+                });
+        }
+        
+        verifier.verify(proof, &evaluations, &query_positions).unwrap_err();
+    }
 }
