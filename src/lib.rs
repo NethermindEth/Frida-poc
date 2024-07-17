@@ -76,7 +76,7 @@ mod tests {
             let prover = prover_builder.test_build_layers(&mut channel, &evaluations);
 
             let positions = channel.draw_query_positions();
-            let proof = prover.build_proof(&positions);
+            let proof = prover.open(&positions);
 
             let positions = rand_array::<u64, 5>()
                 .iter()

@@ -98,8 +98,8 @@ mod tests {
             let prover_builder = FridaTestProverBuilder::new(options.clone());
 
             let data: Vec<_> = (0..20).collect();
-            let (prover, mut channel) = prover_builder.build_prover(&data, 3).unwrap();
-            let commitment = prover.commit(&mut channel).unwrap();
+            let (prover, channel) = prover_builder.build_prover(&data, 3).unwrap();
+            let commitment = prover.commit(channel).unwrap();
 
             let mut public_coin =
                 FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[
@@ -143,8 +143,8 @@ mod tests {
         let data = rand_vector::<u8>(200);
         let encoded_element_count =
             encoded_data_element_count::<BaseElement>(data.len()).next_power_of_two();
-        let (prover, mut channel) = prover_builder.build_prover(&data, 31).unwrap();
-        let commitment = prover.commit(&mut channel).unwrap();
+        let (prover, channel) = prover_builder.build_prover(&data, 31).unwrap();
+        let commitment = prover.commit(channel).unwrap();
 
         let mut public_coin =
             FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[

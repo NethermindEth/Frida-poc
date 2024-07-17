@@ -84,11 +84,13 @@ where
         self.layers[0].evaluations.len()
     }
 
+    /// Commits to the evaluated data, consuming the channel constructed along with this prover.
     pub fn commit(
         &self,
-        channel: &mut C,
+        mut channel: C,
     ) -> Result<Commitment<H>, FridaError> {
-        let proof = self.query(channel);
+        let query_positions = channel.draw_query_positions();
+        let proof = self.open(&query_positions);
 
         #[cfg(feature = "bench")]
         unsafe {
@@ -107,12 +109,8 @@ where
         Ok(commitment)
     }
 
-    fn query(&self, channel: &mut C) -> FridaProof {
-        let query_positions = channel.draw_query_positions();
-        self.build_proof(&query_positions)
-    }
-
-    pub fn build_proof(&self, positions: &[usize]) -> FridaProof {
+    /// Opens given position, building a proof for it.
+    pub fn open(&self, positions: &[usize]) -> FridaProof {
         let folding_factor = self.folding_factor;
         let domain_size = self.domain_size();
         let layers_len = self.layers.len();
@@ -161,10 +159,6 @@ where
 
         FridaProof::new(batch_layer, layers, remainder, 1)
     }
-
-    pub fn open(&self, positions: &[usize]) -> FridaProof {
-        self.build_proof(positions)
-    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -205,6 +199,7 @@ where
         }
     }
 
+    /// Builds a prover along with a channel that should be used for commitment.
     pub fn build_batched_prover(
         &self,
         data_list: &[Vec<u8>],
@@ -298,6 +293,7 @@ where
         Ok((prover, channel))
     }
 
+    /// Builds a prover along with a channel that should be used for commitment.
     pub fn build_prover(
         &self,
         data: &[u8],
@@ -464,9 +460,9 @@ mod tests {
         );
 
         // Make sure minimum domain size is correctly enforced
-        let (prover, mut channel) =
+        let (prover, channel) =
             prover_builder.build_prover(&rand_vector::<u8>(1), 1).unwrap();
-        let commitment = prover.commit(&mut channel).unwrap();
+        let commitment = prover.commit(channel).unwrap();
         assert_eq!(
             frida_const::MIN_DOMAIN_SIZE.ilog2() as usize,
             commitment.roots.len()
@@ -475,9 +471,9 @@ mod tests {
         let data = rand_vector::<u8>(200);
         let num_queries: usize = 31;
         let domain_size: usize = 32;
-        let (prover, mut channel) =
+        let (prover, channel) =
             prover_builder.build_prover(&data, num_queries).unwrap();
-        let commitment = prover.commit(&mut channel).unwrap();
+        let commitment = prover.commit(channel).unwrap();
 
         let evaluations = build_evaluations_from_data(&data, 32, 2).unwrap();
         let prover = FridaProverBuilder::new(options.clone());
@@ -489,7 +485,7 @@ mod tests {
         >::new(domain_size, num_queries);
         let prover = prover.build_layers(&mut channel, &evaluations);
         let positions = channel.draw_query_positions();
-        let proof = prover.build_proof(&positions);
+        let proof = prover.open(&positions);
 
         assert_eq!(
             commitment,
@@ -519,8 +515,8 @@ mod tests {
         > = FridaProverBuilder::new(options.clone());
 
         let data = rand_vector::<u8>(200);
-        let (prover, mut channel) = prover_builder.build_prover(&data, 31).unwrap();
-        let commitment = prover.commit(&mut channel).unwrap();
+        let (prover, channel) = prover_builder.build_prover(&data, 31).unwrap();
+        let commitment = prover.commit(channel).unwrap();
 
         let opening_prover: FridaProverBuilder<
             BaseElement,
@@ -581,8 +577,8 @@ mod tests {
             >,
             Blake3_256<BaseElement>,
         > = FridaProverBuilder::new(options.clone());
-        let (prover, mut channel) = prover_builder.build_batched_prover(&data, 1).unwrap();
-        let commitment = prover.commit(&mut channel).unwrap();
+        let (prover, channel) = prover_builder.build_batched_prover(&data, 1).unwrap();
+        let commitment = prover.commit(channel).unwrap();
 
         let opening_prover: FridaProverBuilder<
             BaseElement,

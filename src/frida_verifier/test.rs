@@ -85,8 +85,8 @@ mod test {
             Blake3_256<BaseElement>,
         > = FridaProverBuilder::new(options.clone());
 
-        let (prover, mut channel) = prover_builder.build_batched_prover(&data, 4).unwrap();
-        let commitment = prover.commit(&mut channel).unwrap();
+        let (prover, channel) = prover_builder.build_batched_prover(&data, 4).unwrap();
+        let commitment = prover.commit(channel).unwrap();
         let proof = commitment.proof.clone();
 
         let mut coin =
