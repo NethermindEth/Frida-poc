@@ -4,6 +4,7 @@ use crate::{
     frida_random::FridaRandom,
     utils::{read_file_to_vec, write_to_file},
 };
+use std::path::Path;
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
 use winter_utils::{Deserializable, Serializable};
@@ -17,8 +18,8 @@ type FridaProverType = FridaProver<BaseElement, BaseElement, FridaChannel, Blake
 pub fn run(
     prover: &mut FridaProverType,
     num_queries: usize,
-    data_path: &str,
-    commitment_path: &str,
+    data_path: &Path,
+    commitment_path: &Path,
 ) -> Result<Commitment<Blake3>, Box<dyn std::error::Error>> {
     // Read data from file
     let data = read_file_to_vec(data_path)?;
@@ -35,13 +36,13 @@ pub fn run(
     let commitment_bytes = commitment.to_bytes();
     write_to_file(commitment_path, &commitment_bytes)?;
 
-    println!("Commitment created and saved to {}", commitment_path);
+    println!("Commitment created and saved to {:?}", commitment_path);
     Ok(commitment)
 }
 
 /// Reads the commitment from a file.
 pub fn read_commitment_from_file(
-    file_path: &str,
+    file_path: &Path,
 ) -> Result<Commitment<Blake3>, Box<dyn std::error::Error>> {
     let commitment_bytes = read_file_to_vec(file_path)?;
     let commitment = Commitment::<Blake3>::read_from_bytes(&commitment_bytes).map_err(
@@ -53,17 +54,19 @@ pub fn read_commitment_from_file(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::generate_data;
-    use crate::frida_prover::traits::BaseFriProver;
-    use std::fs;
+    use crate::{
+        commands::generate_data, frida_prover::traits::BaseFriProver, utils::CleanupFiles,
+    };
     use winter_fri::FriOptions;
 
     #[test]
     fn test_commit() {
-        let data_path = "data/data.bin";
-        let commitment_path = "data/commitment.bin";
+        let data_path = Path::new("data/data.bin");
+        let commitment_path = Path::new("data/commitment.bin");
 
-        if !std::path::Path::new(data_path).exists() {
+        let _cleanup = CleanupFiles::new(vec![data_path, commitment_path]);
+
+        if !data_path.exists() {
             generate_data::run(200, data_path).unwrap();
         }
 
@@ -77,9 +80,5 @@ mod tests {
 
         // Verify the commitment
         assert_eq!(commitment, commitment_file, "Commitment does not match.");
-
-        // Cleanup
-        fs::remove_file(data_path).unwrap();
-        fs::remove_file(commitment_path).unwrap();
     }
 }

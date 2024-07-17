@@ -5,7 +5,7 @@ use crate::{
     frida_random::FridaRandom,
     utils::{read_file_to_vec, write_to_file},
 };
-
+use std::path::Path;
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
 use winter_utils::{Deserializable, Serializable};
@@ -18,14 +18,14 @@ type FridaProverType = FridaProver<BaseElement, BaseElement, FridaChannel, Blake
 pub fn run(
     prover: &mut FridaProverType,
     positions: &[usize],
-    positions_path: &str,
-    evaluations_path: &str,
-    proof_path: &str,
+    positions_path: &Path,
+    evaluations_path: &Path,
+    proof_path: &Path,
 ) -> Result<(Vec<usize>, Vec<BaseElement>, FridaProof), Box<dyn std::error::Error>> {
     let options = prover.options().clone();
 
     // Read data from file
-    let data = read_file_to_vec("data/data.bin")?;
+    let data = read_file_to_vec(Path::new("data/data.bin"))?;
 
     let encoded_element_count =
         encoded_data_element_count::<BaseElement>(data.len()).next_power_of_two();
@@ -50,9 +50,9 @@ pub fn run(
 }
 
 pub fn read_and_deserialize_proof(
-    positions_path: &str,
-    evaluations_path: &str,
-    proof_path: &str,
+    positions_path: &Path,
+    evaluations_path: &Path,
+    proof_path: &Path,
 ) -> Result<(Vec<usize>, Vec<BaseElement>, FridaProof), Box<dyn std::error::Error>> {
     // Read and deserialize positions
     let positions_bytes = read_file_to_vec(positions_path)?;
@@ -80,16 +80,23 @@ pub fn read_and_deserialize_proof(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::generate_data;
+    use crate::{commands::generate_data, utils::CleanupFiles};
     use std::fs;
     use winter_fri::FriOptions;
 
     #[test]
     fn test_open() {
-        let data_path = "data/data.bin";
-        let positions_path = "data/positions.bin";
-        let evaluations_path = "data/evaluations.bin";
-        let proof_path = "data/proof.bin";
+        let data_path = Path::new("data/data.bin");
+        let positions_path = Path::new("data/positions.bin");
+        let evaluations_path = Path::new("data/evaluations.bin");
+        let proof_path = Path::new("data/proof.bin");
+
+        let _cleanup = CleanupFiles::new(vec![
+            data_path,
+            positions_path,
+            evaluations_path,
+            proof_path,
+        ]);
 
         if !std::path::Path::new(data_path).exists() {
             generate_data::run(200, data_path).unwrap();
@@ -134,10 +141,5 @@ mod tests {
             deserialized_proof.to_bytes(),
             "Proof does not match."
         );
-
-        fs::remove_file(data_path).unwrap();
-        fs::remove_file(proof_path).unwrap();
-        fs::remove_file(positions_path).unwrap();
-        fs::remove_file(evaluations_path).unwrap();
     }
 }

@@ -1,9 +1,8 @@
 use crate::utils::write_to_file;
-use std::fs;
-use std::io;
+use std::{fs, io, path::Path};
 use winter_rand_utils::rand_vector;
 
-pub fn run(size: usize, file_path: &str) -> Result<Vec<u8>, GenerateDataError> {
+pub fn run(size: usize, file_path: &Path) -> Result<Vec<u8>, GenerateDataError> {
     // Generate random data
     let data = rand_vector::<u8>(size);
 
@@ -16,7 +15,11 @@ pub fn run(size: usize, file_path: &str) -> Result<Vec<u8>, GenerateDataError> {
     write_to_file(file_path, &data).map_err(GenerateDataError::IoError)?;
 
     // Print success message
-    println!("Generated data of size {} and saved to {}", size, file_path);
+    println!(
+        "Generated data of size {} and saved to {}",
+        size,
+        file_path.display()
+    );
 
     Ok(data)
 }
@@ -24,13 +27,14 @@ pub fn run(size: usize, file_path: &str) -> Result<Vec<u8>, GenerateDataError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::read_file_to_vec;
-    use std::fs;
+    use crate::utils::{read_file_to_vec, CleanupFiles};
 
     #[test]
     fn test_generate_data() -> Result<(), GenerateDataError> {
         let size = 200;
-        let file_path = "data/test_data.bin";
+        let file_path = Path::new("data/data.bin");
+
+        let _cleanup = CleanupFiles::new(vec![file_path]);
 
         // Generate data and write to file
         let data = run(size, file_path)?;
@@ -40,9 +44,6 @@ mod tests {
 
         // Verify data
         assert_eq!(data, file_data);
-
-        // Clean up
-        fs::remove_file(file_path).map_err(GenerateDataError::IoError)?;
 
         Ok(())
     }

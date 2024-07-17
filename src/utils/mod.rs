@@ -1,8 +1,9 @@
 use serde::Deserialize;
-use std::fs;
-use std::fs::File;
-use std::io::{self, BufWriter, Read, Write};
-
+use std::{
+    fs::{self, File},
+    io::{self, BufWriter, Read, Write},
+    path::Path,
+};
 use winter_crypto::hashers::Blake3_256;
 use winter_fri::FriOptions;
 use winter_math::{fft, fields::f128::BaseElement, FieldElement};
@@ -59,16 +60,38 @@ pub fn load_fri_options(file_path: Option<&String>) -> FriOptions {
     }
 }
 
-pub fn read_file_to_vec(file_path: &str) -> Result<Vec<u8>, io::Error> {
+pub fn read_file_to_vec(file_path: &Path) -> Result<Vec<u8>, io::Error> {
     let mut file = File::open(file_path)?;
     let mut data = Vec::new();
     file.read_to_end(&mut data)?;
     Ok(data)
 }
 
-pub fn write_to_file(file_path: &str, data: &[u8]) -> Result<(), io::Error> {
+pub fn write_to_file(file_path: &Path, data: &[u8]) -> Result<(), io::Error> {
     let mut file = File::create(file_path)?;
     let mut writer = BufWriter::new(&mut file);
     writer.write_all(data)?;
     Ok(())
+}
+
+pub struct CleanupFiles<'a> {
+    pub paths: Vec<&'a Path>,
+}
+
+impl<'a> CleanupFiles<'a> {
+    pub fn new(paths: Vec<&'a Path>) -> Self {
+        CleanupFiles { paths }
+    }
+}
+
+impl Drop for CleanupFiles<'_> {
+    fn drop(&mut self) {
+        for path in &self.paths {
+            if path.exists() {
+                fs::remove_file(path).unwrap_or_else(|err| {
+                    eprintln!("Failed to remove file {}: {}", path.display(), err);
+                });
+            }
+        }
+    }
 }

@@ -1,13 +1,18 @@
 use clap::{Parser, Subcommand};
-use frida_poc::commands;
-use frida_poc::frida_prover::{traits::BaseFriProver, FridaProver};
-use std::fs;
-use std::io::{self, Write};
+use frida_poc::{
+    commands,
+    frida_prover::{traits::BaseFriProver, FridaProver},
+    frida_prover_channel::FridaProverChannel,
+    frida_random::FridaRandom,
+};
+use std::{
+    fs,
+    io::{self, Write},
+    path::PathBuf,
+};
 use winter_crypto::hashers::Blake3_256;
 use winter_fri::FriOptions;
 use winter_math::fields::f128::BaseElement;
-
-use frida_poc::{frida_prover_channel::FridaProverChannel, frida_random::FridaRandom};
 
 type Blake3 = Blake3_256<BaseElement>;
 type FridaChannel =
@@ -28,7 +33,7 @@ enum Commands {
     Init {
         /// Data Path
         #[arg(long, default_value = "data/data.bin")]
-        data_path: String,
+        data_path: PathBuf,
         /// Blowup factor
         #[arg(long, default_value = "8")]
         blowup_factor: usize,
@@ -45,7 +50,7 @@ enum Commands {
         size: usize,
         /// Path to the data file
         #[arg(long, default_value = "data/data.bin")]
-        data_path: String,
+        data_path: PathBuf,
     },
     /// Commit data and generate a proof
     Commit {
@@ -53,10 +58,10 @@ enum Commands {
         num_queries: usize,
         /// Path to the data file
         #[arg(long, default_value = "data/data.bin")]
-        data_path: String,
+        data_path: PathBuf,
         /// Path to the commitment file
         #[arg(long, default_value = "data/commitment.bin")]
-        commitment_path: String,
+        commitment_path: PathBuf,
     },
     /// Open a proof for a given position
     Open {
@@ -64,28 +69,28 @@ enum Commands {
         positions: Vec<usize>,
         /// Path to the positions file
         #[arg(long, default_value = "data/positions.bin")]
-        positions_path: String,
+        positions_path: PathBuf,
         /// Path to the evaluations file
         #[arg(long, default_value = "data/evaluations.bin")]
-        evaluations_path: String,
+        evaluations_path: PathBuf,
         /// Path to the proof file
         #[arg(long, default_value = "data/proof.bin")]
-        proof_path: String,
+        proof_path: PathBuf,
     },
     /// Verify a proof
     Verify {
         /// Path to the commitment file
         #[arg(long, default_value = "data/commitment.bin")]
-        commitment_path: String,
+        commitment_path: PathBuf,
         /// Path to the positions file
         #[arg(long, default_value = "data/positions.bin")]
-        positions_path: String,
+        positions_path: PathBuf,
         /// Path to the evaluations file
         #[arg(long, default_value = "data/evaluations.bin")]
-        evaluations_path: String,
+        evaluations_path: PathBuf,
         /// Path to the proof file
         #[arg(long, default_value = "data/proof.bin")]
-        proof_path: String,
+        proof_path: PathBuf,
     },
 }
 
@@ -153,7 +158,7 @@ fn handle_init(cmd: Commands) -> Option<FridaProverType> {
     {
         println!(
             "Initializing prover with data path: {}, blowup factor: {}, folding factor: {}, max remainder degree: {}",
-            data_path, blowup_factor, folding_factor, max_remainder_degree
+            data_path.display(), blowup_factor, folding_factor, max_remainder_degree
         );
         let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
         if let Err(err) = fs::read(&data_path) {
