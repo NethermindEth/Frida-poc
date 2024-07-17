@@ -1,8 +1,6 @@
 use clap::{Parser, Subcommand};
 use frida_poc::commands;
-use frida_poc::frida_data::encoded_data_element_count;
 use frida_poc::frida_prover::{traits::BaseFriProver, FridaProver};
-use frida_poc::utils;
 use std::fs;
 use std::io::{self, Write};
 use winter_crypto::hashers::Blake3_256;
@@ -47,7 +45,7 @@ enum Commands {
         size: usize,
         /// Path to the data file
         #[arg(long, default_value = "data/data.bin")]
-        file_path: String,
+        data_path: String,
     },
     /// Commit data and generate a proof
     Commit {
@@ -92,194 +90,160 @@ enum Commands {
 }
 
 fn main() {
-    // Initialize prover with default options
-    let mut prover = FridaProverType::new(utils::load_fri_options(None));
-    let mut init_done = false;
+    let mut prover: Option<FridaProverType> = None;
 
     loop {
-        print!("Enter command: ");
-        io::stdout().flush().unwrap();
-
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
-        let input = input.trim();
-
-        // Allow user to exit the loop
-        if input.eq_ignore_ascii_case("exit") {
-            break;
-        }
-
-        // Split input into arguments and parse them
-        let args = match shlex::split(input) {
-            Some(mut args) => {
-                args.insert(0, "frida-poc".to_string());
-                args
-            }
-            None => {
-                eprintln!("Failed to parse input.");
-                continue;
-            }
-        };
-
-        let cli = match Cli::try_parse_from(args) {
-            Ok(cli) => cli,
+        match read_and_parse_command() {
+            Ok(cli) => match cli.command {
+                Commands::Init { .. } => {
+                    prover = handle_init(cli.command);
+                }
+                Commands::GenerateData { .. } => {
+                    handle_generate_data(cli.command);
+                }
+                Commands::Commit { .. } => {
+                    handle_commit(cli.command, &mut prover);
+                }
+                Commands::Open { .. } => {
+                    handle_open(cli.command, &mut prover);
+                }
+                Commands::Verify { .. } => {
+                    handle_verify(cli.command, &mut prover);
+                }
+            },
             Err(err) => {
                 eprintln!("Error: {}", err);
-                continue;
-            }
-        };
-
-        match &cli.command {
-            Commands::Init {
-                data_path,
-                blowup_factor,
-                folding_factor,
-                max_remainder_degree,
-            } => {
-                handle_init(
-                    &mut prover,
-                    data_path,
-                    *blowup_factor,
-                    *folding_factor,
-                    *max_remainder_degree,
-                    &mut init_done,
-                );
-            }
-
-            Commands::GenerateData { size, file_path } => {
-                handle_generate_data(*size, file_path);
-            }
-
-            Commands::Commit {
-                num_queries,
-                data_path,
-                commitment_path,
-            } => {
-                if !init_done {
-                    eprintln!("Please call the init command first.");
-                    continue;
-                }
-                handle_commit(&mut prover, *num_queries, data_path, commitment_path);
-            }
-
-            Commands::Open {
-                positions,
-                positions_path,
-                evaluations_path,
-                proof_path,
-            } => {
-                if !init_done {
-                    eprintln!("Please call the init command first.");
-                    continue;
-                }
-                handle_open(
-                    &mut prover,
-                    positions,
-                    positions_path,
-                    evaluations_path,
-                    proof_path,
-                );
-            }
-
-            Commands::Verify {
-                commitment_path,
-                positions_path,
-                evaluations_path,
-                proof_path,
-            } => {
-                if !init_done {
-                    eprintln!("Please call the init command first.");
-                    continue;
-                }
-                handle_verify(
-                    commitment_path,
-                    positions_path,
-                    evaluations_path,
-                    proof_path,
-                    prover.options().clone(),
-                );
             }
         }
     }
 }
 
-fn handle_init(
-    prover: &mut FridaProverType,
-    data_path: &str,
-    blowup_factor: usize,
-    folding_factor: usize,
-    max_remainder_degree: usize,
-    init_done: &mut bool,
-) {
-    println!(
-        "Initializing prover with data path: {}, blowup factor: {}, folding factor: {}, max remainder degree: {}",
-        data_path, blowup_factor, folding_factor, max_remainder_degree
-    );
-    let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
-    *prover = FridaProverType::new(options);
-    if let Err(err) = fs::read(data_path) {
-        eprintln!(
-            "Failed to read data file: {}\nUse `generate-data <SIZE>` command.",
-            err
+fn read_and_parse_command() -> Result<Cli, String> {
+    print!("Enter command: ");
+    io::stdout().flush().unwrap();
+
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .map_err(|_| "Failed to read input.".to_string())?;
+    let input = input.trim();
+
+    if input.eq_ignore_ascii_case("exit") {
+        std::process::exit(0);
+    }
+
+    let args = match shlex::split(input) {
+        Some(mut args) => {
+            args.insert(0, "frida-poc".to_string());
+            args
+        }
+        None => return Err("Failed to parse input.".to_string()),
+    };
+
+    Cli::try_parse_from(args).map_err(|err| err.to_string())
+}
+
+fn handle_init(cmd: Commands) -> Option<FridaProverType> {
+    if let Commands::Init {
+        data_path,
+        blowup_factor,
+        folding_factor,
+        max_remainder_degree,
+    } = cmd
+    {
+        println!(
+            "Initializing prover with data path: {}, blowup factor: {}, folding factor: {}, max remainder degree: {}",
+            data_path, blowup_factor, folding_factor, max_remainder_degree
         );
-        return;
-    }
-    *init_done = true;
-}
-
-fn handle_generate_data(size: usize, file_path: &str) {
-    if let Err(err) = commands::generate_data::run(size, file_path) {
-        eprintln!("Failed to generate data: {}", err);
-    }
-}
-
-fn handle_commit(
-    prover: &mut FridaProverType,
-    num_queries: usize,
-    data_path: &str,
-    commitment_path: &str,
-) {
-    if let Err(err) = commands::commit::run(prover, num_queries, data_path, commitment_path) {
-        eprintln!("Failed to commit data: {}", err);
+        let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
+        if let Err(err) = fs::read(&data_path) {
+            eprintln!(
+                "Failed to read data file: {}\nUse `generate-data <SIZE>` command.",
+                err
+            );
+            return None;
+        }
+        Some(FridaProverType::new(options))
+    } else {
+        None
     }
 }
 
-fn handle_open(
-    prover: &mut FridaProverType,
-    positions: &[usize],
-    positions_path: &str,
-    evaluations_path: &str,
-    proof_path: &str,
-) {
-    if let Err(err) = commands::open::run(
-        prover,
+fn handle_generate_data(cmd: Commands) {
+    if let Commands::GenerateData { size, data_path } = cmd {
+        if let Err(err) = commands::generate_data::run(size, &data_path) {
+            eprintln!("Failed to generate data: {}", err);
+        }
+    }
+}
+
+fn handle_commit(cmd: Commands, prover: &mut Option<FridaProverType>) {
+    let prover = match_prover(prover);
+
+    if let Commands::Commit {
+        num_queries,
+        data_path,
+        commitment_path,
+    } = cmd
+    {
+        if let Err(err) = commands::commit::run(prover, num_queries, &data_path, &commitment_path) {
+            eprintln!("Failed to commit data: {}", err);
+        }
+    }
+}
+
+fn handle_open(cmd: Commands, prover: &mut Option<FridaProverType>) {
+    let prover = match_prover(prover);
+
+    if let Commands::Open {
         positions,
         positions_path,
         evaluations_path,
         proof_path,
-    ) {
-        eprintln!("Failed to open proof: {}", err);
+    } = cmd
+    {
+        if let Err(err) = commands::open::run(
+            prover,
+            &positions,
+            &positions_path,
+            &evaluations_path,
+            &proof_path,
+        ) {
+            eprintln!("Failed to open proof: {}", err);
+        }
     }
 }
 
-fn handle_verify(
-    commitment_path: &str,
-    positions_path: &str,
-    evaluations_path: &str,
-    proof_path: &str,
-    options: FriOptions,
-) {
-    if commands::verify::run(
+fn handle_verify(cmd: Commands, prover: &mut Option<FridaProverType>) {
+    let prover = match_prover(prover);
+
+    if let Commands::Verify {
         commitment_path,
         positions_path,
         evaluations_path,
         proof_path,
-        options,
-    )
-    .is_err()
+    } = cmd
     {
-        eprintln!("Verification failed");
-        return;
+        if let Err(err) = commands::verify::run(
+            &commitment_path,
+            &positions_path,
+            &evaluations_path,
+            &proof_path,
+            prover.options().clone(),
+        ) {
+            eprintln!("Failed to verify proof: {}", err);
+            return;
+        }
+        println!("Verification successful");
     }
-    println!("Verification successful");
+}
+
+fn match_prover(prover: &mut Option<FridaProverType>) -> &mut FridaProverType {
+    match prover.as_mut() {
+        Some(prover) => prover,
+        None => {
+            eprintln!("Please call the init command first.");
+            std::process::exit(1);
+        }
+    }
 }
