@@ -1,14 +1,13 @@
 #[cfg(test)]
 mod test {
-    use crate::frida_prover::traits::BaseFriProver;
-    use crate::frida_prover::{Commitment, FridaProver};
+    use crate::frida_prover::{Commitment, FridaProverBuilder};
     use crate::frida_prover_channel::{
         BaseProverChannel, BaseProverChannelTest, FridaProverChannel,
     };
     use crate::frida_random::{FridaRandom, FridaRandomCoin};
     use crate::frida_verifier::das::FridaDasVerifier;
     use crate::frida_verifier::traits::BaseFridaVerifier;
-    use crate::utils::{build_evaluations, build_prover_channel};
+    use crate::utils::{test_build_evaluations, test_build_prover_channel};
     use winter_crypto::hashers::Blake3_256;
     use winter_fri::folding::fold_positions;
     use winter_fri::FriOptions;
@@ -30,17 +29,17 @@ mod test {
         let domain_size = trace_length * lde_blowup;
 
         let options = FriOptions::new(lde_blowup, folding_factor, max_remainder_degree);
-        let mut channel = build_prover_channel(trace_length, &options);
-        let evaluations: Vec<_> = build_evaluations(trace_length, lde_blowup);
+        let mut channel = test_build_prover_channel(trace_length, &options);
+        let evaluations: Vec<_> = test_build_evaluations(trace_length, lde_blowup);
 
         // instantiate the prover and generate the proof
-        let mut prover = FridaProver::new(options.clone());
-        prover.build_layers(&mut channel, evaluations.clone());
+        let prover_builder = FridaProverBuilder::new(options.clone());
+        let prover = prover_builder.test_build_layers(&mut channel, &evaluations);
         let prover_drawn_alpha = channel.drawn_alphas();
         let roots = channel.layer_commitments().to_vec();
 
         let positions = channel.draw_query_positions();
-        let proof = prover.build_proof(&positions);
+        let proof = prover.open(&positions);
 
         let mut coin = FridaRandom::<Blake3, Blake3, BaseElement>::new(&[123]);
         let verifier = FridaDasVerifier::new(
@@ -74,7 +73,7 @@ mod test {
         let blowup_factor = 2;
         let folding_factor = 2;
         let options = FriOptions::new(blowup_factor, folding_factor, 0);
-        let mut prover: FridaProver<
+        let prover_builder: FridaProverBuilder<
             BaseElement,
             BaseElement,
             FridaProverChannel<
@@ -84,9 +83,10 @@ mod test {
                 FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
             >,
             Blake3_256<BaseElement>,
-        > = FridaProver::new(options.clone());
+        > = FridaProverBuilder::new(options.clone());
 
-        let (commitment, _) = prover.commit_batch(data, 4).unwrap();
+        let (prover, mut channel) = prover_builder.build_batched_prover(&data, 4).unwrap();
+        let commitment = prover.commit(&mut channel).unwrap();
         let proof = commitment.proof.clone();
 
         let mut coin =
@@ -109,7 +109,7 @@ mod test {
         for position in query_positions.iter() {
             let bucket = position % (prover.domain_size() / folding_factor);
             let start_index = (position / (prover.domain_size() / folding_factor)) * batch_size;
-            prover.get_batch_layer().as_ref().unwrap().evaluations[bucket]
+            prover.batch_layer.as_ref().unwrap().evaluations[bucket]
                 [start_index..start_index + batch_size]
                 .iter()
                 .for_each(|e| {

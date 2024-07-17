@@ -3,10 +3,10 @@ use winter_utils::Serializable;
 
 use crate::{
     frida_prover_channel::BaseProverChannel,
-    utils::{build_evaluations, build_prover_channel},
+    utils::{test_build_evaluations, test_build_prover_channel},
 };
 
-use super::{traits::BaseFriProver, FridaProver};
+use super::FridaProverBuilder;
 
 // TEST TRAIT IMPLEMENTATION
 // ================================================================================================
@@ -50,19 +50,24 @@ fn fri_trait_check(
     let folding_factor = 1 << folding_factor_e;
 
     let options = FriOptions::new(lde_blowup, folding_factor, max_remainder_degree);
-    let mut channel = build_prover_channel(trace_length, &options);
-    let evaluations = build_evaluations(trace_length, lde_blowup);
+    let mut channel = test_build_prover_channel(trace_length, &options);
+    let evaluations = test_build_evaluations(trace_length, lde_blowup);
+
+    let positions = channel.draw_query_positions();
 
     // instantiate the prover and generate the proof
-    let mut prover = FriProver::new(options.clone());
-    prover.build_layers(&mut channel, evaluations.clone());
-    let positions = channel.draw_query_positions();
-    let proof = prover.build_proof(&positions);
+    let fri_proof = {
+        let mut fri_prover = FriProver::new(options.clone());
+        fri_prover.build_layers(&mut channel, evaluations.clone());
+        fri_prover.build_proof(&positions)
+    };
 
-    let mut frida_channel = build_prover_channel(trace_length, &options);
-    let mut frida_prover = FridaProver::new(options);
-    frida_prover.build_layers(&mut frida_channel, evaluations);
-    let frida_proof = frida_prover.build_proof(&positions);
+    let mut frida_channel = test_build_prover_channel(trace_length, &options);
+    let frida_proof =  {
+        let frida_prover = FridaProverBuilder::new(options);
+        let prover = frida_prover.test_build_layers(&mut frida_channel, &evaluations);
+        prover.build_proof(&positions)
+    };
 
     assert_eq!(
         channel.layer_commitments(),
@@ -70,5 +75,5 @@ fn fri_trait_check(
     );
 
     // Skipping 1 byte because frida_proof has batch layer information encoded
-    assert_eq!(proof.to_bytes(), frida_proof.to_bytes()[1..]);
+    assert_eq!(fri_proof.to_bytes(), frida_proof.to_bytes()[1..]);
 }

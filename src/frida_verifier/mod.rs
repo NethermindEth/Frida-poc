@@ -68,13 +68,13 @@ mod tests {
 
     use crate::{
         frida_data::{build_evaluations_from_data, encoded_data_element_count},
-        frida_prover::{traits::BaseFriProver, FridaProver},
+        frida_prover::FridaProverBuilder,
         frida_prover_channel::FridaProverChannel,
         frida_random::{FridaRandom, FridaRandomCoin},
         frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
     };
 
-    type FridaTestProver = FridaProver<
+    type FridaTestProverBuilder = FridaProverBuilder<
         BaseElement,
         BaseElement,
         FridaProverChannel<
@@ -95,10 +95,11 @@ mod tests {
             let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
 
             // instantiate the prover and generate the proof
-            let mut prover: FridaTestProver = FridaProver::new(options.clone());
+            let prover_builder = FridaTestProverBuilder::new(options.clone());
 
             let data: Vec<_> = (0..20).collect();
-            let (commitment, _) = prover.commit(data.clone(), 3).unwrap();
+            let (prover, mut channel) = prover_builder.build_prover(&data, 3).unwrap();
+            let commitment = prover.commit(&mut channel).unwrap();
 
             let mut public_coin =
                 FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[
@@ -137,12 +138,13 @@ mod tests {
         let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
 
         // instantiate the prover and generate the proof
-        let mut prover: FridaTestProver = FridaProver::new(options.clone());
+        let prover_builder = FridaTestProverBuilder::new(options.clone());
 
         let data = rand_vector::<u8>(200);
         let encoded_element_count =
             encoded_data_element_count::<BaseElement>(data.len()).next_power_of_two();
-        let (commitment, _) = prover.commit(data.clone(), 31).unwrap();
+        let (prover, mut channel) = prover_builder.build_prover(&data, 31).unwrap();
+        let commitment = prover.commit(&mut channel).unwrap();
 
         let mut public_coin =
             FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[
