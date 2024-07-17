@@ -39,25 +39,31 @@ pub fn build_evaluations(trace_length: usize, lde_blowup: usize) -> Vec<BaseElem
 }
 
 #[derive(Deserialize)]
-pub struct FriOptionsConfig {
-    blowup_factor: usize,
+#[serde(remote = "FriOptions")]
+pub struct FriOptionsDef {
+    #[serde(getter = "FriOptions::folding_factor")]
     folding_factor: usize,
-    max_remainder_degree: usize,
+    #[serde(getter = "FriOptions::remainder_max_degree")]
+    remainder_max_degree: usize,
+    #[serde(getter = "FriOptions::blowup_factor")]
+    blowup_factor: usize,
 }
 
-pub fn load_fri_options(file_path: Option<&String>) -> FriOptions {
-    if let Some(path) = file_path {
-        let file_content = fs::read_to_string(path).expect("Unable to read FriOptions file");
-        let config: FriOptionsConfig =
-            serde_json::from_str(&file_content).expect("Invalid FriOptions file format");
+impl From<FriOptionsDef> for FriOptions {
+    fn from(def: FriOptionsDef) -> FriOptions {
         FriOptions::new(
-            config.blowup_factor,
-            config.folding_factor,
-            config.max_remainder_degree,
+            def.blowup_factor,
+            def.folding_factor,
+            def.remainder_max_degree,
         )
-    } else {
-        FriOptions::new(8, 2, 7)
     }
+}
+
+pub fn load_fri_options(file_path: &Path) -> Result<FriOptions, Box<dyn std::error::Error>> {
+    let file_content = fs::read_to_string(file_path)?;
+    let mut de = serde_json::Deserializer::from_str(&file_content);
+    let fri_options = FriOptionsDef::deserialize(&mut de)?;
+    Ok(fri_options)
 }
 
 pub fn read_file_to_vec(file_path: &Path) -> Result<Vec<u8>, io::Error> {
