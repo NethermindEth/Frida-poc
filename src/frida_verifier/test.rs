@@ -76,13 +76,13 @@ mod test {
         let prover_builder: FridaProverBuilder<
             BaseElement,
             BaseElement,
+            Blake3_256<BaseElement>,
             FridaProverChannel<
                 BaseElement,
                 Blake3_256<BaseElement>,
                 Blake3_256<BaseElement>,
                 FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
             >,
-            Blake3_256<BaseElement>,
         > = FridaProverBuilder::new(options.clone());
 
         let (prover, channel) = prover_builder.build_batched_prover(&data, 4).unwrap();

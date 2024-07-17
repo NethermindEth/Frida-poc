@@ -25,12 +25,12 @@ use crate::{
 };
 use crate::frida_prover::proof::{FridaProofBatchLayer, FridaProofLayer};
 
-pub struct FridaProverBuilder<B, E, C, H>
+pub struct FridaProverBuilder<B, E, H, C>
 where
     B: StarkField,
     E: FieldElement<BaseField = B>,
-    C: BaseProverChannel<E, H>,
     H: ElementHasher<BaseField = B>,
+    C: BaseProverChannel<E, H>,
 {
     options: FriOptions,
     _phantom_stark_field: PhantomData<B>,
@@ -38,24 +38,6 @@ where
     _phantom_channel: PhantomData<C>,
     _phantom_hasher: PhantomData<H>,
 }
-
-#[derive(Debug)]
-pub struct FridaLayer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher> {
-    tree: MerkleTree<H>,
-    pub evaluations: Vec<E>,
-    _base_field: PhantomData<B>,
-}
-
-#[derive(Debug)]
-pub struct BatchFridaLayer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher> {
-    tree: MerkleTree<H>,
-    pub evaluations: Vec<Vec<E>>, // FIXME
-    batch_size: usize,
-    _base_field: PhantomData<B>,
-}
-
-#[derive(Debug, Clone)]
-pub struct FridaRemainder<E: FieldElement>(Vec<E>);
 
 /// Prover configured to work with specific data.
 #[derive(Debug)]
@@ -72,6 +54,45 @@ where
     folding_factor: usize,
     phantom_channel: PhantomData<C>,
 }
+
+#[derive(Debug)]
+pub struct FridaLayer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher> {
+    tree: MerkleTree<H>,
+    pub evaluations: Vec<E>,
+    _base_field: PhantomData<B>,
+}
+
+#[derive(Debug)]
+pub struct BatchFridaLayer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher> {
+    tree: MerkleTree<H>,
+    pub evaluations: Vec<Vec<E>>,
+    batch_size: usize,
+    _base_field: PhantomData<B>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FridaRemainder<E: FieldElement>(Vec<E>);
+
+#[derive(Debug, PartialEq)]
+pub struct Commitment<HRoot: ElementHasher> {
+    pub roots: Vec<HRoot::Digest>,
+    pub proof: FridaProof,
+    // In a real protocol, domain size will likely be predefined and won't be part of a block.
+    pub domain_size: usize,
+    pub num_queries: usize,
+    pub batch_size: usize,
+}
+
+#[cfg(feature = "bench")]
+pub mod bench {
+    use std::time::{Duration, Instant};
+    pub static mut TIMER: Option<Instant> = None;
+    pub static mut ERASURE_TIME: Option<Duration> = None;
+    pub static mut COMMIT_TIME: Option<Duration> = None;
+}
+
+// PROVER IMPLEMENTATION
+// ================================================================================================
 
 impl<B, E, H, C> FridaProver<B, E, H, C>
 where
@@ -161,33 +182,12 @@ where
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct Commitment<HRoot: ElementHasher> {
-    pub roots: Vec<HRoot::Digest>,
-    pub proof: FridaProof,
-    // In a real protocol, domain size will likely be predefined and won't be part of a block.
-    pub domain_size: usize,
-    pub num_queries: usize,
-    pub batch_size: usize,
-}
-
-#[cfg(feature = "bench")]
-pub mod bench {
-    use std::time::{Duration, Instant};
-    pub static mut TIMER: Option<Instant> = None;
-    pub static mut ERASURE_TIME: Option<Duration> = None;
-    pub static mut COMMIT_TIME: Option<Duration> = None;
-}
-
-// PROVER IMPLEMENTATION
-// ================================================================================================
-
-impl<B, E, C, H> FridaProverBuilder<B, E, C, H>
+impl<B, E, H, C> FridaProverBuilder<B, E, H, C>
 where
     B: StarkField,
     E: FieldElement<BaseField = B>,
-    C: BaseProverChannel<E, H>,
     H: ElementHasher<BaseField = B>,
+    C: BaseProverChannel<E, H>,
 {
     pub fn new(options: FriOptions) -> Self {
         FridaProverBuilder {
@@ -199,7 +199,7 @@ where
         }
     }
 
-    /// Builds a prover along with a channel that should be used for commitment.
+    /// Builds a prover for a specific batched data, along with a channel that should be used for commitment.
     pub fn build_batched_prover(
         &self,
         data_list: &[Vec<u8>],
@@ -293,7 +293,7 @@ where
         Ok((prover, channel))
     }
 
-    /// Builds a prover along with a channel that should be used for commitment.
+    /// Builds a prover for a specific data, along with a channel that should be used for commitment.
     pub fn build_prover(
         &self,
         data: &[u8],
@@ -432,13 +432,13 @@ mod tests {
         let prover_builder: FridaProverBuilder<
             BaseElement,
             BaseElement,
+            Blake3_256<BaseElement>,
             FridaProverChannel<
                 BaseElement,
                 Blake3_256<BaseElement>,
                 Blake3_256<BaseElement>,
                 FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
             >,
-            Blake3_256<BaseElement>,
         > = FridaProverBuilder::new(options.clone());
 
         let domain_error = prover_builder
@@ -505,13 +505,13 @@ mod tests {
         let prover_builder: FridaProverBuilder<
             BaseElement,
             BaseElement,
+            Blake3_256<BaseElement>,
             FridaProverChannel<
                 BaseElement,
                 Blake3_256<BaseElement>,
                 Blake3_256<BaseElement>,
                 FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
             >,
-            Blake3_256<BaseElement>,
         > = FridaProverBuilder::new(options.clone());
 
         let data = rand_vector::<u8>(200);
@@ -521,13 +521,13 @@ mod tests {
         let opening_prover: FridaProverBuilder<
             BaseElement,
             BaseElement,
+            Blake3_256<BaseElement>,
             FridaProverChannel<
                 BaseElement,
                 Blake3_256<BaseElement>,
                 Blake3_256<BaseElement>,
                 FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
             >,
-            Blake3_256<BaseElement>,
         > = FridaProverBuilder::new(options.clone());
         let (prover, _channel) = opening_prover.build_prover(&data, 1).unwrap();
 
@@ -569,13 +569,13 @@ mod tests {
         let prover_builder: FridaProverBuilder<
             BaseElement,
             BaseElement,
+            Blake3_256<BaseElement>,
             FridaProverChannel<
                 BaseElement,
                 Blake3_256<BaseElement>,
                 Blake3_256<BaseElement>,
                 FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
             >,
-            Blake3_256<BaseElement>,
         > = FridaProverBuilder::new(options.clone());
         let (prover, channel) = prover_builder.build_batched_prover(&data, 1).unwrap();
         let commitment = prover.commit(channel).unwrap();
@@ -583,13 +583,13 @@ mod tests {
         let opening_prover: FridaProverBuilder<
             BaseElement,
             BaseElement,
+            Blake3_256<BaseElement>,
             FridaProverChannel<
                 BaseElement,
                 Blake3_256<BaseElement>,
                 Blake3_256<BaseElement>,
                 FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
             >,
-            Blake3_256<BaseElement>,
         > = FridaProverBuilder::new(options.clone());
         let (opening_prover, _channel) = opening_prover.build_batched_prover(&data, 1).unwrap();
 

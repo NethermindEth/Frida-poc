@@ -77,13 +77,13 @@ mod tests {
     type FridaTestProverBuilder = FridaProverBuilder<
         BaseElement,
         BaseElement,
+        Blake3_256<BaseElement>,
         FridaProverChannel<
             BaseElement,
             Blake3_256<BaseElement>,
             Blake3_256<BaseElement>,
             FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
         >,
-        Blake3_256<BaseElement>,
     >;
 
     #[test]

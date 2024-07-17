@@ -11,7 +11,7 @@ use winter_math::fields::f128::BaseElement;
 type Blake3 = Blake3_256<BaseElement>;
 type FridaChannel =
     FridaProverChannel<BaseElement, Blake3, Blake3, FridaRandom<Blake3, Blake3, BaseElement>>;
-type FridaProverBuilderType = FridaProverBuilder<BaseElement, BaseElement, FridaChannel, Blake3>;
+type FridaProverBuilderType = FridaProverBuilder<BaseElement, BaseElement, Blake3, FridaChannel>;
 
 pub fn run(data_path: &str, num_queries: usize, options: FriOptions) {
     let data = std::fs::read(data_path).expect("Unable to read data file");
