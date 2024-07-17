@@ -35,7 +35,7 @@ where
     batch_layer: Option<BatchFridaLayer<B, E, H>>,
     layers: Vec<FridaLayer<B, E, H>>,
     remainder_poly: FridaRemainder<E>,
-    channel: Option<C>,
+    _channel: PhantomData<C>,
 }
 
 pub struct FridaLayer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher> {
@@ -86,7 +86,7 @@ where
             batch_layer: None,
             layers: Vec::new(),
             remainder_poly: FridaRemainder(vec![]),
-            channel: None,
+            _channel: Default::default(),
         }
     }
 
@@ -117,7 +117,6 @@ where
     fn reset(&mut self) {
         self.layers.clear();
         self.remainder_poly.0.clear();
-        self.channel = None;
     }
 
     fn store_layer(&mut self, layer: FridaLayer<B, E, H>) {
@@ -151,10 +150,14 @@ where
         &mut self,
         data_list: &[Vec<u8>],
         num_queries: usize,
-    ) -> Result<(), FridaError> {
+    ) -> Result<C, FridaError> {
         #[cfg(feature = "bench")]
         unsafe {
             bench::TIMER = Some(Instant::now());
+        }
+
+        if num_queries == 0 {
+            return Err(FridaError::BadNumQueries(num_queries));
         }
 
         let batch_size = data_list.len();
@@ -199,11 +202,7 @@ where
             bench::TIMER = Some(Instant::now());
         }
 
-        let mut channel = if num_queries == 0 {
-            C::new(domain_size, 1)
-        } else {
-            C::new(domain_size, num_queries)
-        };
+        let mut channel = C::new(domain_size, num_queries);
 
         let len = evaluations.len();
         let mut hashed_evaluations: Vec<H::Digest> = unsafe { uninit_vector(len) };
@@ -236,20 +235,21 @@ where
         });
         self.build_layers(&mut channel, final_eval);
 
-        if num_queries != 0 {
-            self.channel = Some(channel);
-        }
-        Ok(())
+        Ok(channel)
     }
 
     fn build_layers_from_data(
         &mut self,
         data: &[u8],
         num_queries: usize,
-    ) -> Result<(), FridaError> {
+    ) -> Result<C, FridaError> {
         #[cfg(feature = "bench")]
         unsafe {
             bench::TIMER = Some(Instant::now());
+        }
+
+        if num_queries == 0 {
+            return Err(FridaError::BadNumQueries(num_queries));
         }
 
         // TODO: Decide if we want to dynamically set domain_size like here
@@ -277,16 +277,10 @@ where
             bench::TIMER = Some(Instant::now());
         }
 
-        if num_queries == 0 {
-            let mut channel = C::new(domain_size, 1);
-            self.build_layers(&mut channel, evaluations);
-        } else {
-            let mut channel = C::new(domain_size, num_queries);
-            self.build_layers(&mut channel, evaluations);
-            self.channel = Some(channel);
-        }
+        let mut channel = C::new(domain_size, num_queries);
+        self.build_layers(&mut channel, evaluations);
 
-        Ok(())
+        Ok(channel)
     }
 
     // COMMIT STAGE
@@ -299,16 +293,14 @@ where
         if num_queries == 0 {
             return Err(FridaError::BadNumQueries(num_queries));
         }
-        self.build_layers_from_data(&data, num_queries)?;
-        let proof = self.query();
+        let mut channel = self.build_layers_from_data(&data, num_queries)?;
+        let proof = self.query(&mut channel);
 
         #[cfg(feature = "bench")]
         unsafe {
             bench::COMMIT_TIME =
                 Some(bench::COMMIT_TIME.unwrap_or_default() + bench::TIMER.unwrap().elapsed());
         }
-
-        let channel = self.channel.take().unwrap();
 
         let commitment = Commitment {
             roots: channel.take_layer_commitments(),
@@ -329,16 +321,14 @@ where
         if num_queries == 0 {
             return Err(FridaError::BadNumQueries(num_queries));
         }
-        self.build_layers_from_batched_data(&data, num_queries)?;
-        let proof = self.query();
+        let mut channel = self.build_layers_from_batched_data(&data, num_queries)?;
+        let proof = self.query(&mut channel);
 
         #[cfg(feature = "bench")]
         unsafe {
             bench::COMMIT_TIME =
                 Some(bench::COMMIT_TIME.unwrap_or_default() + bench::TIMER.unwrap().elapsed());
         }
-
-        let channel = self.channel.take().unwrap();
 
         let commitment = Commitment {
             roots: channel.take_layer_commitments(),
@@ -351,22 +341,18 @@ where
         Ok((commitment, data))
     }
 
-    fn query(&mut self) -> FridaProof {
-        if let Some(channel) = &mut self.channel {
-            let query_positions = channel.draw_query_positions();
-            self.build_proof(&query_positions)
-        } else {
-            panic!("Channel does not exist")
-        }
+    fn query(&self, channel: &mut C) -> FridaProof {
+        let query_positions = channel.draw_query_positions();
+        self.build_proof(&query_positions)
     }
 
     // OPEN STAGE
     // --------------------------------------------------------------------------------------------
-    pub fn parse_state(&mut self, state: &[u8]) -> Result<(), FridaError> {
-        self.build_layers_from_data(state, 0)
+    pub fn parse_state(&mut self, state: &[u8]) -> Result<C, FridaError> {
+        self.build_layers_from_data(state, 1)
     }
-    pub fn parse_state_batched(&mut self, state: &[Vec<u8>]) -> Result<(), FridaError> {
-        self.build_layers_from_batched_data(state, 0)
+    pub fn parse_state_batched(&mut self, state: &[Vec<u8>]) -> Result<C, FridaError> {
+        self.build_layers_from_batched_data(state, 1)
     }
 
     pub fn open(&mut self, positions: &[usize]) -> FridaProof {
@@ -489,7 +475,7 @@ mod tests {
             >,
             Blake3_256<BaseElement>,
         > = FridaProver::new(options.clone());
-        opening_prover.parse_state(&state).unwrap();
+        let _channel = opening_prover.parse_state(&state).unwrap();
 
         // Replicating query positions just to make sure open is generating proper proofs since we can just compare it with the query phase proofs
         let mut channel = FridaProverChannel::<
@@ -550,7 +536,7 @@ mod tests {
             >,
             Blake3_256<BaseElement>,
         > = FridaProver::new(options.clone());
-        opening_prover.parse_state_batched(&state).unwrap();
+        let _channel = opening_prover.parse_state_batched(&state).unwrap();
 
         // Replicating query positions just to make sure open is generating proper proofs since we can just compare it with the query phase proofs
         let mut channel = FridaProverChannel::<
