@@ -35,7 +35,7 @@ where
     batch_layer: Option<BatchFridaLayer<B, E, H>>,
     layers: Vec<FridaLayer<B, E, H>>,
     remainder_poly: FridaRemainder<E>,
-    _channel: PhantomData<C>,
+    _phantom_channel: PhantomData<C>,
 }
 
 pub struct FridaLayer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher> {
@@ -86,7 +86,7 @@ where
             batch_layer: None,
             layers: Vec::new(),
             remainder_poly: FridaRemainder(vec![]),
-            _channel: Default::default(),
+            _phantom_channel: Default::default(),
         }
     }
 
@@ -130,7 +130,7 @@ where
         &self.batch_layer
     }
 
-    fn set_remainer_poly(&mut self, remainder: FridaRemainder<E>) {
+    fn set_remainder_poly(&mut self, remainder: FridaRemainder<E>) {
         self.remainder_poly = remainder;
     }
 
@@ -355,7 +355,7 @@ where
         self.build_layers_from_batched_data(state, 1)
     }
 
-    pub fn open(&mut self, positions: &[usize]) -> FridaProof {
+    pub fn open(&self, positions: &[usize]) -> FridaProof {
         self.build_proof(positions)
     }
 }

@@ -39,7 +39,7 @@ where
     fn store_layer(&mut self, layer: FridaLayer<B, E, H>);
     fn get_layer(&self, index: usize) -> &FridaLayer<B, E, H>;
     fn get_batch_layer(&self) -> &Option<BatchFridaLayer<B, E, H>>;
-    fn set_remainer_poly(&mut self, remainder: FridaRemainder<E>);
+    fn set_remainder_poly(&mut self, remainder: FridaRemainder<E>);
 
     fn build_layers(&mut self, channel: &mut C, mut evaluations: Vec<E>) {
         assert!(
@@ -51,21 +51,24 @@ where
         // has small enough degree
         let num_fri_layers = self.options().num_fri_layers(evaluations.len());
         for _ in 0..num_fri_layers {
-            match self.folding_factor() {
-                2 => self.build_layer::<2>(channel, &mut evaluations),
-                4 => self.build_layer::<4>(channel, &mut evaluations),
-                8 => self.build_layer::<8>(channel, &mut evaluations),
-                16 => self.build_layer::<16>(channel, &mut evaluations),
+            let (new_evaluations, frida_layer) = match self.folding_factor() {
+                2 => self.build_layer::<2>(channel, &evaluations),
+                4 => self.build_layer::<4>(channel, &evaluations),
+                8 =>  self.build_layer::<8>(channel, &evaluations),
+                16 => self.build_layer::<16>(channel, &evaluations),
                 _ => unimplemented!("folding factor {} is not supported", self.folding_factor()),
-            }
+            };
+            self.store_layer(frida_layer);
+            evaluations = new_evaluations;
         }
 
-        self.set_remainder(channel, &mut evaluations);
+        let remainder = self.build_remainder(channel, &mut evaluations);
+        self.set_remainder_poly(remainder);
     }
 
     /// Builds a single FRI layer by first committing to the `evaluations`, then drawing a random
     /// alpha from the channel and use it to perform degree-respecting projection.
-    fn build_layer<const N: usize>(&mut self, channel: &mut C, evaluations: &mut Vec<E>) {
+    fn build_layer<const N: usize>(&self, channel: &mut C, evaluations: &[E]) -> (Vec<E>, FridaLayer<B, E, H>) {
         // commit to the evaluations at the current layer; we do this by first transposing the
         // evaluations into a matrix of N columns, and then building a Merkle tree from the
         // rows of this matrix; we do this so that we could de-commit to N values with a single
@@ -80,16 +83,16 @@ where
         // draw a pseudo-random coefficient from the channel, and use it in degree-respecting
         // projection to reduce the degree of evaluations by N
         let alpha = channel.draw_fri_alpha();
-        *evaluations = apply_drp(&transposed_evaluations, self.domain_offset(), alpha);
-        self.store_layer(FridaLayer {
+        let evaluations = apply_drp(&transposed_evaluations, self.domain_offset(), alpha);
+        (evaluations, FridaLayer {
             tree: evaluation_tree,
             evaluations: flatten_vector_elements(transposed_evaluations),
             _base_field: PhantomData,
-        });
+        })
     }
 
     /// Creates remainder polynomial in coefficient form from a vector of `evaluations` over a domain.
-    fn set_remainder(&mut self, channel: &mut C, evaluations: &mut [E]) {
+    fn build_remainder(&self, channel: &mut C, evaluations: &mut [E]) -> FridaRemainder<E> {
         let inv_twiddles = fft::get_inv_twiddles(evaluations.len());
         fft::interpolate_poly_with_offset(
             evaluations,
@@ -101,10 +104,10 @@ where
         let commitment = <H as ElementHasher>::hash_elements(&remainder_poly);
         channel.commit_fri_layer(commitment);
 
-        self.set_remainer_poly(FridaRemainder(remainder_poly));
+        FridaRemainder(remainder_poly)
     }
 
-    fn build_proof(&mut self, positions: &[usize]) -> FridaProof {
+    fn build_proof(&self, positions: &[usize]) -> FridaProof {
         assert!(
             !self.remainder_poly().0.is_empty(),
             "FRI layers have not been built yet"
