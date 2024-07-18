@@ -161,7 +161,7 @@ where
         let remainder = self.remainder_poly.0.clone();
 
         let batch_layer = self.batch_layer.as_ref().map(|batch_layer| {
-            let positions = fold_positions(&positions, domain_size, folding_factor);
+            let positions = fold_positions(positions, domain_size, folding_factor);
             let proof = batch_layer
                 .tree
                 .prove_batch(&positions)
@@ -187,10 +187,10 @@ where
     pub fn new(options: FriOptions) -> Self {
         FridaProverBuilder {
             options,
-            _phantom_channel: Default::default(),
-            _phantom_field_element: Default::default(),
-            _phantom_stark_field: Default::default(),
-            _phantom_hasher: Default::default(),
+            _phantom_channel: PhantomData,
+            _phantom_field_element: PhantomData,
+            _phantom_stark_field: PhantomData,
+            _phantom_hasher: PhantomData,
         }
     }
 
@@ -284,7 +284,7 @@ where
         let mut prover = self.build_layers(&mut channel, final_eval);
         prover.batch_layer = Some(BatchFridaLayer {
             tree: evaluation_tree,
-            evaluations: evaluations,
+            evaluations,
             batch_size,
             _base_field: PhantomData,
         });
@@ -327,7 +327,7 @@ where
             return Err(FridaError::NotEnoughDataPoints())
         }
 
-        let evaluations = build_evaluations_from_data(&data, domain_size, blowup_factor)?;
+        let evaluations = build_evaluations_from_data(data, domain_size, blowup_factor)?;
 
         #[cfg(feature = "bench")]
         unsafe {
