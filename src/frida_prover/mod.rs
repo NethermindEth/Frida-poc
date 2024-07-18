@@ -51,6 +51,7 @@ where
     pub layers: Vec<FridaLayer<B, E, H>>,
     pub batch_layer: Option<BatchFridaLayer<B, E, H>>,
     pub remainder_poly: FridaRemainder<E>,
+    pub domain_size: usize,
     folding_factor: usize,
     phantom_channel: PhantomData<C>,
 }
@@ -101,10 +102,6 @@ where
     H: ElementHasher<BaseField = B>,
     C: BaseProverChannel<E, H>,
 {
-    pub fn domain_size(&self) -> usize {
-        self.layers[0].evaluations.len()
-    }
-
     /// Commits to the evaluated data, consuming the channel constructed along with this prover.
     pub fn commit(
         &self,
@@ -122,7 +119,7 @@ where
         let commitment = Commitment {
             roots: channel.layer_commitments().to_vec(),
             proof,
-            domain_size: self.domain_size(),
+            domain_size: self.domain_size,
             num_queries: channel.num_queries(),
             batch_size: self.batch_layer.as_ref().map(|bl| bl.batch_size).unwrap_or_default(),
         };
@@ -133,18 +130,16 @@ where
     /// Opens given position, building a proof for it.
     pub fn open(&self, positions: &[usize]) -> FridaProof {
         let folding_factor = self.folding_factor;
-        let domain_size = self.domain_size();
+        let domain_size = self.domain_size;
         let layers_len = self.layers.len();
-        let mut layers = Vec::with_capacity(layers_len);
 
-        // TODO: Is it possible?
-        if layers_len != 0 {
+        let layers: Vec<FridaProofLayer> = {
             let mut positions = positions.to_vec();
-            let mut domain_size = domain_size;
+            let mut domain_size = self.domain_size;
 
             // for all FRI layers, except the last one, record tree root, determine a set of query
             // positions, and query the layer at these positions.
-            for i in 0..layers_len {
+            (0..layers_len).map(|i| {
                 positions = fold_positions(&positions, domain_size, folding_factor);
 
                 let layer = &self.layers[i];
@@ -157,10 +152,10 @@ where
                     _ => unimplemented!("folding factor {} is not supported", folding_factor),
                 };
 
-                layers.push(proof_layer);
                 domain_size /= folding_factor;
-            }
-        }
+                proof_layer
+            }).collect()
+        };
 
         // use the remaining polynomial values directly as proof
         let remainder = self.remainder_poly.0.clone();
@@ -171,10 +166,10 @@ where
                 .tree
                 .prove_batch(&positions)
                 .expect("failed to generate a Merkle proof for FRI layer queries");
-            let mut queried_values: Vec<&Vec<E>> = Vec::with_capacity(positions.len());
-            for &position in positions.iter() {
-                queried_values.push(&batch_layer.evaluations[position]);
-            }
+            let queried_values: Vec<&Vec<E>> = positions
+                .iter()
+                .map(|&pos| &batch_layer.evaluations[pos])
+                .collect();
             FridaProofBatchLayer::new(queried_values, proof)
         });
 
@@ -233,6 +228,10 @@ where
         }
         if num_queries >= domain_size {
             return Err(FridaError::BadNumQueries(num_queries));
+        }
+        if self.options.num_fri_layers(domain_size) == 0 {
+            // Verification currently cannot work without FRI layers
+            return Err(FridaError::NotEnoughDataPoints())
         }
 
         let mut evaluations = vec![
@@ -323,6 +322,10 @@ where
         if num_queries >= domain_size {
             return Err(FridaError::BadNumQueries(num_queries));
         }
+        if self.options.num_fri_layers(domain_size) == 0 {
+            // Verification currently cannot work without FRI layers
+            return Err(FridaError::NotEnoughDataPoints())
+        }
 
         let evaluations = build_evaluations_from_data(&data, domain_size, blowup_factor)?;
 
@@ -365,6 +368,7 @@ where
             remainder_poly,
             folding_factor: self.options.folding_factor(),
             phantom_channel: Default::default(),
+            domain_size,
         }
     }
 
@@ -600,12 +604,12 @@ mod tests {
             Blake3_256<BaseElement>,
             Blake3_256<BaseElement>,
             FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
-        >::new(prover.domain_size(), 1);
+        >::new(prover.domain_size, 1);
         channel.commit_fri_layer(commitment.roots[0]);
         let xi = channel.draw_xi(batch_size).unwrap();
 
         // Sanity checks
-        for i in 0..prover.domain_size() {
+        for i in 0..prover.domain_size {
             assert_eq!(
                 opening_prover.layers[0].evaluations[i],
                 prover.batch_layer.as_ref().unwrap().evaluations[i / folding_factor]
@@ -624,7 +628,7 @@ mod tests {
         }
         let query_positions = fold_positions(
             &channel.draw_query_positions(),
-            prover.domain_size(),
+            prover.domain_size,
             folding_factor,
         );
         let mut opening_prover_query_proof = opening_prover.open(&query_positions);
@@ -632,7 +636,7 @@ mod tests {
 
         let (values, merkle_proof) = opening_prover_query_proof
             .parse_batch_layer::<Blake3_256<BaseElement>, BaseElement>(
-                prover.domain_size(),
+                prover.domain_size,
                 folding_factor,
                 10,
             )
@@ -647,7 +651,7 @@ mod tests {
         let (layers, _) = commitment
             .proof
             .parse_layers::<Blake3_256<BaseElement>, BaseElement>(
-                prover.domain_size(),
+                prover.domain_size,
                 folding_factor,
             )
             .unwrap();
@@ -687,10 +691,10 @@ fn query_layer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher, const N
     // are stored in transposed form, a position refers to N evaluations which are committed
     // in a single leaf
     let evaluations: &[[E; N]] = group_slice_elements(&layer.evaluations);
-    let mut queried_values: Vec<[E; N]> = Vec::with_capacity(positions.len());
-    for &position in positions.iter() {
-        queried_values.push(evaluations[position]);
-    }
+    let queried_values: Vec<[E; N]> = positions
+        .iter()
+        .map(|&pos| evaluations[pos])
+        .collect();
 
     FridaProofLayer::new(queried_values, proof)
 }

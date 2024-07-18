@@ -101,14 +101,14 @@ mod test {
         )
         .unwrap();
 
-        let mut query_positions = coin.draw_query_positions(4, prover.domain_size()).unwrap();
+        let mut query_positions = coin.draw_query_positions(4, prover.domain_size).unwrap();
         query_positions.dedup();
-        query_positions = fold_positions(&query_positions, prover.domain_size(), folding_factor);
+        query_positions = fold_positions(&query_positions, prover.domain_size, folding_factor);
 
         let mut evaluations = vec![];
         for position in query_positions.iter() {
-            let bucket = position % (prover.domain_size() / folding_factor);
-            let start_index = (position / (prover.domain_size() / folding_factor)) * batch_size;
+            let bucket = position % (prover.domain_size / folding_factor);
+            let start_index = (position / (prover.domain_size / folding_factor)) * batch_size;
             prover.batch_layer.as_ref().unwrap().evaluations[bucket]
                 [start_index..start_index + batch_size]
                 .iter()
