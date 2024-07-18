@@ -51,12 +51,12 @@ where
 {
     pub fn verify(
         &self,
-        proof: FridaProof,
+        proof: &FridaProof,
         evaluations: &[E],
         positions: &[usize],
     ) -> Result<(), FridaError> {
         let mut verifier_channel = FridaVerifierChannel::<E, HRandom>::new(
-            proof,
+            &proof,
             self.layer_commitments.clone(),
             self.domain_size,
             self.options.folding_factor(),
@@ -162,7 +162,7 @@ where
             public_coin.draw_query_positions(das_commitment.num_queries, domain_size)?;
 
         let mut verifier_channel = FridaVerifierChannel::<E, HRandom>::new(
-            das_commitment.proof,
+            &das_commitment.proof,
             layer_commitments.clone(),
             domain_size,
             options.folding_factor(),

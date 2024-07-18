@@ -25,7 +25,7 @@ where
     H: ElementHasher<BaseField = E::BaseField>,
 {
     pub fn new(
-        mut proof: FridaProof,
+        proof: &FridaProof,
         layer_commitments: Vec<H::Digest>,
         domain_size: usize,
         folding_factor: usize,

@@ -621,7 +621,7 @@ mod tests {
             prover.domain_size,
             folding_factor,
         );
-        let mut opening_prover_query_proof = opening_prover.open(&query_positions);
+        let opening_prover_query_proof = opening_prover.open(&query_positions);
         assert_eq!(commitment.proof, opening_prover_query_proof);
 
         let (_, merkle_proof) = opening_prover_query_proof

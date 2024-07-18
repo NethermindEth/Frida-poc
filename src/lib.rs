@@ -52,7 +52,7 @@ mod tests {
                 .iter()
                 .map(|&p| evaluations[p])
                 .collect::<Vec<_>>();
-            verifier.verify(opening_proof, &queried_evaluations, positions)
+            verifier.verify(&opening_proof, &queried_evaluations, positions)
         }
 
         fn fri_prove_verify(

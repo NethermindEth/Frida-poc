@@ -123,8 +123,8 @@ impl FridaProof {
     /// * Any of the layers could not be parsed successfully.
     #[allow(clippy::type_complexity)]
     pub fn parse_layers<HRandom, E>(
-        self,
-        mut domain_size: usize,
+        &self,
+        domain_size: usize,
         folding_factor: usize,
     ) -> Result<(Vec<Vec<E>>, Vec<BatchMerkleProof<HRandom>>), DeserializationError>
     where
@@ -143,9 +143,10 @@ impl FridaProof {
 
         let mut layer_proofs = Vec::new();
         let mut layer_queries = Vec::new();
+        let mut domain_size = domain_size;
 
         // parse all layers
-        for (i, layer) in self.layers.into_iter().enumerate() {
+        for (i, layer) in self.layers.iter().enumerate() {
             domain_size /= folding_factor;
             let (qv, mp) = layer.parse(domain_size, folding_factor).map_err(|err| {
                 DeserializationError::InvalidValue(format!("failed to parse FRI layer {i}: {err}"))
@@ -159,7 +160,7 @@ impl FridaProof {
 
     #[allow(clippy::type_complexity)]
     pub fn parse_batch_layer<H, E>(
-        &mut self,
+        &self,
         domain_size: usize,
         folding_factor: usize,
         poly_count: usize,
@@ -179,7 +180,7 @@ impl FridaProof {
         assert!(folding_factor > 1, "folding factor must be greater than 1");
         assert!(poly_count > 1, "poly_count must be greater than 1");
 
-        if let Some(layer) = self.batch_layer.take() {
+        if let Some(layer) = self.batch_layer.as_ref() {
             return layer.parse::<H, E>(domain_size, folding_factor, poly_count);
         }
         Err(DeserializationError::InvalidValue(
@@ -327,7 +328,7 @@ impl FridaProofLayer {
     /// * Parsing of any of the query values or the corresponding Merkle paths fails.
     /// * Not all bytes have been consumed while parsing this layer.
     pub fn parse<H, E>(
-        self,
+        &self,
         domain_size: usize,
         folding_factor: usize,
     ) -> Result<(Vec<E>, BatchMerkleProof<H>), DeserializationError>
@@ -447,7 +448,7 @@ impl FridaProofBatchLayer {
     }
 
     pub fn parse<H, E>(
-        self,
+        &self,
         domain_size: usize,
         folding_factor: usize,
         poly_count: usize,

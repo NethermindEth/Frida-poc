@@ -112,7 +112,7 @@ mod tests {
                 .map(|&p| evaluations[p])
                 .collect::<Vec<_>>();
             verifier
-                .verify(proof, &queried_evaluations, &open_position)
+                .verify(&proof, &queried_evaluations, &open_position)
                 .unwrap();
         }
     }
@@ -155,7 +155,7 @@ mod tests {
             .map(|&p| evaluations[p])
             .collect::<Vec<_>>();
         verifier
-            .verify(proof, &queried_evaluations, &open_position)
+            .verify(&proof, &queried_evaluations, &open_position)
             .unwrap();
     }
 }

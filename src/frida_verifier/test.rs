@@ -178,7 +178,7 @@ mod test {
         }
 
         verifier
-            .verify(proof, &evaluations, &query_positions)
+            .verify(&proof, &evaluations, &query_positions)
             .unwrap();
     }
 
