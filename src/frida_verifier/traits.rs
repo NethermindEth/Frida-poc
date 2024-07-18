@@ -11,25 +11,24 @@ use winter_utils::iter_mut;
 use winter_utils::iterators::*;
 
 use crate::{
-    frida_error::FridaError, frida_prover::Commitment, frida_random::FridaRandomCoin,
+    frida_error::FridaError, frida_prover::Commitment,
+    frida_random::FridaRandom,
     frida_verifier_channel::BaseVerifierChannel,
 };
 
 use super::eval_horner;
 
-pub trait BaseFridaVerifier<E, HHst, HRandom, R>
+pub trait BaseFridaVerifier<E, HHst, HRandom>
 where
     E: FieldElement,
     HHst: ElementHasher<BaseField = E::BaseField>,
     HRandom: ElementHasher<BaseField = E::BaseField>,
-    R: FridaRandomCoin<BaseField = E::BaseField, HashHst = HHst, HashRandom = HRandom>,
     Self: Sized,
 {
     fn new(
         das_commitment: Commitment<HRandom>,
-        public_coin: &mut R,
         options: FriOptions,
-    ) -> Result<Self, FridaError>;
+    ) -> Result<(Self, FridaRandom<E, HHst, HRandom>), FridaError>;
 
     /// Returns protocol configuration options for this verifier.
     fn options(&self) -> &FriOptions;

@@ -2,7 +2,7 @@
 mod test {
     use crate::frida_prover::proof::FridaProof;
     use crate::frida_prover::{Commitment, FridaProverBuilder};
-    use crate::frida_random::{FridaRandom, FridaRandomCoin};
+    use crate::frida_random::FridaRandomCoin;
     use crate::frida_verifier::das::FridaDasVerifier;
     use crate::frida_verifier::traits::BaseFridaVerifier;
     use crate::utils::{test_build_evaluations, test_build_prover_channel};
@@ -13,7 +13,6 @@ mod test {
     use winter_rand_utils::{rand_value, rand_vector};
 
     type Blake3 = Blake3_256<BaseElement>;
-    type FriRandom = FridaRandom<Blake3, Blake3, BaseElement>;
     type FriProverBuilder = FridaProverBuilder<BaseElement, Blake3>;
 
     #[test]
@@ -41,8 +40,7 @@ mod test {
         let positions = channel.draw_query_positions();
         let proof = prover.open(&positions);
 
-        let mut coin = FriRandom::new(&[123]);
-        let verifier = FridaDasVerifier::new(
+        let (verifier, _) = FridaDasVerifier::<BaseElement, Blake3, Blake3>::new(
             Commitment {
                 proof,
                 roots,
@@ -50,7 +48,6 @@ mod test {
                 num_queries: 32,
                 poly_count: 1,
             },
-            &mut coin,
             options.clone(),
         )
         .unwrap();
@@ -77,8 +74,7 @@ mod test {
         let positions = channel.draw_query_positions();
         let proof = prover.open(&positions);
 
-        let mut coin = FriRandom::new(&[123]);
-        let verifier = FridaDasVerifier::new(
+        let (verifier, _coin) = FridaDasVerifier::<BaseElement, Blake3, Blake3>::new(
             Commitment {
                 proof,
                 roots,
@@ -86,7 +82,6 @@ mod test {
                 num_queries: 32,
                 poly_count: 10,
             },
-            &mut coin,
             options.clone(),
         )
         .unwrap();
@@ -127,8 +122,7 @@ mod test {
         let positions = channel.draw_query_positions();
         let proof = prover.open(&positions);
 
-        let mut coin = FriRandom::new(&[123]);
-        let verifier = FridaDasVerifier::new(
+        let (verifier, _coin) = FridaDasVerifier::<BaseElement, Blake3, Blake3>::new(
             Commitment {
                 proof,
                 roots,
@@ -136,7 +130,6 @@ mod test {
                 num_queries: 32,
                 poly_count: 10,
             },
-            &mut coin,
             options.clone(),
         )
         .unwrap();
@@ -157,9 +150,8 @@ mod test {
         let poly_count = commitment.poly_count;
         let folding_factor = options.folding_factor();
 
-        let mut coin = FriRandom::new(&[123]);
-
-        let verifier = FridaDasVerifier::new(commitment, &mut coin, options.clone()).unwrap();
+        let (verifier, coin) =
+            FridaDasVerifier::<BaseElement, Blake3, Blake3>::new(commitment, options.clone()).unwrap();
 
         let mut query_positions = coin.draw_query_positions(4, domain_size).unwrap();
         query_positions.dedup();

@@ -8,20 +8,19 @@ use winter_utils::group_slice_elements;
 use crate::{
     frida_error::FridaError,
     frida_prover::{proof::FridaProof, Commitment},
-    frida_random::FridaRandomCoin,
+    frida_random::{FridaRandom, FridaRandomCoin},
     frida_verifier::get_query_values,
     frida_verifier_channel::{BaseVerifierChannel, FridaVerifierChannel},
+    utils::FreshPublicCoin,
 };
-
 use super::get_batch_query_values;
 use super::traits::BaseFridaVerifier;
 
-pub struct FridaDasVerifier<E, HHst, HRandom, R>
+pub struct FridaDasVerifier<E, HHst, HRandom>
 where
     E: FieldElement,
     HHst: ElementHasher<BaseField = E::BaseField>,
     HRandom: ElementHasher<BaseField = E::BaseField>,
-    R: FridaRandomCoin<BaseField = E::BaseField, HashHst = HHst, HashRandom = HRandom>,
 {
     max_poly_degree: usize,
     domain_size: usize,
@@ -32,22 +31,15 @@ where
     options: FriOptions,
     num_partitions: usize,
     poly_count: usize,
-    _public_coin: PhantomData<R>,
-    _field_element: PhantomData<E>,
-    _h_random: PhantomData<HRandom>,
+    _phantom_hash_hst: PhantomData<HHst>,
+    _phantom_hash_random: PhantomData<HRandom>,
 }
 
-impl<E, HHst, HRandom, R> FridaDasVerifier<E, HHst, HRandom, R>
+impl<E, HHst, HRandom> FridaDasVerifier<E, HHst, HRandom>
 where
     E: FieldElement,
     HHst: ElementHasher<BaseField = E::BaseField>,
     HRandom: ElementHasher<BaseField = E::BaseField>,
-    R: FridaRandomCoin<
-        FieldElement = E,
-        BaseField = E::BaseField,
-        HashHst = HHst,
-        HashRandom = HRandom,
-    >,
 {
     pub fn verify(
         &self,
@@ -101,18 +93,12 @@ where
     }
 }
 
-impl<E, HHst, HRandom, R> BaseFridaVerifier<E, HHst, HRandom, R>
-    for FridaDasVerifier<E, HHst, HRandom, R>
+impl<E, HHst, HRandom> BaseFridaVerifier<E, HHst, HRandom>
+    for FridaDasVerifier<E, HHst, HRandom>
 where
     E: FieldElement<BaseField: StarkField>,
     HHst: ElementHasher<BaseField = E::BaseField>,
     HRandom: ElementHasher<BaseField = E::BaseField>,
-    R: FridaRandomCoin<
-        FieldElement = E,
-        BaseField = E::BaseField,
-        HashHst = HHst,
-        HashRandom = HRandom,
-    >,
 {
     /**
      * Accepts DAS commitment as input
@@ -120,9 +106,8 @@ where
      */
     fn new(
         das_commitment: Commitment<HRandom>,
-        public_coin: &mut R,
-        options: FriOptions,
-    ) -> Result<Self, FridaError> {
+        options: FriOptions
+    ) -> Result<(Self, FridaRandom<E, HHst, HRandom>), FridaError> {
         let domain_size = das_commitment.domain_size;
         let num_partitions = das_commitment.proof.num_partitions();
         let max_poly_degree = domain_size / options.blowup_factor() - 1;
@@ -131,6 +116,9 @@ where
         let poly_count = das_commitment.poly_count;
         let layer_commitments = das_commitment.roots;
         let alpha_commitments = &layer_commitments[..];
+
+        let public_coin = FreshPublicCoin::<E, HHst, HRandom>::new();
+        let mut public_coin = public_coin.unwrap();
 
         let mut xi = None;
         let mut layer_alphas = Vec::with_capacity(alpha_commitments.len());
@@ -217,16 +205,15 @@ where
             layer_alphas,
             options,
             domain_generator,
-            _field_element: PhantomData,
-            _h_random: PhantomData,
-            _public_coin: PhantomData,
+            _phantom_hash_hst: PhantomData,
+            _phantom_hash_random: PhantomData,
         };
 
         verifier
             .check_auth(&mut verifier_channel, &query_values, &positions)
             .map_err(|_e| FridaError::InvalidDASCommitment)?;
 
-        Ok(verifier)
+        Ok((verifier, public_coin))
     }
 
     /// Returns protocol configuration options for this verifier.

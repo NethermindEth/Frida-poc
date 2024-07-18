@@ -87,7 +87,7 @@ pub mod bench {
     pub static mut COMMIT_TIME: Option<Duration> = None;
 }
 
-type Channel<E, H> = FridaProverChannel<E, H, H, FridaRandom<H, H, E>>;
+type Channel<E, H> = FridaProverChannel<E, H, H>;
 
 // PROVER IMPLEMENTATION
 // ================================================================================================
@@ -520,7 +520,6 @@ mod tests {
             BaseElement,
             Blake3_256<BaseElement>,
             Blake3_256<BaseElement>,
-            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
         >::new(domain_size, num_queries);
         let prover = prover.test_build_layers(&mut channel, evaluations);
         let positions = channel.draw_query_positions();
@@ -562,7 +561,6 @@ mod tests {
             BaseElement,
             Blake3_256<BaseElement>,
             Blake3_256<BaseElement>,
-            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
         >::new(32, 31);
         for layer_root in commitment.roots {
             channel.commit_fri_layer(layer_root);
@@ -611,7 +609,6 @@ mod tests {
             BaseElement,
             Blake3_256<BaseElement>,
             Blake3_256<BaseElement>,
-            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
         >::new(prover.domain_size, 1);
         for layer_root in commitment.roots.iter() {
             channel.commit_fri_layer(*layer_root);

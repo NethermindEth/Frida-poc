@@ -17,7 +17,6 @@ mod tests {
     use crate::{
         frida_error::FridaError,
         frida_prover::{proof::FridaProof, Commitment, FridaProverBuilder},
-        frida_random::{FridaRandom, FridaRandomCoin},
         frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
         utils::{test_build_evaluations, test_build_prover_channel},
     };
@@ -35,8 +34,11 @@ mod tests {
             options: &FriOptions,
         ) -> Result<(), FridaError> {
             // verify the proof
-            let mut coin = FridaRandom::<Blake3, Blake3, BaseElement>::new(&[123]);
-            let verifier = FridaDasVerifier::new(
+            let (verifier, _) = FridaDasVerifier::<
+                BaseElement,
+                Blake3_256<BaseElement>,
+                Blake3_256<BaseElement>
+            >::new(
                 Commitment {
                     roots,
                     proof,
@@ -44,7 +46,6 @@ mod tests {
                     num_queries: 32,
                     poly_count: 1,
                 },
-                &mut coin,
                 options.clone(),
             )?;
 

@@ -67,7 +67,6 @@ mod tests {
     use crate::{
         frida_data::{build_evaluations_from_data, encoded_data_element_count},
         frida_prover::FridaProverBuilder,
-        frida_random::{FridaRandom, FridaRandomCoin},
         frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
     };
 
@@ -91,13 +90,11 @@ mod tests {
             let (commitment, prover) =
                 prover_builder.commit(&data, 3).unwrap();
 
-            let mut public_coin =
-                FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(
-                    &[123],
-                );
-
-            let verifier =
-                FridaDasVerifier::new(commitment, &mut public_coin, options.clone()).unwrap();
+            let (verifier, _) = FridaDasVerifier::<
+                BaseElement,
+                Blake3_256<BaseElement>,
+                Blake3_256<BaseElement>
+            >::new(commitment, options.clone()).unwrap();
 
             // query for a position
             let open_position = [1];
@@ -134,13 +131,11 @@ mod tests {
         let (commitment, prover) =
             prover_builder.commit(&data, 31).unwrap();
 
-        let mut public_coin =
-            FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[
-                123,
-            ]);
-
-        let verifier =
-            FridaDasVerifier::new(commitment, &mut public_coin, options.clone()).unwrap();
+        let (verifier, _) = FridaDasVerifier::<
+            BaseElement,
+            Blake3_256<BaseElement>,
+            Blake3_256<BaseElement>
+        >::new(commitment, options.clone()).unwrap();
 
         // query for a position
         let open_position = [1];

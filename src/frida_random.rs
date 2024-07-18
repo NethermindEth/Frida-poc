@@ -2,10 +2,10 @@ use core::marker::PhantomData;
 
 use crate::{frida_const, frida_error::FridaError};
 use winter_crypto::{Digest, ElementHasher};
-use winter_math::{FieldElement, StarkField};
+use winter_math::FieldElement;
 
 #[derive(Debug)]
-pub struct FridaRandom<HashHst: ElementHasher, HashRandom: ElementHasher, E: FieldElement> {
+pub struct FridaRandom<E: FieldElement, HashHst: ElementHasher, HashRandom: ElementHasher> {
     counter: u64,
     hst: Vec<u8>,
     #[cfg(test)]
@@ -16,10 +16,9 @@ pub struct FridaRandom<HashHst: ElementHasher, HashRandom: ElementHasher, E: Fie
 }
 
 pub trait FridaRandomCoin: Sync {
-    type BaseField: StarkField;
     type FieldElement: FieldElement;
-    type HashHst: ElementHasher<BaseField = Self::BaseField>;
-    type HashRandom: ElementHasher<BaseField = Self::BaseField>;
+    type HashHst: ElementHasher<BaseField = <Self::FieldElement as FieldElement>::BaseField>;
+    type HashRandom: ElementHasher<BaseField = <Self::FieldElement as FieldElement>::BaseField>;
 
     fn new(hst_neg_1: &[u8]) -> Self;
     fn draw(&mut self) -> Result<Self::FieldElement, FridaError>;
@@ -36,13 +35,11 @@ pub trait FridaRandomCoin: Sync {
 }
 
 impl<
-        B: StarkField,
-        HashHst: ElementHasher<BaseField = B>,
-        HashRandom: ElementHasher<BaseField = B>,
-        E: FieldElement<BaseField = B>,
-    > FridaRandomCoin for FridaRandom<HashHst, HashRandom, E>
+    E: FieldElement,
+    HashHst: ElementHasher<BaseField = E::BaseField>,
+    HashRandom: ElementHasher<BaseField = E::BaseField>,
+> FridaRandomCoin for FridaRandom<E, HashHst, HashRandom>
 {
-    type BaseField = B;
     type FieldElement = E;
     type HashHst = HashHst;
     type HashRandom = HashRandom;
