@@ -7,7 +7,6 @@ use std::{
 use frida_poc::{
     frida_prover::{
         bench::{COMMIT_TIME, ERASURE_TIME},
-        traits::BaseFriProver,
         Commitment, FridaProverBuilder,
     },
     frida_prover_channel::FridaProverChannel,
@@ -38,13 +37,12 @@ fn prepare_prover_builder<E: StarkField, H: ElementHasher<BaseField = E::BaseFie
     blowup_factor: usize,
     folding_factor: usize,
     remainder_max_degree: usize,
-) -> FridaProverBuilder<E, E, FridaProverChannel<E, H, H, FridaRandom<H, H, E>>, H> {
+) -> FridaProverBuilder<E, E, H, FridaProverChannel<E, H, H, FridaRandom<H, H, E>>> {
     let options = FriOptions::new(blowup_factor, folding_factor, remainder_max_degree);
     FridaProverBuilder::new(options)
 }
 
 fn prepare_verifier<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(
-    domain_size: usize,
     blowup_factor: usize,
     folding_factor: usize,
     remainder_max_degree: usize,
@@ -56,7 +54,6 @@ fn prepare_verifier<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(
         com,
         &mut coin,
         options.clone(),
-        domain_size / blowup_factor - 1,
     )
     .unwrap()
 }
@@ -104,21 +101,23 @@ fn run<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>() {
                 let mut proof_size = (0, 0, 0);
 
                 for _ in 0..RUNS {
-                    let (com, _) = prover_builder.commit(data.clone(), *num_query).unwrap();
+                    let (prover, channel) =
+                        prover_builder.build_prover(&data, *num_query).unwrap();
+                    let com = prover.commit(channel).unwrap();
                     // +1 roots len, +1 batch_size, +1 num_query = +3 at the end
                     commit_size += com.proof.size() + com.roots.len() * 32 + 3;
 
                     let positions = rand_vector::<u64>(32)
                         .into_iter()
-                        .map(|v| (v as usize) % prover_builder.domain_size())
+                        .map(|v| (v as usize) % com.domain_size)
                         .collect::<Vec<_>>();
 
                     let evaluations = positions
                         .iter()
                         .map(|pos| {
-                            prover.get_layer(0).evaluations[(pos % (prover.domain_size() / opt.1))
+                            prover.layers[0].evaluations[(pos % (com.domain_size / opt.1))
                                 * opt.1
-                                + (pos / (prover.domain_size() / opt.1))]
+                                + (pos / (com.domain_size / opt.1))]
                         })
                         .collect::<Vec<_>>();
 
@@ -139,7 +138,7 @@ fn run<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>() {
 
                     timer = Instant::now();
                     let verifier =
-                        prepare_verifier::<E, H>(prover.domain_size(), opt.0, opt.1, opt.2, com);
+                        prepare_verifier::<E, H>(opt.0, opt.1, opt.2, com);
                     verify_time.0 += timer.elapsed();
 
                     timer = Instant::now();
@@ -157,8 +156,6 @@ fn run<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>() {
                     timer = Instant::now();
                     verifier.verify(proof_2, &evaluations, &positions).unwrap();
                     verify_time.3 += timer.elapsed();
-
-                    prover.reset();
                 }
                 results.push(format!(
                     "{:?}, {}, {}Kb, {:?}, {:?}, ({:?}, {:?}, {:?}), ({:?}, {:?}, {:?}, {:?}), {}, ({}, {}, {})",
@@ -242,21 +239,23 @@ fn run_batched<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(batch_
                 let mut proof_size = (0, 0, 0);
 
                 for _ in 0..RUNS {
-                    let (com, _) = prover.commit_batch(data.clone(), *num_query).unwrap();
+                    let (prover, channel) =
+                        prover_builder.build_batched_prover(&data, *num_query).unwrap();
+                    let com = prover.commit(channel).unwrap();
 
                     // +1 roots len, +1 batch_size, +1 num_query = +3 at the end
                     commit_size += com.proof.size() + com.roots.len() * 32 + 3;
 
                     let positions = rand_vector::<u64>(32)
                         .into_iter()
-                        .map(|v| (v as usize) % prover.domain_size())
+                        .map(|v| (v as usize) % com.domain_size)
                         .collect::<Vec<_>>();
 
                     let mut evaluations = vec![];
                     for position in positions.iter() {
-                        let bucket = position % (prover.domain_size() / opt.1);
-                        let start_index = (position / (prover.domain_size() / opt.1)) * batch_size;
-                        prover.get_batch_layer().as_ref().unwrap().evaluations[bucket]
+                        let bucket = position % (com.domain_size / opt.1);
+                        let start_index = (position / (com.domain_size / opt.1)) * batch_size;
+                        prover.batch_layer.as_ref().unwrap().evaluations[bucket]
                             [start_index..start_index + batch_size]
                             .iter()
                             .for_each(|e| {
@@ -281,7 +280,7 @@ fn run_batched<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(batch_
 
                     timer = Instant::now();
                     let verifier =
-                        prepare_verifier::<E, H>(prover.domain_size(), opt.0, opt.1, opt.2, com);
+                        prepare_verifier::<E, H>(opt.0, opt.1, opt.2, com);
                     verify_time.0 += timer.elapsed();
 
                     timer = Instant::now();
@@ -299,8 +298,6 @@ fn run_batched<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(batch_
                     timer = Instant::now();
                     verifier.verify(proof_2, &evaluations, &positions).unwrap();
                     verify_time.3 += timer.elapsed();
-
-                    prover.reset();
                 }
                 results.push(format!(
                     "{:?}, {}, {}Kb, {:?}, {:?}, ({:?}, {:?}, {:?}), ({:?}, {:?}, {:?}, {:?}), {}, ({}, {}, {})",

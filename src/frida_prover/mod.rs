@@ -282,7 +282,7 @@ where
                 });
         });
 
-        let mut prover = self.build_layers(&mut channel, &final_eval);
+        let mut prover = self.build_layers(&mut channel, final_eval);
         prover.batch_layer = Some(BatchFridaLayer {
             tree: evaluation_tree,
             evaluations: evaluations,
@@ -334,16 +334,17 @@ where
         }
 
         let mut channel = C::new(domain_size, num_queries);
-        let prover = self.build_layers(&mut channel, &evaluations);
+        let prover = self.build_layers(&mut channel, evaluations);
 
         Ok((prover, channel))
     }
 
-    fn build_layers(&self, channel: &mut C, evaluations: &[E]) -> FridaProver<B, E, H, C> {
+    fn build_layers(&self, channel: &mut C, evaluations: Vec<E>) -> FridaProver<B, E, H, C> {
         // reduce the degree by folding_factor at each iteration until the remaining polynomial
         // has small enough degree
-        let mut evaluations = evaluations.to_vec();
-        let num_fri_layers = self.options.num_fri_layers(evaluations.len());
+        let mut evaluations = evaluations;
+        let domain_size = evaluations.len();
+        let num_fri_layers = self.options.num_fri_layers(domain_size);
         let mut layers = Vec::with_capacity(num_fri_layers);
         for _ in 0..num_fri_layers {
             let (new_evaluations, frida_layer) = match self.options.folding_factor() {
@@ -368,7 +369,7 @@ where
     }
 
     #[cfg(test)]
-    pub fn test_build_layers(&self, channel: &mut C, evaluations: &[E]) -> FridaProver<B, E, H, C> {
+    pub fn test_build_layers(&self, channel: &mut C, evaluations: Vec<E>) -> FridaProver<B, E, H, C> {
         self.build_layers(channel, evaluations)
     }
 
@@ -483,7 +484,7 @@ mod tests {
             Blake3_256<BaseElement>,
             FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
         >::new(domain_size, num_queries);
-        let prover = prover.build_layers(&mut channel, &evaluations);
+        let prover = prover.build_layers(&mut channel, evaluations);
         let positions = channel.draw_query_positions();
         let proof = prover.open(&positions);
 

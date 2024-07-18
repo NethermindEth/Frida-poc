@@ -73,7 +73,7 @@ mod tests {
 
             // instantiate the prover and generate the proof
             let prover_builder = FridaProverBuilder::new(options.clone());
-            let prover = prover_builder.test_build_layers(&mut channel, &evaluations);
+            let prover = prover_builder.test_build_layers(&mut channel, evaluations.clone());
 
             let positions = channel.draw_query_positions();
             let proof = prover.open(&positions);

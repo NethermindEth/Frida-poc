@@ -34,7 +34,7 @@ mod test {
 
         // instantiate the prover and generate the proof
         let prover_builder = FridaProverBuilder::new(options.clone());
-        let prover = prover_builder.test_build_layers(&mut channel, &evaluations);
+        let prover = prover_builder.test_build_layers(&mut channel, evaluations);
         let prover_drawn_alpha = channel.drawn_alphas();
         let roots = channel.layer_commitments().to_vec();
 

@@ -9,6 +9,7 @@ use crate::{
 
 type Blake3 = Blake3_256<BaseElement>;
 
+#[cfg(test)]
 pub fn test_build_prover_channel(
     trace_length: usize,
     options: &FriOptions,
@@ -19,6 +20,7 @@ pub fn test_build_prover_channel(
     )
 }
 
+#[cfg(test)]
 pub fn test_build_evaluations(trace_length: usize, lde_blowup: usize) -> Vec<BaseElement> {
     let mut p = (0..trace_length as u128)
         .map(BaseElement::new)
