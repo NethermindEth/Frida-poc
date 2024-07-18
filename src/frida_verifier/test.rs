@@ -124,6 +124,48 @@ mod test {
     }
     
     #[test]
+    fn test_verifier_coin() {
+        let batch_size = 10;
+        let mut data = vec![];
+        for _ in 0..batch_size {
+            data.push(rand_vector::<u8>(usize::min(
+                rand_value::<u64>() as usize,
+                128,
+            )));
+        }
+        
+        let blowup_factor = 2;
+        let folding_factor = 2;
+        let options = FriOptions::new(blowup_factor, folding_factor, 0);
+        let mut prover: FridaProver<
+            BaseElement,
+            BaseElement,
+            FridaProverChannel<
+                BaseElement,
+                Blake3_256<BaseElement>,
+                Blake3_256<BaseElement>,
+                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
+            >,
+            Blake3_256<BaseElement>,
+        > = FridaProver::new(options.clone());
+        
+        let (commitment, _) = prover.commit_batch(data, 4).unwrap();
+        
+        let mut coin =
+            FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[
+                121, // Verifier using different coin seed
+            ]);
+        
+        let error = FridaDasVerifier::new(
+            commitment,
+            &mut coin,
+            options.clone(),
+            prover.domain_size() / options.blowup_factor() - 1,
+        ).err();
+        println!("Verifier Intialization Error: {:?}", error.unwrap());
+    }
+    
+    #[test]
     fn test_verify_corrupt_data() {
         let batch_size = 10;
         let mut data = vec![];
