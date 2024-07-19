@@ -66,7 +66,7 @@ where
     }
 
     fn get_query_values_from_commitment<const N: usize>(
-        verifier_channel: &mut FridaVerifierChannel<E, HRandom>,
+        verifier_channel: &FridaVerifierChannel<E, HRandom>,
         positions: &[usize],
         folded_positions: &[usize],
         domain_size: usize,
@@ -193,25 +193,25 @@ where
             let folding_factor = options.folding_factor();
             match folding_factor {
                 2 => Ok(Self::get_query_values_from_commitment::<2>(
-                    &mut verifier_channel,
+                    &verifier_channel,
                     &drawn.positions,
                     &folded_positions,
                     domain_size,
                 )),
                 4 => Ok(Self::get_query_values_from_commitment::<4>(
-                    &mut verifier_channel,
+                    &verifier_channel,
                     &drawn.positions,
                     &folded_positions,
                     domain_size,
                 )),
                 8 => Ok(Self::get_query_values_from_commitment::<8>(
-                    &mut verifier_channel,
+                    &verifier_channel,
                     &drawn.positions,
                     &folded_positions,
                     domain_size,
                 )),
                 16 => Ok(Self::get_query_values_from_commitment::<16>(
-                    &mut verifier_channel,
+                    &verifier_channel,
                     &drawn.positions,
                     &folded_positions,
                     domain_size,
