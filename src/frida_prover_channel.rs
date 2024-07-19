@@ -33,7 +33,7 @@ where
         HashRandom = HRandom,
     >,
 {
-    commitments: Vec<HRandom::Digest>,
+    pub commitments: Vec<HRandom::Digest>,
     public_coin: R,
     domain_size: usize,
     num_queries: usize,

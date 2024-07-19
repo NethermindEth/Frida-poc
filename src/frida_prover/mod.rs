@@ -241,7 +241,7 @@ where
         let mut channel = Channel::<E, H>::new(domain_size, num_queries);
         let prover = self.build_layers_batched(&mut channel, evaluations, domain_size)?;
 
-        let commitment = self.build_commitment(&prover, &mut channel)?;
+        let commitment = self.build_commitment(&prover, channel)?;
         Ok((commitment, prover))
     }
 
@@ -291,7 +291,7 @@ where
 
         let mut channel = Channel::<E, H>::new(domain_size, num_queries);
         let prover = self.build_layers(&mut channel, evaluations, 1, None);
-        let commitment = self.build_commitment(&prover, &mut channel)?;
+        let commitment = self.build_commitment(&prover, channel)?;
         Ok((commitment, prover))
     }
 
@@ -299,7 +299,7 @@ where
     pub fn build_commitment(
         &self,
         prover: &FridaProver<E, H>,
-        channel: &mut Channel<E, H>,
+        mut channel: Channel<E, H>,
     ) -> Result<Commitment<H>, FridaError> {
         let query_positions = channel.draw_query_positions();
         let proof = prover.open(&query_positions);
@@ -310,11 +310,13 @@ where
                 Some(bench::COMMIT_TIME.unwrap_or_default() + bench::TIMER.unwrap().elapsed());
         }
 
+        let num_queries = channel.num_queries();
+
         let commitment = Commitment {
-            roots: channel.layer_commitments().to_vec(),
+            roots: channel.commitments,
             proof,
             domain_size: prover.domain_size,
-            num_queries: channel.num_queries(),
+            num_queries,
             poly_count: prover.poly_count,
         };
 
