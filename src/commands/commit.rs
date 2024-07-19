@@ -20,8 +20,8 @@ pub fn run(data_path: &str, num_queries: usize, options: FriOptions) {
     let encoded_element_count =
         encoded_data_element_count::<BaseElement>(data.len()).next_power_of_two();
 
-    let (prover, channel) = prover_builder.build_prover(&data, num_queries).unwrap();
-    let commitment = prover.commit(channel).unwrap();
+    let (commitment, _prover) =
+        prover_builder.commit(&data, num_queries).unwrap();
     // TODO: Save commitment to file
 
     println!(

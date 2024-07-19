@@ -70,8 +70,7 @@ mod test {
                 128,
             )));
         }
-        let (prover, channel) = prover_builder.build_batched_prover(&data, 32).unwrap();
-        let commitment = prover.commit(channel).unwrap();
+        let (commitment, prover) = prover_builder.commit_batch(&data, 32).unwrap();
         let mut channel = FriProverChannel::new(commitment.domain_size, 32);
         for layer_root in commitment.roots.iter() {
             channel.commit_fri_layer(*layer_root);
@@ -121,8 +120,7 @@ mod test {
                 128,
             )));
         }
-        let (prover, channel) = prover_builder.build_batched_prover(&data, 32).unwrap();
-        let commitment = prover.commit(channel).unwrap();
+        let (commitment, prover) = prover_builder.commit_batch(&data, 32).unwrap();
         let mut channel = FriProverChannel::new(commitment.domain_size, 32);
         for layer_root in commitment.roots.iter() {
             channel.commit_fri_layer(*layer_root);
@@ -204,8 +202,7 @@ mod test {
         let options = FriOptions::new(blowup_factor, folding_factor, 0);
         let prover_builder = FriProverBuilder::new(options.clone());
 
-        let (prover, channel) = prover_builder.build_batched_prover(&data, 4).unwrap();
-        let commitment = prover.commit(channel).unwrap();
+        let (commitment, prover) = prover_builder.commit_batch(&data, 4).unwrap();
         let proof = commitment.proof.clone();
         let domain_size = commitment.domain_size;
 
@@ -231,8 +228,7 @@ mod test {
         let options = FriOptions::new(blowup_factor, folding_factor, 0);
         let prover_builder = FriProverBuilder::new(options.clone());
 
-        let (prover, channel) = prover_builder.build_batched_prover(&data, 4).unwrap();
-        let commitment = prover.commit(channel).unwrap();
+        let (commitment, prover) = prover_builder.commit_batch(&data, 4).unwrap();
         let proof = commitment.proof.clone();
         let domain_size = commitment.domain_size;
 
