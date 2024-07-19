@@ -19,7 +19,6 @@ use crate::{
     frida_data::{build_evaluations_from_data, encoded_data_element_count},
     frida_error::FridaError,
     frida_prover::proof::{FridaProofBatchLayer, FridaProofLayer},
-    frida_random::FridaRandom,
 };
 
 // Channel is only exposed to tests
@@ -470,7 +469,7 @@ mod tests {
     use winter_math::fields::f128::BaseElement;
     use winter_rand_utils::{rand_value, rand_vector};
 
-    use crate::{frida_prover::channel::FridaProverChannel, frida_random::FridaRandom};
+    use crate::frida_prover::channel::FridaProverChannel;
 
     use super::*;
 
