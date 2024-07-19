@@ -67,21 +67,13 @@ mod tests {
     use crate::{
         frida_data::{build_evaluations_from_data, encoded_data_element_count},
         frida_prover::FridaProverBuilder,
-        frida_prover_channel::FridaProverChannel,
         frida_random::{FridaRandom, FridaRandomCoin},
         frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
     };
 
     type FridaTestProverBuilder = FridaProverBuilder<
         BaseElement,
-        BaseElement,
         Blake3_256<BaseElement>,
-        FridaProverChannel<
-            BaseElement,
-            Blake3_256<BaseElement>,
-            Blake3_256<BaseElement>,
-            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
-        >,
     >;
 
     #[test]

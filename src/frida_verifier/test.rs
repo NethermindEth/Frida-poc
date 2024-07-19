@@ -3,7 +3,7 @@ mod test {
     use crate::frida_prover::proof::FridaProof;
     use crate::frida_prover::{Commitment, FridaProverBuilder};
     use crate::frida_prover_channel::{
-        BaseProverChannel, BaseProverChannelTest, FridaProverChannel,
+        BaseProverChannel, BaseProverChannelTest,
     };
     use crate::frida_random::{FridaRandom, FridaRandomCoin};
     use crate::frida_verifier::das::FridaDasVerifier;
@@ -17,8 +17,7 @@ mod test {
 
     type Blake3 = Blake3_256<BaseElement>;
     type FriRandom = FridaRandom<Blake3, Blake3, BaseElement>;
-    type FriProverChannel = FridaProverChannel<BaseElement, Blake3, Blake3, FriRandom>;
-    type FriProverBuilder = FridaProverBuilder<BaseElement, BaseElement, Blake3, FriProverChannel>;
+    type FriProverBuilder = FridaProverBuilder<BaseElement, Blake3>;
 
     #[test]
     fn test_drawn_alpha() {
@@ -71,7 +70,7 @@ mod test {
             )));
         }
         let (commitment, prover) = prover_builder.commit_batch(&data, 32).unwrap();
-        let mut channel = FriProverChannel::new(commitment.domain_size, 32);
+        let mut channel = test_build_prover_channel(commitment.domain_size, &options);
         for layer_root in commitment.roots.iter() {
             channel.commit_fri_layer(*layer_root);
             channel.draw_fri_alpha();
@@ -121,7 +120,7 @@ mod test {
             )));
         }
         let (commitment, prover) = prover_builder.commit_batch(&data, 32).unwrap();
-        let mut channel = FriProverChannel::new(commitment.domain_size, 32);
+        let mut channel = test_build_prover_channel(commitment.domain_size, &options);
         for layer_root in commitment.roots.iter() {
             channel.commit_fri_layer(*layer_root);
             channel.draw_fri_alpha();
