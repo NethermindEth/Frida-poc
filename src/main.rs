@@ -130,20 +130,18 @@ fn read_and_parse_command() -> Result<Cli, String> {
     let mut input = String::new();
     io::stdin()
         .read_line(&mut input)
-        .map_err(|_| "Failed to read input.".to_string())?;
+        .expect("Failed to read input.");
     let input = input.trim();
 
     if input.eq_ignore_ascii_case("exit") {
         std::process::exit(0);
     }
 
-    let args = match shlex::split(input) {
-        Some(mut args) => {
-            args.insert(0, "frida-poc".to_string());
-            args
-        }
-        None => return Err("Failed to parse input.".to_string()),
-    };
+    let args = shlex::split(input)
+        .ok_or_else(|| "Failed to parse input.".to_string())?
+        .into_iter()
+        .chain(Some("frida-poc".to_string()))
+        .collect::<Vec<_>>();
 
     Cli::try_parse_from(args).map_err(|err| err.to_string())
 }
