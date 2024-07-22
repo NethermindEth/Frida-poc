@@ -36,7 +36,10 @@ pub fn run(
     let commitment_bytes = commitment.to_bytes();
     write_to_file(commitment_path, &commitment_bytes)?;
 
-    println!("Commitment created and saved to {:?}", commitment_path);
+    println!(
+        "Commitment created and saved to {}",
+        commitment_path.display()
+    );
     Ok(commitment)
 }
 
