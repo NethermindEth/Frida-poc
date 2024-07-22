@@ -97,28 +97,38 @@ enum Commands {
 fn main() {
     let mut prover: Option<FridaProverType> = None;
 
-    loop {
-        match read_and_parse_command() {
-            Ok(cli) => match cli.command {
-                Commands::Init { .. } => {
-                    prover = handle_init(cli.command);
-                }
-                Commands::GenerateData { .. } => {
-                    handle_generate_data(cli.command);
-                }
-                Commands::Commit { .. } => {
-                    handle_commit(cli.command, &mut prover);
-                }
-                Commands::Open { .. } => {
-                    handle_open(cli.command, &mut prover);
-                }
-                Commands::Verify { .. } => {
-                    handle_verify(cli.command, &mut prover);
-                }
-            },
-            Err(err) => {
-                eprintln!("Error: {}", err);
+    fn try_unwrap_mut<T>(prover: &mut Option<T>) -> Result<&mut T, String> {
+        prover
+            .as_mut()
+            .ok_or("Please call the init command first.".to_owned())
+    }
+
+    let mut iteration = || -> Result<(), String> {
+        let cli = read_and_parse_command()?;
+
+        match cli.command {
+            Commands::Init { .. } => {
+                prover = handle_init(cli.command);
             }
+            Commands::GenerateData { .. } => {
+                handle_generate_data(cli.command);
+            }
+            Commands::Commit { .. } => {
+                handle_commit(cli.command, try_unwrap_mut(&mut prover)?);
+            }
+            Commands::Open { .. } => {
+                handle_open(cli.command, try_unwrap_mut(&mut prover)?);
+            }
+            Commands::Verify { .. } => {
+                handle_verify(cli.command, try_unwrap_mut(&mut prover)?);
+            }
+        }
+        Ok(())
+    };
+
+    loop {
+        if let Err(err) = iteration() {
+            eprintln!("Error: {}", err);
         }
     }
 }
@@ -180,9 +190,7 @@ fn handle_generate_data(cmd: Commands) {
     }
 }
 
-fn handle_commit(cmd: Commands, prover: &mut Option<FridaProverType>) {
-    let prover = match_prover(prover);
-
+fn handle_commit(cmd: Commands, prover: &mut FridaProverType) {
     if let Commands::Commit {
         num_queries,
         data_path,
@@ -195,9 +203,7 @@ fn handle_commit(cmd: Commands, prover: &mut Option<FridaProverType>) {
     }
 }
 
-fn handle_open(cmd: Commands, prover: &mut Option<FridaProverType>) {
-    let prover = match_prover(prover);
-
+fn handle_open(cmd: Commands, prover: &mut FridaProverType) {
     if let Commands::Open {
         positions,
         positions_path,
@@ -217,9 +223,7 @@ fn handle_open(cmd: Commands, prover: &mut Option<FridaProverType>) {
     }
 }
 
-fn handle_verify(cmd: Commands, prover: &mut Option<FridaProverType>) {
-    let prover = match_prover(prover);
-
+fn handle_verify(cmd: Commands, prover: &mut FridaProverType) {
     if let Commands::Verify {
         commitment_path,
         positions_path,
@@ -238,15 +242,5 @@ fn handle_verify(cmd: Commands, prover: &mut Option<FridaProverType>) {
             return;
         }
         println!("Verification successful");
-    }
-}
-
-fn match_prover(prover: &mut Option<FridaProverType>) -> &mut FridaProverType {
-    match prover.as_mut() {
-        Some(prover) => prover,
-        None => {
-            eprintln!("Please call the init command first.");
-            std::process::exit(1);
-        }
     }
 }
