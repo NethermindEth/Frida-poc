@@ -119,21 +119,17 @@ where
         Ok(commitment)
     }
 
-    fn is_batch(&self) -> bool {
-        self.poly_count > 1
-    }
-
     /// Opens given position, building a proof for it.
     pub fn open(&self, positions: &[usize]) -> FridaProof {
         let folding_factor = self.folding_factor;
         let layers_len = self.layers.len();
+        let is_batch = self.poly_count > 1;
 
-        let mut batch_layer = None;
-        let layers: Vec<FridaProofLayer> = {
+        let (layers, batch_layer) = {
             let mut positions = positions.to_vec();
             let mut domain_size = self.domain_size;
 
-            if self.is_batch() {
+            let batch_layer = if is_batch {
                 positions = folding::fold_positions(&positions, domain_size, folding_factor);
                 let proof = self
                     .layers[0]
@@ -150,14 +146,16 @@ where
                             queried_values.push(*e);
                         });
                 }
-                batch_layer = Some(FridaProofBatchLayer::new(queried_values, proof));
                 domain_size /= folding_factor;
-            }
+                Some(FridaProofBatchLayer::new(queried_values, proof))
+            } else {
+                None
+            };
 
             // for all FRI layers, except the last one, record tree root, determine a set of query
             // positions, and query the layer at these positions.
-            let start = if self.is_batch() { 1 } else { 0 };
-            (start..layers_len).map(|i| {
+            let start = if is_batch { 1 } else { 0 };
+            let layers = (start..layers_len).map(|i| {
                 positions = folding::fold_positions(&positions, domain_size, folding_factor);
 
                 let layer = &self.layers[i];
@@ -172,7 +170,8 @@ where
 
                 domain_size /= folding_factor;
                 proof_layer
-            }).collect()
+            }).collect::<Vec<_>>();
+            (layers, batch_layer)
         };
 
         // use the remaining polynomial values directly as proof
@@ -373,7 +372,7 @@ where
         batch_layer: Option<FridaLayer<B, E, H>>,
     ) -> FridaProver<B, E, H, C> {
         let is_batched = batch_layer.is_some();
-        assert!(is_batched && poly_count > 1 || !is_batched && poly_count == 1);
+        assert!(!is_batched && poly_count == 1 || is_batched && poly_count > 1);
 
         // reduce the degree by folding_factor at each iteration until the remaining polynomial
         // has small enough degree
@@ -406,11 +405,11 @@ where
 
         FridaProver {
             layers,
-            remainder_poly,
             poly_count,
-            folding_factor: self.options.folding_factor(),
-            phantom_channel: Default::default(),
+            remainder_poly,
             domain_size,
+            folding_factor: self.options.folding_factor(),
+            phantom_channel: PhantomData,
         }
     }
 
