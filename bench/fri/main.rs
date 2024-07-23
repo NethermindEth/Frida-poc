@@ -44,7 +44,6 @@ fn prepare_prover<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(
 }
 
 fn prepare_verifier<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(
-    domain_size: usize,
     blowup_factor: usize,
     folding_factor: usize,
     remainder_max_degree: usize,
@@ -52,13 +51,7 @@ fn prepare_verifier<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(
 ) -> FridaDasVerifier<E, H, H, FridaRandom<H, H, E>> {
     let options = FriOptions::new(blowup_factor, folding_factor, remainder_max_degree);
     let mut coin = FridaRandom::<H, H, E>::new(&[123]);
-    FridaDasVerifier::new(
-        com,
-        &mut coin,
-        options.clone(),
-        domain_size / blowup_factor - 1,
-    )
-    .unwrap()
+    FridaDasVerifier::new(com, &mut coin, options.clone()).unwrap()
 }
 
 fn run<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>() {
@@ -138,8 +131,7 @@ fn run<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>() {
                     prove_time.2 += timer.elapsed();
 
                     timer = Instant::now();
-                    let verifier =
-                        prepare_verifier::<E, H>(prover.domain_size(), opt.0, opt.1, opt.2, com);
+                    let verifier = prepare_verifier::<E, H>(opt.0, opt.1, opt.2, com);
                     verify_time.0 += timer.elapsed();
 
                     timer = Instant::now();
@@ -255,9 +247,9 @@ fn run_batched<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(batch_
                     let mut evaluations = vec![];
                     for position in positions.iter() {
                         let bucket = position % (prover.domain_size() / opt.1);
-                        let start_index = (position / (prover.domain_size() / opt.1)) * batch_size;
-                        prover.get_batch_layer().as_ref().unwrap().evaluations[bucket]
-                            [start_index..start_index + batch_size]
+                        let start_index = bucket * (batch_size * opt.1)
+                            + (position / (prover.domain_size() / opt.1)) * batch_size;
+                        prover.get_layer(0).evaluations[start_index..start_index + batch_size]
                             .iter()
                             .for_each(|e| {
                                 evaluations.push(*e);
@@ -280,8 +272,7 @@ fn run_batched<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(batch_
                     prove_time.2 += timer.elapsed();
 
                     timer = Instant::now();
-                    let verifier =
-                        prepare_verifier::<E, H>(prover.domain_size(), opt.0, opt.1, opt.2, com);
+                    let verifier = prepare_verifier::<E, H>(opt.0, opt.1, opt.2, com);
                     verify_time.0 += timer.elapsed();
 
                     timer = Instant::now();

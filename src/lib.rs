@@ -44,7 +44,7 @@ mod tests {
                     proof,
                     domain_size,
                     num_queries: 32,
-                    batch_size: 0,
+                    poly_count: 1,
                 },
                 &mut coin,
                 options.clone(),
@@ -73,7 +73,7 @@ mod tests {
 
             // instantiate the prover and generate the proof
             let mut prover = FridaProver::new(options.clone());
-            prover.build_layers(&mut channel, evaluations.clone());
+            prover.build_layers(&mut channel, evaluations.clone(), false);
 
             let positions = channel.draw_query_positions();
             let proof = prover.build_proof(&positions);

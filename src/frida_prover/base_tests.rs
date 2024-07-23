@@ -61,7 +61,7 @@ fn fri_trait_check(
 
     let mut frida_channel = build_prover_channel(trace_length, &options);
     let mut frida_prover = FridaProver::new(options);
-    frida_prover.build_layers(&mut frida_channel, evaluations);
+    frida_prover.build_layers(&mut frida_channel, evaluations, false);
     let frida_proof = frida_prover.build_proof(&positions);
 
     assert_eq!(

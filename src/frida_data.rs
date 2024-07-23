@@ -45,7 +45,7 @@ fn data_to_field_element<E: FieldElement>(
     for chunk in encoded_data.chunks(E::ELEMENT_BYTES) {
         match E::read_from_bytes(chunk) {
             Ok(val) => symbols.push(val),
-            Err(_) => return Err(FridaError::DeserializationError()),
+            Err(e) => return Err(FridaError::DeserializationError(e)),
         };
     }
     Ok(symbols)

@@ -31,7 +31,7 @@ where
     layer_alphas: Vec<E>,
     options: FriOptions,
     num_partitions: usize,
-    batch_size: usize,
+    poly_count: usize,
     _public_coin: PhantomData<R>,
     _field_element: PhantomData<E>,
     _h_random: PhantomData<HRandom>,
@@ -60,9 +60,8 @@ where
             self.layer_commitments.clone(),
             self.domain_size,
             self.options.folding_factor(),
-            self.batch_size,
-        )
-        .map_err(|_e| FridaError::DeserializationError())?;
+            self.poly_count,
+        )?;
 
         self.check_auth(&mut verifier_channel, evaluations, positions)
             .map_err(|_e| FridaError::FailToVerify)
@@ -74,7 +73,7 @@ where
         folded_positions: &[usize],
         domain_size: usize,
     ) -> Vec<E> {
-        if verifier_channel.batch_size() > 0 {
+        if verifier_channel.poly_count() > 1 {
             let layer_values = verifier_channel
                 .batch_data
                 .as_ref()
@@ -88,7 +87,7 @@ where
                 positions,
                 folded_positions,
                 domain_size,
-                verifier_channel.batch_size(),
+                verifier_channel.poly_count(),
             )
         } else {
             let layer_values = group_slice_elements(&verifier_channel.layer_queries[0]);
@@ -122,32 +121,27 @@ where
     fn new(
         das_commitment: Commitment<HRandom>,
         public_coin: &mut R,
-        options: FriOptions
+        options: FriOptions,
     ) -> Result<Self, FridaError> {
         let domain_size = das_commitment.domain_size;
         let num_partitions = das_commitment.proof.num_partitions();
         let max_poly_degree = domain_size / options.blowup_factor() - 1;
 
         // read layer commitments from the channel and use them to build a list of alphas
-        let batch_size = das_commitment.batch_size;
+        let poly_count = das_commitment.poly_count;
         let layer_commitments = das_commitment.roots;
-        let mut alpha_commitments = &layer_commitments[..];
+        let alpha_commitments = &layer_commitments[..];
 
-        let xi = if batch_size > 0 {
-            alpha_commitments = &layer_commitments[1..];
-            let batch_layer_root = layer_commitments[0];
-            public_coin.reseed(&batch_layer_root.as_bytes());
-            Some(public_coin.draw_xi(batch_size)?)
-        } else {
-            None
-        };
-
+        let mut xi = None;
         let mut layer_alphas = Vec::with_capacity(alpha_commitments.len());
         let mut max_degree_plus_1 = max_poly_degree + 1;
         for (depth, commitment) in alpha_commitments.iter().enumerate() {
             public_coin.reseed(&commitment.as_bytes());
-            let alpha = public_coin.draw().map_err(|_e| FridaError::DrawError())?;
+            if depth == 0 && poly_count > 1 {
+                xi = Some(public_coin.draw_xi(poly_count)?)
+            }
 
+            let alpha = public_coin.draw()?;
             layer_alphas.push(alpha);
 
             // make sure the degree can be reduced by the folding factor at all layers
@@ -172,7 +166,7 @@ where
             layer_commitments.clone(),
             domain_size,
             options.folding_factor(),
-            batch_size,
+            poly_count,
         )
         .map_err(|_e| FridaError::InvalidDASCommitment)?;
 
@@ -217,7 +211,7 @@ where
             max_poly_degree,
             domain_size,
             num_partitions,
-            batch_size,
+            poly_count,
             layer_commitments,
             xi,
             layer_alphas,
