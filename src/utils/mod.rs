@@ -9,7 +9,8 @@ use crate::{
 
 type Blake3 = Blake3_256<BaseElement>;
 
-pub fn build_prover_channel(
+#[cfg(test)]
+pub fn test_build_prover_channel(
     trace_length: usize,
     options: &FriOptions,
 ) -> FridaProverChannel<BaseElement, Blake3, Blake3, FridaRandom<Blake3, Blake3, BaseElement>> {
@@ -19,7 +20,8 @@ pub fn build_prover_channel(
     )
 }
 
-pub fn build_evaluations(trace_length: usize, lde_blowup: usize) -> Vec<BaseElement> {
+#[cfg(test)]
+pub fn test_build_evaluations(trace_length: usize, lde_blowup: usize) -> Vec<BaseElement> {
     let mut p = (0..trace_length as u128)
         .map(BaseElement::new)
         .collect::<Vec<_>>();

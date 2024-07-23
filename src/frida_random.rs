@@ -4,6 +4,7 @@ use crate::{frida_const, frida_error::FridaError};
 use winter_crypto::{Digest, ElementHasher};
 use winter_math::{FieldElement, StarkField};
 
+#[derive(Debug)]
 pub struct FridaRandom<HashHst: ElementHasher, HashRandom: ElementHasher, E: FieldElement> {
     counter: u64,
     hst: Vec<u8>,

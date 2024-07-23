@@ -13,12 +13,14 @@ pub trait BaseProverChannel<E: FieldElement, HRoot: ElementHasher>:
     ProverChannel<E, Hasher = HRoot>
 {
     fn new(domain_size: usize, num_queries: usize) -> Self;
-    fn draw_query_positions(&mut self) -> Vec<usize>;
+    fn num_queries(&self) -> usize;
     fn layer_commitments(&self) -> &[HRoot::Digest];
-    fn take_layer_commitments(self) -> Vec<HRoot::Digest>;
+
+    fn draw_query_positions(&mut self) -> Vec<usize>;
     fn draw_xi(&mut self, count: usize) -> Result<Vec<E>, FridaError>;
 }
 
+#[derive(Debug)]
 pub struct FridaProverChannel<E, HHst, HRandom, R>
 where
     E: FieldElement,
@@ -82,6 +84,14 @@ where
         }
     }
 
+    fn num_queries(&self) -> usize {
+        self.num_queries
+    }
+
+    fn layer_commitments(&self) -> &[HRandom::Digest] {
+        &self.commitments
+    }
+
     /// Draws the set of positions at which the polynomial evaluations committed at the first FRI
     /// layer should be queried.
     ///
@@ -96,14 +106,6 @@ where
         // TODO: Decide if dedup is ok or if we want to strictly hit the num_queries goal. Winterfell uses dedup.
         positions.dedup();
         positions
-    }
-
-    fn layer_commitments(&self) -> &[HRandom::Digest] {
-        &self.commitments
-    }
-
-    fn take_layer_commitments(self) -> Vec<HRandom::Digest> {
-        self.commitments
     }
 
     fn draw_xi(&mut self, count: usize) -> Result<Vec<E>, FridaError> {

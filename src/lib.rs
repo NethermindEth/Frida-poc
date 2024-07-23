@@ -17,11 +17,11 @@ mod tests {
 
     use crate::{
         frida_error::FridaError,
-        frida_prover::{proof::FridaProof, traits::BaseFriProver, Commitment, FridaProver},
+        frida_prover::{proof::FridaProof, Commitment, FridaProverBuilder},
         frida_prover_channel::BaseProverChannel,
         frida_random::{FridaRandom, FridaRandomCoin},
         frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
-        utils::{build_evaluations, build_prover_channel},
+        utils::{test_build_evaluations, test_build_prover_channel},
     };
 
     #[test]
@@ -68,21 +68,21 @@ mod tests {
             let folding_factor = 1 << folding_factor_e;
 
             let options = FriOptions::new(lde_blowup, folding_factor, max_remainder_degree);
-            let mut channel = build_prover_channel(trace_length, &options);
-            let evaluations = build_evaluations(trace_length, lde_blowup);
+            let mut channel = test_build_prover_channel(trace_length, &options);
+            let evaluations = test_build_evaluations(trace_length, lde_blowup);
 
             // instantiate the prover and generate the proof
-            let mut prover = FridaProver::new(options.clone());
-            prover.build_layers(&mut channel, evaluations.clone(), false);
+            let prover_builder = FridaProverBuilder::new(options.clone());
+            let prover = prover_builder.test_build_layers(&mut channel, evaluations.clone());
 
             let positions = channel.draw_query_positions();
-            let proof = prover.build_proof(&positions);
+            let proof = prover.open(&positions);
 
             let positions = rand_array::<u64, 5>()
                 .iter()
                 .map(|v| usize::min(*v as usize, lde_blowup * trace_length - 1))
                 .collect::<Vec<_>>();
-            let opening_proof = prover.build_proof(&positions);
+            let opening_proof = prover.open(&positions);
 
             // make sure the proof can be verified
             let commitments = channel.layer_commitments().to_vec();

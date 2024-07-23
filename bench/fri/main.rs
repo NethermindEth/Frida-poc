@@ -7,8 +7,7 @@ use std::{
 use frida_poc::{
     frida_prover::{
         bench::{COMMIT_TIME, ERASURE_TIME},
-        traits::BaseFriProver,
-        Commitment, FridaProver,
+        Commitment, FridaProverBuilder,
     },
     frida_prover_channel::FridaProverChannel,
     frida_random::{FridaRandom, FridaRandomCoin},
@@ -34,13 +33,13 @@ fn data_sizes<E: StarkField>() -> Vec<usize> {
     ]
 }
 
-fn prepare_prover<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(
+fn prepare_prover_builder<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(
     blowup_factor: usize,
     folding_factor: usize,
     remainder_max_degree: usize,
-) -> FridaProver<E, E, FridaProverChannel<E, H, H, FridaRandom<H, H, E>>, H> {
+) -> FridaProverBuilder<E, E, H, FridaProverChannel<E, H, H, FridaRandom<H, H, E>>> {
     let options = FriOptions::new(blowup_factor, folding_factor, remainder_max_degree);
-    FridaProver::new(options)
+    FridaProverBuilder::new(options)
 }
 
 fn prepare_verifier<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(
@@ -77,7 +76,7 @@ fn run<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>() {
     let mut results = vec![];
 
     for opt in prover_options {
-        let mut prover = prepare_prover::<E, H>(opt.0, opt.1, opt.2);
+        let prover_builder = prepare_prover_builder::<E, H>(opt.0, opt.1, opt.2);
 
         for data in datas.iter() {
             for num_query in num_queries.iter() {
@@ -97,21 +96,23 @@ fn run<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>() {
                 let mut proof_size = (0, 0, 0);
 
                 for _ in 0..RUNS {
-                    let (com, _) = prover.commit(data.clone(), *num_query).unwrap();
+                    let (prover, channel) =
+                        prover_builder.build_prover(&data, *num_query).unwrap();
+                    let com = prover.commit(channel).unwrap();
                     // +1 roots len, +1 batch_size, +1 num_query = +3 at the end
                     commit_size += com.proof.size() + com.roots.len() * 32 + 3;
 
                     let positions = rand_vector::<u64>(32)
                         .into_iter()
-                        .map(|v| (v as usize) % prover.domain_size())
+                        .map(|v| (v as usize) % com.domain_size)
                         .collect::<Vec<_>>();
 
                     let evaluations = positions
                         .iter()
                         .map(|pos| {
-                            prover.get_layer(0).evaluations[(pos % (prover.domain_size() / opt.1))
+                            prover.get_first_layer_evalutaions()[(pos % (com.domain_size / opt.1))
                                 * opt.1
-                                + (pos / (prover.domain_size() / opt.1))]
+                                + (pos / (com.domain_size / opt.1))]
                         })
                         .collect::<Vec<_>>();
 
@@ -149,8 +150,6 @@ fn run<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>() {
                     timer = Instant::now();
                     verifier.verify(proof_2, &evaluations, &positions).unwrap();
                     verify_time.3 += timer.elapsed();
-
-                    prover.reset();
                 }
                 results.push(format!(
                     "{:?}, {}, {}Kb, {:?}, {:?}, ({:?}, {:?}, {:?}), ({:?}, {:?}, {:?}, {:?}), {}, ({}, {}, {})",
@@ -214,7 +213,7 @@ fn run_batched<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(batch_
     let mut results = vec![];
 
     for opt in prover_options {
-        let mut prover = prepare_prover::<E, H>(opt.0, opt.1, opt.2);
+        let prover_builder = prepare_prover_builder::<E, H>(opt.0, opt.1, opt.2);
 
         for data in datas.iter() {
             for num_query in num_queries.iter() {
@@ -234,22 +233,24 @@ fn run_batched<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(batch_
                 let mut proof_size = (0, 0, 0);
 
                 for _ in 0..RUNS {
-                    let (com, _) = prover.commit_batch(data.clone(), *num_query).unwrap();
+                    let (prover, channel) =
+                        prover_builder.build_batched_prover(&data, *num_query).unwrap();
+                    let com = prover.commit(channel).unwrap();
 
                     // +1 roots len, +1 batch_size, +1 num_query = +3 at the end
                     commit_size += com.proof.size() + com.roots.len() * 32 + 3;
 
                     let positions = rand_vector::<u64>(32)
                         .into_iter()
-                        .map(|v| (v as usize) % prover.domain_size())
+                        .map(|v| (v as usize) % com.domain_size)
                         .collect::<Vec<_>>();
 
                     let mut evaluations = vec![];
                     for position in positions.iter() {
-                        let bucket = position % (prover.domain_size() / opt.1);
+                        let bucket = position % (com.domain_size / opt.1);
                         let start_index = bucket * (batch_size * opt.1)
-                            + (position / (prover.domain_size() / opt.1)) * batch_size;
-                        prover.get_layer(0).evaluations[start_index..start_index + batch_size]
+                            + (position / (com.domain_size / opt.1)) * batch_size;
+                        prover.get_first_layer_evalutaions()[start_index..start_index + batch_size]
                             .iter()
                             .for_each(|e| {
                                 evaluations.push(*e);
@@ -290,8 +291,6 @@ fn run_batched<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(batch_
                     timer = Instant::now();
                     verifier.verify(proof_2, &evaluations, &positions).unwrap();
                     verify_time.3 += timer.elapsed();
-
-                    prover.reset();
                 }
                 results.push(format!(
                     "{:?}, {}, {}Kb, {:?}, {:?}, ({:?}, {:?}, {:?}), ({:?}, {:?}, {:?}, {:?}), {}, ({}, {}, {})",
