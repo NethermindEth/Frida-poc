@@ -16,7 +16,7 @@ mod tests {
 
     use crate::{
         frida_error::FridaError,
-        frida_prover::{channel::{BaseProverChannel, BaseProverChannelTest}, proof::FridaProof, Commitment, FridaProverBuilder},
+        frida_prover::{channel::FridaProverChannelTest, proof::FridaProof, Commitment, FridaProverBuilder},
         frida_random::{FridaRandom, FridaRandomCoin},
         frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
         utils::{test_build_evaluations, test_build_prover_channel},

@@ -1,27 +1,18 @@
 use core::marker::PhantomData;
-
 #[cfg(feature = "bench")]
 use std::time::Instant;
 
 use winter_crypto::{ElementHasher, MerkleTree};
-use winter_fri::folding;
-use winter_math::{fft, FieldElement};
-
 use winter_fri::{FriOptions, ProverChannel};
+use winter_fri::folding;
 use winter_fri::utils::hash_values;
-
-#[cfg(test)]
-pub mod channel;
-
-#[cfg(not(test))]
-mod channel;
-
-pub mod proof;
-use proof::FridaProof;
-
+use winter_math::{fft, FieldElement};
+use winter_utils::{flatten_vector_elements, group_slice_elements, iter_mut, transpose_slice, uninit_vector};
 #[cfg(feature = "concurrent")]
 use winter_utils::iterators::*;
-use winter_utils::{flatten_vector_elements, group_slice_elements, iter_mut, transpose_slice, uninit_vector};
+
+use channel::FridaProverChannel;
+use proof::FridaProof;
 
 use crate::{
     frida_const,
@@ -30,7 +21,15 @@ use crate::{
     frida_prover::proof::{FridaProofBatchLayer, FridaProofLayer},
     frida_random::FridaRandom,
 };
-use channel::{BaseProverChannel, FridaProverChannel};
+
+// Channel is only exposed to tests
+#[cfg(test)]
+pub mod channel;
+
+#[cfg(not(test))]
+mod channel;
+
+pub mod proof;
 
 pub struct FridaProverBuilder<E, H>
 where
@@ -82,6 +81,7 @@ pub struct Commitment<HRoot: ElementHasher> {
 #[cfg(feature = "bench")]
 pub mod bench {
     use std::time::{Duration, Instant};
+
     pub static mut TIMER: Option<Instant> = None;
     pub static mut ERASURE_TIME: Option<Duration> = None;
     pub static mut COMMIT_TIME: Option<Duration> = None;
@@ -316,7 +316,7 @@ where
                 Some(bench::COMMIT_TIME.unwrap_or_default() + bench::TIMER.unwrap().elapsed());
         }
 
-        let num_queries = channel.num_queries();
+        let num_queries = channel.num_queries;
 
         let commitment = Commitment {
             roots: channel.commitments,
@@ -465,12 +465,14 @@ mod base_tests;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{frida_prover::channel::{FridaProverChannel, BaseProverChannelTest}, frida_random::FridaRandom};
     use winter_crypto::hashers::Blake3_256;
     use winter_fri::{folding::fold_positions, FriOptions, ProverChannel};
     use winter_math::fields::f128::BaseElement;
     use winter_rand_utils::{rand_value, rand_vector};
+
+    use crate::{frida_prover::channel::{FridaProverChannel, FridaProverChannelTest}, frida_random::FridaRandom};
+
+    use super::*;
 
     #[test]
     fn test_commit() {

@@ -7,7 +7,7 @@ use crate::{
 };
 
 #[cfg(test)]
-use crate::frida_prover::channel::{BaseProverChannel, FridaProverChannel};
+use crate::frida_prover::channel::FridaProverChannel;
 
 type Blake3 = Blake3_256<BaseElement>;
 

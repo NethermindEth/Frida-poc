@@ -9,16 +9,6 @@ use crate::{frida_const, frida_error::FridaError, frida_random::FridaRandomCoin}
 #[cfg(test)]
 use crate::frida_random::FridaRandomCoinTest;
 
-pub trait BaseProverChannel<E: FieldElement, HRoot: ElementHasher>:
-    ProverChannel<E, Hasher = HRoot>
-{
-    fn new(domain_size: usize, num_queries: usize) -> Self;
-    fn num_queries(&self) -> usize;
-
-    fn draw_query_positions(&mut self) -> Vec<usize>;
-    fn draw_xi(&mut self, count: usize) -> Result<Vec<E>, FridaError>;
-}
-
 #[derive(Debug)]
 pub struct FridaProverChannel<E, HHst, HRandom, R>
 where
@@ -33,15 +23,15 @@ where
     >,
 {
     pub commitments: Vec<HRandom::Digest>,
-    public_coin: R,
-    domain_size: usize,
-    num_queries: usize,
+    pub public_coin: R,
+    pub domain_size: usize,
+    pub num_queries: usize,
     _hash_function_hst: PhantomData<HHst>,
     _hash_function_random: PhantomData<HRandom>,
     _field_element: PhantomData<E>,
 }
 
-impl<E, HHst, HRandom, R> BaseProverChannel<E, HRandom> for FridaProverChannel<E, HHst, HRandom, R>
+impl<E, HHst, HRandom, R> FridaProverChannel<E, HHst, HRandom, R>
 where
     E: FieldElement,
     HHst: ElementHasher<BaseField = E::BaseField>,
@@ -59,7 +49,7 @@ where
     /// Panics if:
     /// * `domain_size` is smaller than 8 or is not a power of two.
     /// * `num_queries` is zero.
-    fn new(domain_size: usize, num_queries: usize) -> Self {
+    pub fn new(domain_size: usize, num_queries: usize) -> Self {
         assert!(
             domain_size >= frida_const::MIN_DOMAIN_SIZE,
             "domain size must be at least 8, but was {domain_size}"
@@ -83,16 +73,12 @@ where
         }
     }
 
-    fn num_queries(&self) -> usize {
-        self.num_queries
-    }
-
     /// Draws the set of positions at which the polynomial evaluations committed at the first FRI
     /// layer should be queried.
     ///
     /// # Panics
     /// Panics if it fails while drawing a position.
-    fn draw_query_positions(&mut self) -> Vec<usize> {
+    pub fn draw_query_positions(&mut self) -> Vec<usize> {
         let mut positions = self
             .public_coin
             .draw_query_positions(self.num_queries, self.domain_size)
@@ -103,9 +89,8 @@ where
         positions
     }
 
-    fn draw_xi(&mut self, count: usize) -> Result<Vec<E>, FridaError> {
-        let xi = self.public_coin.draw_xi(count)?;
-        Ok(xi)
+    pub fn draw_xi(&mut self, count: usize) -> Result<Vec<E>, FridaError> {
+        self.public_coin.draw_xi(count)
     }
 }
 
@@ -140,24 +125,24 @@ where
 }
 
 #[cfg(test)]
-pub trait BaseProverChannelTest<E: FieldElement, HRandom: ElementHasher<BaseField = E::BaseField>> {
+pub trait FridaProverChannelTest<E: FieldElement, HRandom: ElementHasher<BaseField = E::BaseField>> {
     fn drawn_alphas(&self) -> Vec<E>;
 
     fn layer_commitments(&self) -> &[HRandom::Digest];
 }
 
 #[cfg(test)]
-impl<E, HHst, HRandom, R> BaseProverChannelTest<E, HRandom> for FridaProverChannel<E, HHst, HRandom, R>
+impl<E, HHst, HRandom, R> FridaProverChannelTest<E, HRandom> for FridaProverChannel<E, HHst, HRandom, R>
 where
     E: FieldElement,
     HHst: ElementHasher<BaseField = E::BaseField>,
     HRandom: ElementHasher<BaseField = E::BaseField>,
     R: FridaRandomCoin<
-            BaseField = E::BaseField,
-            FieldElement = E,
-            HashHst = HHst,
-            HashRandom = HRandom,
-        > + FridaRandomCoinTest<FieldElement = E>,
+        BaseField = E::BaseField,
+        FieldElement = E,
+        HashHst = HHst,
+        HashRandom = HRandom,
+    > + FridaRandomCoinTest<FieldElement = E>,
 {
     fn drawn_alphas(&self) -> Vec<E> {
         self.public_coin.drawn_alphas()
