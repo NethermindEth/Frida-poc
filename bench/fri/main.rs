@@ -9,21 +9,17 @@ use frida_poc::{
         bench::{COMMIT_TIME, ERASURE_TIME},
         Commitment, FridaProverBuilder,
     },
-    frida_prover_channel::FridaProverChannel,
     frida_random::{FridaRandom, FridaRandomCoin},
     frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
 };
 use winter_crypto::{hashers::Blake3_256, ElementHasher};
 use winter_fri::FriOptions;
-use winter_math::{
-    fields::f128::BaseElement as Base128Element, fields::f64::BaseElement as Base64Element,
-    StarkField,
-};
+use winter_math::{FieldElement, fields::f128::BaseElement as Base128Element, fields::f64::BaseElement as Base64Element};
 use winter_rand_utils::rand_vector;
 
 const RUNS: u32 = 10;
 
-fn data_sizes<E: StarkField>() -> Vec<usize> {
+fn data_sizes<E: FieldElement>() -> Vec<usize> {
     vec![
         (128 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
         (256 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
@@ -33,16 +29,16 @@ fn data_sizes<E: StarkField>() -> Vec<usize> {
     ]
 }
 
-fn prepare_prover_builder<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(
+fn prepare_prover_builder<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(
     blowup_factor: usize,
     folding_factor: usize,
     remainder_max_degree: usize,
-) -> FridaProverBuilder<E, E, H, FridaProverChannel<E, H, H, FridaRandom<H, H, E>>> {
+) -> FridaProverBuilder<E, H> {
     let options = FriOptions::new(blowup_factor, folding_factor, remainder_max_degree);
     FridaProverBuilder::new(options)
 }
 
-fn prepare_verifier<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(
+fn prepare_verifier<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(
     blowup_factor: usize,
     folding_factor: usize,
     remainder_max_degree: usize,
@@ -53,7 +49,7 @@ fn prepare_verifier<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(
     FridaDasVerifier::new(com, &mut coin, options.clone()).unwrap()
 }
 
-fn run<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>() {
+fn run<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
     let datas = data_sizes::<E>()
         .into_iter()
         .map(|size| rand_vector::<u8>(size))
@@ -183,7 +179,7 @@ fn run<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>() {
     }
 }
 
-fn run_batched<E: StarkField, H: ElementHasher<BaseField = E::BaseField>>(batch_size: usize) {
+fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(batch_size: usize) {
     let datas = data_sizes::<E>()
         .into_iter()
         .map(|size| {

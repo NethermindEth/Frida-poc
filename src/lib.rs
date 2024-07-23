@@ -2,7 +2,6 @@ pub mod frida_const;
 pub mod frida_data;
 pub mod frida_error;
 pub mod frida_prover;
-pub mod frida_prover_channel;
 pub mod frida_random;
 pub mod frida_verifier;
 pub mod frida_verifier_channel;
@@ -17,8 +16,7 @@ mod tests {
 
     use crate::{
         frida_error::FridaError,
-        frida_prover::{proof::FridaProof, Commitment, FridaProverBuilder},
-        frida_prover_channel::BaseProverChannel,
+        frida_prover::{channel::{BaseProverChannel, BaseProverChannelTest}, proof::FridaProof, Commitment, FridaProverBuilder},
         frida_random::{FridaRandom, FridaRandomCoin},
         frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
         utils::{test_build_evaluations, test_build_prover_channel},

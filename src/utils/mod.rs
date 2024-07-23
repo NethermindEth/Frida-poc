@@ -3,9 +3,11 @@ use winter_fri::FriOptions;
 use winter_math::{fft, fields::f128::BaseElement, FieldElement};
 
 use crate::{
-    frida_prover_channel::{BaseProverChannel, FridaProverChannel},
     frida_random::FridaRandom,
 };
+
+#[cfg(test)]
+use crate::frida_prover::channel::{BaseProverChannel, FridaProverChannel};
 
 type Blake3 = Blake3_256<BaseElement>;
 

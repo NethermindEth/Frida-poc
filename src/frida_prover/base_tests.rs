@@ -2,7 +2,7 @@ use winter_fri::{FriOptions, FriProver};
 use winter_utils::Serializable;
 
 use crate::{
-    frida_prover_channel::BaseProverChannel,
+    frida_prover::channel::{BaseProverChannel, BaseProverChannelTest},
     utils::{test_build_evaluations, test_build_prover_channel},
 };
 

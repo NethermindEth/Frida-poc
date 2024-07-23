@@ -10,6 +10,12 @@ use winter_math::{fft, FieldElement};
 use winter_fri::{FriOptions, ProverChannel};
 use winter_fri::utils::hash_values;
 
+#[cfg(test)]
+pub mod channel;
+
+#[cfg(not(test))]
+mod channel;
+
 pub mod proof;
 use proof::FridaProof;
 
@@ -21,10 +27,10 @@ use crate::{
     frida_const,
     frida_data::{build_evaluations_from_data, encoded_data_element_count},
     frida_error::FridaError,
-    frida_prover_channel::{BaseProverChannel, FridaProverChannel},
     frida_prover::proof::{FridaProofBatchLayer, FridaProofLayer},
     frida_random::FridaRandom,
 };
+use channel::{BaseProverChannel, FridaProverChannel};
 
 pub struct FridaProverBuilder<E, H>
 where
@@ -460,7 +466,7 @@ mod base_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{frida_prover_channel::FridaProverChannel, frida_random::FridaRandom};
+    use crate::{frida_prover::channel::{FridaProverChannel, BaseProverChannelTest}, frida_random::FridaRandom};
     use winter_crypto::hashers::Blake3_256;
     use winter_fri::{folding::fold_positions, FriOptions, ProverChannel};
     use winter_math::fields::f128::BaseElement;

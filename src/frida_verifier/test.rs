@@ -2,9 +2,7 @@
 mod test {
     use crate::frida_prover::proof::FridaProof;
     use crate::frida_prover::{Commitment, FridaProverBuilder};
-    use crate::frida_prover_channel::{
-        BaseProverChannel, BaseProverChannelTest,
-    };
+    use crate::frida_prover::channel::{BaseProverChannel, BaseProverChannelTest};
     use crate::frida_random::{FridaRandom, FridaRandomCoin};
     use crate::frida_verifier::das::FridaDasVerifier;
     use crate::frida_verifier::traits::BaseFridaVerifier;

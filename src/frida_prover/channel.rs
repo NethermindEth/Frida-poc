@@ -14,7 +14,6 @@ pub trait BaseProverChannel<E: FieldElement, HRoot: ElementHasher>:
 {
     fn new(domain_size: usize, num_queries: usize) -> Self;
     fn num_queries(&self) -> usize;
-    fn layer_commitments(&self) -> &[HRoot::Digest];
 
     fn draw_query_positions(&mut self) -> Vec<usize>;
     fn draw_xi(&mut self, count: usize) -> Result<Vec<E>, FridaError>;
@@ -88,10 +87,6 @@ where
         self.num_queries
     }
 
-    fn layer_commitments(&self) -> &[HRandom::Digest] {
-        &self.commitments
-    }
-
     /// Draws the set of positions at which the polynomial evaluations committed at the first FRI
     /// layer should be queried.
     ///
@@ -145,12 +140,14 @@ where
 }
 
 #[cfg(test)]
-pub trait BaseProverChannelTest<E: FieldElement> {
+pub trait BaseProverChannelTest<E: FieldElement, HRandom: ElementHasher<BaseField = E::BaseField>> {
     fn drawn_alphas(&self) -> Vec<E>;
+
+    fn layer_commitments(&self) -> &[HRandom::Digest];
 }
 
 #[cfg(test)]
-impl<E, HHst, HRandom, R> BaseProverChannelTest<E> for FridaProverChannel<E, HHst, HRandom, R>
+impl<E, HHst, HRandom, R> BaseProverChannelTest<E, HRandom> for FridaProverChannel<E, HHst, HRandom, R>
 where
     E: FieldElement,
     HHst: ElementHasher<BaseField = E::BaseField>,
@@ -164,5 +161,9 @@ where
 {
     fn drawn_alphas(&self) -> Vec<E> {
         self.public_coin.drawn_alphas()
+    }
+
+    fn layer_commitments(&self) -> &[HRandom::Digest] {
+        &self.commitments
     }
 }
