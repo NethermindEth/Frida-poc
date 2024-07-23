@@ -4,17 +4,17 @@ use frida_poc::{
 };
 use winter_crypto::hashers::Blake3_256;
 use winter_fri::FriOptions;
-use winter_math::fields::f128::BaseElement;
+use winter_math::fields::f128;
 
-type Blake3 = Blake3_256<BaseElement>;
-type FridaProverBuilderType = FridaProverBuilder<BaseElement, Blake3>;
+type Blake3 = Blake3_256<f128::BaseElement>;
+type FridaProverBuilderType = FridaProverBuilder<f128::BaseElement, Blake3>;
 
 pub fn run(data_path: &str, num_queries: usize, options: FriOptions) {
     let data = std::fs::read(data_path).expect("Unable to read data file");
     let prover_builder = FridaProverBuilderType::new(options.clone());
 
     let encoded_element_count =
-        encoded_data_element_count::<BaseElement>(data.len()).next_power_of_two();
+        encoded_data_element_count::<f128::BaseElement>(data.len()).next_power_of_two();
 
     let (commitment, _prover) =
         prover_builder.commit(&data, num_queries).unwrap();

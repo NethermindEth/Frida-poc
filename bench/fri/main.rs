@@ -14,7 +14,7 @@ use frida_poc::{
 };
 use winter_crypto::{hashers::Blake3_256, ElementHasher};
 use winter_fri::FriOptions;
-use winter_math::{FieldElement, fields::f128::BaseElement as Base128Element, fields::f64::BaseElement as Base64Element};
+use winter_math::{FieldElement, fields::{f64, f128}};
 use winter_rand_utils::rand_vector;
 
 const RUNS: u32 = 10;
@@ -323,19 +323,19 @@ fn main() {
     println!("FRI...\n\n");
 
     println!("64bit...");
-    run::<Base64Element, Blake3_256<Base64Element>>();
+    run::<f64::BaseElement, Blake3_256<f64::BaseElement>>();
 
     println!("\n128bit...");
-    run::<Base128Element, Blake3_256<Base128Element>>();
+    run::<f128::BaseElement, Blake3_256<f128::BaseElement>>();
 
     println!("\nBatched FRI...\n\n");
     println!("64bit...");
     for i in [2, 4, 8, 16] {
-        run_batched::<Base64Element, Blake3_256<Base64Element>>(i);
+        run_batched::<f64::BaseElement, Blake3_256<f64::BaseElement>>(i);
     }
 
     println!("\n128bit...");
     for i in [2, 4, 8, 16] {
-        run_batched::<Base128Element, Blake3_256<Base128Element>>(i);
+        run_batched::<f128::BaseElement, Blake3_256<f128::BaseElement>>(i);
     }
 }
