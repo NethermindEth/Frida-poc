@@ -6,16 +6,16 @@ use winter_fri::{
 };
 use winter_math::{polynom, FieldElement};
 
+use winter_utils::iter_mut;
 #[cfg(feature = "concurrent")]
 use winter_utils::iterators::*;
-use winter_utils::{iter_mut, uninit_vector};
 
 use crate::{
     frida_error::FridaError, frida_prover::Commitment, frida_random::FridaRandomCoin,
     frida_verifier_channel::BaseVerifierChannel,
 };
 
-use super::{eval_horner, get_batch_query_values};
+use super::eval_horner;
 
 pub trait BaseFridaVerifier<E, HHst, HRandom, R>
 where
@@ -47,7 +47,7 @@ where
         evaluations: &[E],
         positions: &[usize],
     ) -> Result<(), VerifierError> {
-        if evaluations.len() != positions.len() * usize::max(channel.batch_size(), 1) {
+        if evaluations.len() != positions.len() * channel.poly_count() {
             return Err(VerifierError::NumPositionEvaluationMismatch(
                 positions.len(),
                 evaluations.len(),
@@ -76,6 +76,7 @@ where
     ) -> Result<(), VerifierError> {
         let options = self.options();
         let original_domain_size = self.domain_size();
+        let poly_count = channel.poly_count();
         let mut domain_generator = self.domain_generator();
 
         // pre-compute roots of unity used in computing x coordinates in the folded domain
@@ -87,13 +88,7 @@ where
         let mut domain_size = original_domain_size;
         let mut max_degree_plus_1 = self.max_poly_degree() + 1;
         let mut positions = positions.to_vec();
-        let mut layer_index_modifier = 0;
-        let mut evaluations = if channel.batch_size() > 0 {
-            layer_index_modifier = 1;
-            self.verify_batch_layer::<C, N>(channel, evaluations, &positions)?
-        } else {
-            evaluations.to_vec()
-        };
+        let mut evaluations = evaluations.to_vec();
 
         let num_fri_layers = options.num_fri_layers(original_domain_size);
         for depth in 0..num_fri_layers {
@@ -108,9 +103,42 @@ where
                 self.num_partitions(),
             );
             // read query values from the specified indexes in the Merkle tree
-            let layer_commitment = self.get_layer_commitment(depth + layer_index_modifier);
+            let layer_commitment = self.get_layer_commitment(depth);
             // TODO: add layer depth to the potential error message
-            let layer_values = channel.read_layer_queries(&position_indexes, &layer_commitment)?;
+            let layer_values = if poly_count > 1 && depth == 0 {
+                let xi = self.xi().unwrap();
+                let layer_values =
+                    channel.read_batch_layer_queries(&position_indexes, &layer_commitment)?;
+                let mut combined_layer_values: Vec<[E; N]> =
+                    vec![[E::default(); N]; layer_values.len() / poly_count / N];
+                iter_mut!(combined_layer_values, 1024)
+                    .enumerate()
+                    .for_each(|(i, b)| {
+                        iter_mut!(b, 1024).enumerate().for_each(|(j, f)| {
+                            let start = i * (poly_count * N) + poly_count * j;
+                            layer_values[start..start + poly_count]
+                                .iter()
+                                .enumerate()
+                                .for_each(|(j, e)| {
+                                    *f += *e * xi[j];
+                                });
+                        });
+                    });
+
+                let mut new_eval = vec![E::default(); evaluations.len() / poly_count];
+                iter_mut!(new_eval, 1024).enumerate().for_each(|(i, f)| {
+                    evaluations[i * poly_count..i * poly_count + poly_count]
+                        .iter()
+                        .enumerate()
+                        .for_each(|(j, e)| {
+                            *f += *e * xi[j];
+                        });
+                });
+                evaluations = new_eval;
+                combined_layer_values
+            } else {
+                channel.read_layer_queries(&position_indexes, &layer_commitment)?
+            };
             let query_values =
                 get_query_values::<E, N>(&layer_values, &positions, &folded_positions, domain_size);
             if evaluations != query_values {
@@ -176,52 +204,6 @@ where
         }
 
         Ok(())
-    }
-
-    fn verify_batch_layer<C: BaseVerifierChannel<E, Hasher = HRandom>, const N: usize>(
-        &self,
-        channel: &mut C,
-        evaluations: &[E],
-        positions: &[usize],
-    ) -> Result<Vec<E>, VerifierError> {
-        let options = self.options();
-        let domain_size = self.domain_size();
-
-        // determine which evaluations were queried in the folded layer
-        let folded_positions = fold_positions(positions, domain_size, options.folding_factor());
-        // determine where these evaluations are in the commitment Merkle tree
-        let position_indexes = map_positions_to_indexes(
-            &folded_positions,
-            domain_size,
-            options.folding_factor(),
-            self.num_partitions(),
-        );
-
-        let batch_size = channel.batch_size();
-        let layer_values = channel.read_batch_layer_queries(&position_indexes)?;
-        let query_values = get_batch_query_values::<E, N>(
-            &layer_values,
-            positions,
-            &folded_positions,
-            domain_size,
-            batch_size,
-        );
-        if evaluations != query_values {
-            return Err(VerifierError::InvalidLayerFolding(0));
-        }
-
-        let xi = self.xi().unwrap();
-        let mut next_eval = unsafe { uninit_vector(query_values.len() / batch_size) };
-        iter_mut!(next_eval, 1024).enumerate().for_each(|(i, f)| {
-            *f = E::default();
-            query_values[i * batch_size..i * batch_size + batch_size]
-                .iter()
-                .enumerate()
-                .for_each(|(j, e)| {
-                    *f += *e * xi[j];
-                });
-        });
-        Ok(next_eval)
     }
 }
 
