@@ -1,66 +1,68 @@
 use core::marker::PhantomData;
-
 #[cfg(feature = "bench")]
 use std::time::Instant;
 
-use winter_crypto::{ElementHasher, Hasher, MerkleTree};
+use winter_crypto::{ElementHasher, MerkleTree};
+use winter_fri::{FriOptions, ProverChannel};
 use winter_fri::folding;
-use winter_math::{fft, FieldElement, StarkField};
-
-use winter_fri::FriOptions;
 use winter_fri::utils::hash_values;
-
-pub mod proof;
-use proof::FridaProof;
-
+use winter_math::{fft, FieldElement};
+use winter_utils::{flatten_vector_elements, group_slice_elements, iter_mut, transpose_slice, uninit_vector};
 #[cfg(feature = "concurrent")]
 use winter_utils::iterators::*;
-use winter_utils::{flatten_vector_elements, group_slice_elements, iter_mut, transpose_slice, uninit_vector};
+
+use channel::FridaProverChannel;
+use proof::FridaProof;
 
 use crate::{
     frida_const,
     frida_data::{build_evaluations_from_data, encoded_data_element_count},
     frida_error::FridaError,
-    frida_prover_channel::BaseProverChannel,
+    frida_prover::proof::{FridaProofBatchLayer, FridaProofLayer},
+    frida_random::FridaRandom,
 };
-use crate::frida_prover::proof::{FridaProofBatchLayer, FridaProofLayer};
 
-pub struct FridaProverBuilder<B, E, H, C>
+// Channel is only exposed to tests
+#[cfg(test)]
+pub mod channel;
+
+#[cfg(not(test))]
+mod channel;
+
+pub mod proof;
+
+pub struct FridaProverBuilder<E, H>
 where
-    B: StarkField,
-    E: FieldElement<BaseField = B>,
-    H: ElementHasher<BaseField = B>,
-    C: BaseProverChannel<E, H>,
+    E: FieldElement,
+    H: ElementHasher<BaseField = E::BaseField>,
 {
     options: FriOptions,
-    _phantom_stark_field: PhantomData<B>,
     _phantom_field_element: PhantomData<E>,
-    _phantom_channel: PhantomData<C>,
     _phantom_hasher: PhantomData<H>,
 }
 
 /// Prover configured to work with specific data.
 #[derive(Debug)]
-pub struct FridaProver<B, E, H, C>
+pub struct FridaProver<E, H>
 where
-    B: StarkField,
-    E: FieldElement<BaseField = B>,
-    H: ElementHasher<BaseField = B>,
-    C: BaseProverChannel<E, H>,
+    E: FieldElement,
+    H: ElementHasher<BaseField = E::BaseField>,
 {
-    layers: Vec<FridaLayer<B, E, H>>,
+    layers: Vec<FridaLayer<E, H>>,
     poly_count: usize,
     remainder_poly: FridaRemainder<E>,
     domain_size: usize,
     folding_factor: usize,
-    phantom_channel: PhantomData<C>,
 }
 
 #[derive(Debug)]
-pub struct FridaLayer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher> {
+pub struct FridaLayer<E, H>
+where
+    E: FieldElement,
+    H: ElementHasher<BaseField = E::BaseField>,
+{
     tree: MerkleTree<H>,
     pub evaluations: Vec<E>,
-    _base_field: PhantomData<B>,
 }
 
 #[derive(Debug, Clone)]
@@ -79,46 +81,22 @@ pub struct Commitment<HRoot: ElementHasher> {
 #[cfg(feature = "bench")]
 pub mod bench {
     use std::time::{Duration, Instant};
+
     pub static mut TIMER: Option<Instant> = None;
     pub static mut ERASURE_TIME: Option<Duration> = None;
     pub static mut COMMIT_TIME: Option<Duration> = None;
 }
 
+type Channel<E, H> = FridaProverChannel<E, H, H, FridaRandom<H, H, E>>;
+
 // PROVER IMPLEMENTATION
 // ================================================================================================
 
-impl<B, E, H, C> FridaProver<B, E, H, C>
+impl<E, H> FridaProver<E, H>
 where
-    B: StarkField,
-    E: FieldElement<BaseField = B>,
-    H: ElementHasher<BaseField = B>,
-    C: BaseProverChannel<E, H>,
+    E: FieldElement,
+    H: ElementHasher<BaseField = E::BaseField>,
 {
-    /// Commits to the evaluated data, consuming the channel constructed along with this prover.
-    pub fn commit(
-        &self,
-        mut channel: C,
-    ) -> Result<Commitment<H>, FridaError> {
-        let query_positions = channel.draw_query_positions();
-        let proof = self.open(&query_positions);
-
-        #[cfg(feature = "bench")]
-        unsafe {
-            bench::COMMIT_TIME =
-                Some(bench::COMMIT_TIME.unwrap_or_default() + bench::TIMER.unwrap().elapsed());
-        }
-
-        let commitment = Commitment {
-            roots: channel.layer_commitments().to_vec(),
-            proof,
-            domain_size: self.domain_size,
-            num_queries: channel.num_queries(),
-            poly_count: self.poly_count,
-        };
-
-        Ok(commitment)
-    }
-
     /// Opens given position, building a proof for it.
     pub fn open(&self, positions: &[usize]) -> FridaProof {
         let folding_factor = self.folding_factor;
@@ -161,10 +139,10 @@ where
                 let layer = &self.layers[i];
                 // sort of a static dispatch for folding_factor parameter
                 let proof_layer = match folding_factor {
-                    2 => query_layer::<B, E, H, 2>(layer, &positions),
-                    4 => query_layer::<B, E, H, 4>(layer, &positions),
-                    8 => query_layer::<B, E, H, 8>(layer, &positions),
-                    16 => query_layer::<B, E, H, 16>(layer, &positions),
+                    2 => query_layer::<E, H, 2>(layer, &positions),
+                    4 => query_layer::<E, H, 4>(layer, &positions),
+                    8 => query_layer::<E, H, 8>(layer, &positions),
+                    16 => query_layer::<E, H, 16>(layer, &positions),
                     _ => unimplemented!("folding factor {} is not supported", folding_factor),
                 };
 
@@ -184,29 +162,25 @@ where
     }
 }
 
-impl<B, E, H, C> FridaProverBuilder<B, E, H, C>
+impl<E, H> FridaProverBuilder<E, H>
 where
-    B: StarkField,
-    E: FieldElement<BaseField = B>,
-    H: ElementHasher<BaseField = B>,
-    C: BaseProverChannel<E, H>,
+    E: FieldElement,
+    H: ElementHasher<BaseField = E::BaseField>,
 {
     pub fn new(options: FriOptions) -> Self {
         FridaProverBuilder {
             options,
-            _phantom_channel: PhantomData,
             _phantom_field_element: PhantomData,
-            _phantom_stark_field: PhantomData,
             _phantom_hasher: PhantomData,
         }
     }
 
     /// Builds a prover for a specific batched data, along with a channel that should be used for commitment.
-    pub fn build_batched_prover(
+    pub fn commit_batch(
         &self,
         data_list: &[Vec<u8>],
         num_queries: usize,
-    ) -> Result<(FridaProver<B, E, H, C>, C), FridaError> {
+    ) -> Result<(Commitment<H>, FridaProver<E, H>), FridaError> {
         #[cfg(feature = "bench")]
         unsafe {
             bench::TIMER = Some(Instant::now());
@@ -270,18 +244,19 @@ where
             bench::TIMER = Some(Instant::now());
         }
 
-        let mut channel = C::new(domain_size, num_queries);
+        let mut channel = Channel::<E, H>::new(domain_size, num_queries);
         let prover = self.build_layers_batched(&mut channel, evaluations, domain_size)?;
 
-        Ok((prover, channel))
+        let commitment = self.build_commitment(&prover, channel)?;
+        Ok((commitment, prover))
     }
 
     /// Builds a prover for a specific data, along with a channel that should be used for commitment.
-    pub fn build_prover(
+    pub fn commit(
         &self,
         data: &[u8],
         num_queries: usize,
-    ) -> Result<(FridaProver<B, E, H, C>, C), FridaError> {
+    ) -> Result<(Commitment<H>, FridaProver<E, H>), FridaError> {
         #[cfg(feature = "bench")]
         unsafe {
             bench::TIMER = Some(Instant::now());
@@ -320,18 +295,46 @@ where
             bench::TIMER = Some(Instant::now());
         }
 
-        let mut channel = C::new(domain_size, num_queries);
+        let mut channel = Channel::<E, H>::new(domain_size, num_queries);
         let prover = self.build_layers(&mut channel, evaluations, 1, None);
+        let commitment = self.build_commitment(&prover, channel)?;
+        Ok((commitment, prover))
+    }
 
-        Ok((prover, channel))
+    /// Commits to the evaluated data, consuming the channel constructed along with this prover.
+    pub fn build_commitment(
+        &self,
+        prover: &FridaProver<E, H>,
+        mut channel: Channel<E, H>,
+    ) -> Result<Commitment<H>, FridaError> {
+        let query_positions = channel.draw_query_positions();
+        let proof = prover.open(&query_positions);
+
+        #[cfg(feature = "bench")]
+        unsafe {
+            bench::COMMIT_TIME =
+                Some(bench::COMMIT_TIME.unwrap_or_default() + bench::TIMER.unwrap().elapsed());
+        }
+
+        let num_queries = channel.num_queries;
+
+        let commitment = Commitment {
+            roots: channel.commitments,
+            proof,
+            domain_size: prover.domain_size,
+            num_queries,
+            poly_count: prover.poly_count,
+        };
+
+        Ok(commitment)
     }
 
     fn build_layers_batched(
         &self,
-        channel: &mut C,
+        channel: &mut Channel<E, H>,
         evaluations: Vec<E>,
         domain_size: usize,
-    ) -> Result<FridaProver<B, E, H, C>, FridaError> {
+    ) -> Result<FridaProver<E, H>, FridaError> {
         let poly_count = evaluations.len() / domain_size;
         let folding_factor = self.options.folding_factor();
         let bucket_count = domain_size / folding_factor;
@@ -350,27 +353,26 @@ where
         let xi = channel.draw_xi(poly_count)?;
         let alpha = channel.draw_fri_alpha();
         let second_layer = match folding_factor {
-            2 => apply_drp_batched::<_, _, 2>(&evaluations, poly_count, &self.options, xi, alpha),
-            4 => apply_drp_batched::<_, _, 4>(&evaluations, poly_count, &self.options, xi, alpha),
-            8 => apply_drp_batched::<_, _, 8>(&evaluations, poly_count, &self.options, xi, alpha),
-            16 => apply_drp_batched::<_, _, 16>(&evaluations, poly_count, &self.options, xi, alpha),
+            2 => apply_drp_batched::<_, 2>(&evaluations, poly_count, &self.options, xi, alpha),
+            4 => apply_drp_batched::<_, 4>(&evaluations, poly_count, &self.options, xi, alpha),
+            8 => apply_drp_batched::<_, 8>(&evaluations, poly_count, &self.options, xi, alpha),
+            16 => apply_drp_batched::<_, 16>(&evaluations, poly_count, &self.options, xi, alpha),
             _ => unimplemented!("folding factor {} is not supported", folding_factor),
         };
 
         Ok(self.build_layers(channel, second_layer, poly_count, Some(FridaLayer {
             tree: evaluation_tree,
             evaluations,
-            _base_field: PhantomData,
         })))
     }
 
     fn build_layers(
         &self,
-        channel: &mut C,
+        channel: &mut Channel<E, H>,
         evaluations: Vec<E>,
         poly_count: usize,
-        batch_layer: Option<FridaLayer<B, E, H>>,
-    ) -> FridaProver<B, E, H, C> {
+        batch_layer: Option<FridaLayer<E, H>>,
+    ) -> FridaProver<E, H> {
         let is_batched = batch_layer.is_some();
         assert!(!is_batched && poly_count == 1 || is_batched && poly_count > 1);
 
@@ -409,18 +411,17 @@ where
             remainder_poly,
             domain_size,
             folding_factor: self.options.folding_factor(),
-            phantom_channel: PhantomData,
         }
     }
 
     #[cfg(test)]
-    pub fn test_build_layers(&self, channel: &mut C, evaluations: Vec<E>) -> FridaProver<B, E, H, C> {
+    pub fn test_build_layers(&self, channel: &mut Channel<E, H>, evaluations: Vec<E>) -> FridaProver<E, H> {
         self.build_layers(channel, evaluations, 1, None)
     }
 
     /// Builds a single FRI layer by first committing to the `evaluations`, then drawing a random
     /// alpha from the channel and use it to perform degree-respecting projection.
-    fn build_layer<const N: usize>(&self, channel: &mut C, evaluations: &[E]) -> (Vec<E>, FridaLayer<B, E, H>) {
+    fn build_layer<const N: usize>(&self, channel: &mut Channel<E, H>, evaluations: &[E]) -> (Vec<E>, FridaLayer<E, H>) {
         // commit to the evaluations at the current layer; we do this by first transposing the
         // evaluations into a matrix of N columns, and then building a Merkle tree from the
         // rows of this matrix; we do this so that we could de-commit to N values with a single
@@ -439,12 +440,11 @@ where
         (evaluations, FridaLayer {
             tree: evaluation_tree,
             evaluations: flatten_vector_elements(transposed_evaluations),
-            _base_field: PhantomData,
         })
     }
 
     /// Creates remainder polynomial in coefficient form from a vector of `evaluations` over a domain.
-    fn build_remainder(&self, channel: &mut C, evaluations: &mut [E]) -> FridaRemainder<E> {
+    fn build_remainder(&self, channel: &mut Channel<E, H>, evaluations: &mut [E]) -> FridaRemainder<E> {
         let inv_twiddles = fft::get_inv_twiddles(evaluations.len());
         fft::interpolate_poly_with_offset(
             evaluations,
@@ -465,50 +465,44 @@ mod base_tests;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{frida_prover_channel::FridaProverChannel, frida_random::FridaRandom};
     use winter_crypto::hashers::Blake3_256;
     use winter_fri::{folding::fold_positions, FriOptions, ProverChannel};
     use winter_math::fields::f128::BaseElement;
     use winter_rand_utils::{rand_value, rand_vector};
+
+    use crate::{frida_prover::channel::FridaProverChannel, frida_random::FridaRandom};
+
+    use super::*;
 
     #[test]
     fn test_commit() {
         let options = FriOptions::new(2, 2, 0);
         let prover_builder: FridaProverBuilder<
             BaseElement,
-            BaseElement,
             Blake3_256<BaseElement>,
-            FridaProverChannel<
-                BaseElement,
-                Blake3_256<BaseElement>,
-                Blake3_256<BaseElement>,
-                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
-            >,
         > = FridaProverBuilder::new(options.clone());
 
         let domain_error = prover_builder
-            .build_prover(&[0; frida_const::MAX_DOMAIN_SIZE * 15 / 2 + 1], 1)
+            .commit(&[0; frida_const::MAX_DOMAIN_SIZE * 15 / 2 + 1], 1)
             .unwrap_err();
         assert_eq!(
             FridaError::DomainSizeTooBig(frida_const::MAX_DOMAIN_SIZE * 2),
             domain_error
         );
 
-        let num_qeuries_error_zero = prover_builder.build_prover(&rand_vector::<u8>(10), 0).unwrap_err();
+        let num_qeuries_error_zero = prover_builder.commit(&rand_vector::<u8>(10), 0).unwrap_err();
         assert_eq!(FridaError::BadNumQueries(0), num_qeuries_error_zero);
 
         let num_qeuries_error_bigger_than_domain =
-            prover_builder.build_prover(&rand_vector::<u8>(200), 32).unwrap_err();
+            prover_builder.commit(&rand_vector::<u8>(200), 32).unwrap_err();
         assert_eq!(
             FridaError::BadNumQueries(32),
             num_qeuries_error_bigger_than_domain
         );
 
         // Make sure minimum domain size is correctly enforced
-        let (prover, channel) =
-            prover_builder.build_prover(&rand_vector::<u8>(1), 1).unwrap();
-        let commitment = prover.commit(channel).unwrap();
+        let (commitment, _prover) =
+            prover_builder.commit(&rand_vector::<u8>(1), 1).unwrap();
         assert_eq!(
             frida_const::MIN_DOMAIN_SIZE.ilog2() as usize,
             commitment.roots.len()
@@ -517,9 +511,8 @@ mod tests {
         let data = rand_vector::<u8>(200);
         let num_queries: usize = 31;
         let domain_size: usize = 32;
-        let (prover, channel) =
-            prover_builder.build_prover(&data, num_queries).unwrap();
-        let commitment = prover.commit(channel).unwrap();
+        let (commitment, _prover) =
+            prover_builder.commit(&data, num_queries).unwrap();
 
         let evaluations = build_evaluations_from_data(&data, 32, 2).unwrap();
         let prover = FridaProverBuilder::new(options.clone());
@@ -536,7 +529,7 @@ mod tests {
         assert_eq!(
             commitment,
             Commitment {
-                roots: channel.layer_commitments().to_vec(),
+                roots: channel.commitments.clone(),
                 proof: proof,
                 domain_size,
                 num_queries,
@@ -550,32 +543,19 @@ mod tests {
         let options = FriOptions::new(2, 2, 0);
         let prover_builder: FridaProverBuilder<
             BaseElement,
-            BaseElement,
             Blake3_256<BaseElement>,
-            FridaProverChannel<
-                BaseElement,
-                Blake3_256<BaseElement>,
-                Blake3_256<BaseElement>,
-                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
-            >,
         > = FridaProverBuilder::new(options.clone());
 
         let data = rand_vector::<u8>(200);
-        let (prover, channel) = prover_builder.build_prover(&data, 31).unwrap();
-        let commitment = prover.commit(channel).unwrap();
+        let (commitment, _prover) =
+            prover_builder.commit(&data, 31).unwrap();
 
         let opening_prover: FridaProverBuilder<
             BaseElement,
-            BaseElement,
             Blake3_256<BaseElement>,
-            FridaProverChannel<
-                BaseElement,
-                Blake3_256<BaseElement>,
-                Blake3_256<BaseElement>,
-                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
-            >,
         > = FridaProverBuilder::new(options.clone());
-        let (prover, _channel) = opening_prover.build_prover(&data, 1).unwrap();
+        let (_commitment, prover) =
+            opening_prover.commit(&data, 1).unwrap();
 
         // Replicating query positions just to make sure open is generating proper proofs since we can just compare it with the query phase proofs
         let mut channel = FridaProverChannel::<
@@ -614,30 +594,17 @@ mod tests {
         let options = FriOptions::new(blowup_factor, folding_factor, 0);
         let prover_builder: FridaProverBuilder<
             BaseElement,
-            BaseElement,
             Blake3_256<BaseElement>,
-            FridaProverChannel<
-                BaseElement,
-                Blake3_256<BaseElement>,
-                Blake3_256<BaseElement>,
-                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
-            >,
         > = FridaProverBuilder::new(options.clone());
-        let (prover, channel) = prover_builder.build_batched_prover(&data, 1).unwrap();
-        let commitment = prover.commit(channel).unwrap();
+        let (commitment, prover) =
+            prover_builder.commit_batch(&data, 1).unwrap();
 
         let opening_prover: FridaProverBuilder<
             BaseElement,
-            BaseElement,
             Blake3_256<BaseElement>,
-            FridaProverChannel<
-                BaseElement,
-                Blake3_256<BaseElement>,
-                Blake3_256<BaseElement>,
-                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
-            >,
         > = FridaProverBuilder::new(options.clone());
-        let (opening_prover, _channel) = opening_prover.build_batched_prover(&data, 1).unwrap();
+        let (_commitment, opening_prover) =
+            opening_prover.commit_batch(&data, 1).unwrap();
 
         // Replicating query positions just to make sure open is generating proper proofs since we can just compare it with the query phase proofs
         let mut channel = FridaProverChannel::<
@@ -681,7 +648,7 @@ mod tests {
 
         assert_eq!(
             FridaError::SinglePolyBatch,
-            prover_builder.build_batched_prover(&vec![vec![]], 1).unwrap_err()
+            prover_builder.commit_batch(&vec![vec![]], 1).unwrap_err()
         );
     }
 }
@@ -691,8 +658,8 @@ mod tests {
 
 /// Builds a single proof layer by querying the evaluations of the passed in FRI layer at the
 /// specified positions.
-fn query_layer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher, const N: usize>(
-    layer: &FridaLayer<B, E, H>,
+fn query_layer<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>, const N: usize>(
+    layer: &FridaLayer<E, H>,
     positions: &[usize],
 ) -> FridaProofLayer {
     // build Merkle authentication paths for all query positions
@@ -713,7 +680,7 @@ fn query_layer<B: StarkField, E: FieldElement<BaseField = B>, H: Hasher, const N
     FridaProofLayer::new(queried_values, proof)
 }
 
-fn apply_drp_batched<B: StarkField, E: FieldElement<BaseField = B>, const N: usize>(
+fn apply_drp_batched<E: FieldElement, const N: usize>(
     evaluations: &[E],
     poly_count: usize,
     options: &FriOptions,

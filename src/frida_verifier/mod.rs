@@ -67,21 +67,13 @@ mod tests {
     use crate::{
         frida_data::{build_evaluations_from_data, encoded_data_element_count},
         frida_prover::FridaProverBuilder,
-        frida_prover_channel::FridaProverChannel,
         frida_random::{FridaRandom, FridaRandomCoin},
         frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
     };
 
     type FridaTestProverBuilder = FridaProverBuilder<
         BaseElement,
-        BaseElement,
         Blake3_256<BaseElement>,
-        FridaProverChannel<
-            BaseElement,
-            Blake3_256<BaseElement>,
-            Blake3_256<BaseElement>,
-            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
-        >,
     >;
 
     #[test]
@@ -96,8 +88,8 @@ mod tests {
             let prover_builder = FridaTestProverBuilder::new(options.clone());
 
             let data: Vec<_> = (0..20).collect();
-            let (prover, channel) = prover_builder.build_prover(&data, 3).unwrap();
-            let commitment = prover.commit(channel).unwrap();
+            let (commitment, prover) =
+                prover_builder.commit(&data, 3).unwrap();
 
             let mut public_coin =
                 FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(
@@ -139,8 +131,8 @@ mod tests {
         let data = rand_vector::<u8>(200);
         let encoded_element_count =
             encoded_data_element_count::<BaseElement>(data.len()).next_power_of_two();
-        let (prover, channel) = prover_builder.build_prover(&data, 31).unwrap();
-        let commitment = prover.commit(channel).unwrap();
+        let (commitment, prover) =
+            prover_builder.commit(&data, 31).unwrap();
 
         let mut public_coin =
             FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[

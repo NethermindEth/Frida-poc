@@ -1,27 +1,23 @@
 use frida_poc::{
     frida_data::encoded_data_element_count,
     frida_prover::FridaProverBuilder,
-    frida_prover_channel::FridaProverChannel,
-    frida_random::FridaRandom,
 };
 use winter_crypto::hashers::Blake3_256;
 use winter_fri::FriOptions;
-use winter_math::fields::f128::BaseElement;
+use winter_math::fields::f128;
 
-type Blake3 = Blake3_256<BaseElement>;
-type FridaChannel =
-    FridaProverChannel<BaseElement, Blake3, Blake3, FridaRandom<Blake3, Blake3, BaseElement>>;
-type FridaProverBuilderType = FridaProverBuilder<BaseElement, BaseElement, Blake3, FridaChannel>;
+type Blake3 = Blake3_256<f128::BaseElement>;
+type FridaProverBuilderType = FridaProverBuilder<f128::BaseElement, Blake3>;
 
 pub fn run(data_path: &str, num_queries: usize, options: FriOptions) {
     let data = std::fs::read(data_path).expect("Unable to read data file");
     let prover_builder = FridaProverBuilderType::new(options.clone());
 
     let encoded_element_count =
-        encoded_data_element_count::<BaseElement>(data.len()).next_power_of_two();
+        encoded_data_element_count::<f128::BaseElement>(data.len()).next_power_of_two();
 
-    let (prover, channel) = prover_builder.build_prover(&data, num_queries).unwrap();
-    let commitment = prover.commit(channel).unwrap();
+    let (commitment, _prover) =
+        prover_builder.commit(&data, num_queries).unwrap();
     // TODO: Save commitment to file
 
     println!(

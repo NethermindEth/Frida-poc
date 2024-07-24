@@ -2,7 +2,6 @@ pub mod frida_const;
 pub mod frida_data;
 pub mod frida_error;
 pub mod frida_prover;
-pub mod frida_prover_channel;
 pub mod frida_random;
 pub mod frida_verifier;
 pub mod frida_verifier_channel;
@@ -18,7 +17,6 @@ mod tests {
     use crate::{
         frida_error::FridaError,
         frida_prover::{proof::FridaProof, Commitment, FridaProverBuilder},
-        frida_prover_channel::BaseProverChannel,
         frida_random::{FridaRandom, FridaRandomCoin},
         frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
         utils::{test_build_evaluations, test_build_prover_channel},
@@ -85,7 +83,7 @@ mod tests {
             let opening_proof = prover.open(&positions);
 
             // make sure the proof can be verified
-            let commitments = channel.layer_commitments().to_vec();
+            let commitments = channel.commitments.clone();
             let domain_size = trace_length * lde_blowup;
             let result = verify_proof(
                 opening_proof.clone(),

@@ -2,9 +2,6 @@
 mod test {
     use crate::frida_prover::proof::FridaProof;
     use crate::frida_prover::{Commitment, FridaProverBuilder};
-    use crate::frida_prover_channel::{
-        BaseProverChannel, BaseProverChannelTest, FridaProverChannel,
-    };
     use crate::frida_random::{FridaRandom, FridaRandomCoin};
     use crate::frida_verifier::das::FridaDasVerifier;
     use crate::frida_verifier::traits::BaseFridaVerifier;
@@ -17,8 +14,7 @@ mod test {
 
     type Blake3 = Blake3_256<BaseElement>;
     type FriRandom = FridaRandom<Blake3, Blake3, BaseElement>;
-    type FriProverChannel = FridaProverChannel<BaseElement, Blake3, Blake3, FriRandom>;
-    type FriProverBuilder = FridaProverBuilder<BaseElement, BaseElement, Blake3, FriProverChannel>;
+    type FriProverBuilder = FridaProverBuilder<BaseElement, Blake3>;
 
     #[test]
     fn test_drawn_alpha() {
@@ -39,8 +35,8 @@ mod test {
         // instantiate the prover and generate the proof
         let prover_builder = FriProverBuilder::new(options.clone());
         let prover = prover_builder.test_build_layers(&mut channel, evaluations);
-        let prover_drawn_alpha = channel.drawn_alphas();
-        let roots = channel.layer_commitments().to_vec();
+        let prover_drawn_alpha = channel.public_coin.test_drawn_alphas();
+        let roots = channel.commitments.clone();
 
         let positions = channel.draw_query_positions();
         let proof = prover.open(&positions);
@@ -70,15 +66,14 @@ mod test {
                 128,
             )));
         }
-        let (prover, channel) = prover_builder.build_batched_prover(&data, 32).unwrap();
-        let commitment = prover.commit(channel).unwrap();
-        let mut channel = FriProverChannel::new(commitment.domain_size, 32);
+        let (commitment, prover) = prover_builder.commit_batch(&data, 32).unwrap();
+        let mut channel = test_build_prover_channel(commitment.domain_size, &options);
         for layer_root in commitment.roots.iter() {
             channel.commit_fri_layer(*layer_root);
             channel.draw_fri_alpha();
         }
-        let prover_drawn_alpha = channel.drawn_alphas();
-        let roots = channel.layer_commitments().to_vec();
+        let prover_drawn_alpha = channel.public_coin.test_drawn_alphas();
+        let roots = channel.commitments.clone();
         let positions = channel.draw_query_positions();
         let proof = prover.open(&positions);
 
@@ -121,15 +116,14 @@ mod test {
                 128,
             )));
         }
-        let (prover, channel) = prover_builder.build_batched_prover(&data, 32).unwrap();
-        let commitment = prover.commit(channel).unwrap();
-        let mut channel = FriProverChannel::new(commitment.domain_size, 32);
+        let (commitment, prover) = prover_builder.commit_batch(&data, 32).unwrap();
+        let mut channel = test_build_prover_channel(commitment.domain_size, &options);
         for layer_root in commitment.roots.iter() {
             channel.commit_fri_layer(*layer_root);
             channel.draw_fri_alpha();
         }
-        let prover_drawn_alpha = channel.drawn_alphas();
-        let roots = channel.layer_commitments().to_vec();
+        let prover_drawn_alpha = channel.public_coin.test_drawn_alphas();
+        let roots = channel.commitments.clone();
         let positions = channel.draw_query_positions();
         let proof = prover.open(&positions);
 
@@ -204,8 +198,7 @@ mod test {
         let options = FriOptions::new(blowup_factor, folding_factor, 0);
         let prover_builder = FriProverBuilder::new(options.clone());
 
-        let (prover, channel) = prover_builder.build_batched_prover(&data, 4).unwrap();
-        let commitment = prover.commit(channel).unwrap();
+        let (commitment, prover) = prover_builder.commit_batch(&data, 4).unwrap();
         let proof = commitment.proof.clone();
         let domain_size = commitment.domain_size;
 
@@ -231,8 +224,7 @@ mod test {
         let options = FriOptions::new(blowup_factor, folding_factor, 0);
         let prover_builder = FriProverBuilder::new(options.clone());
 
-        let (prover, channel) = prover_builder.build_batched_prover(&data, 4).unwrap();
-        let commitment = prover.commit(channel).unwrap();
+        let (commitment, prover) = prover_builder.commit_batch(&data, 4).unwrap();
         let proof = commitment.proof.clone();
         let domain_size = commitment.domain_size;
 
