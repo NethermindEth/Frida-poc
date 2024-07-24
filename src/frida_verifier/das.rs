@@ -354,7 +354,7 @@ where
         domain_size: usize,
     ) -> Result<(RandomlyDrawn<E>, FridaRandom<E, HHst, HRandom>), FridaError> {
         let public_coin = FreshPublicCoin::<E, HHst, HRandom>::new();
-        let mut public_coin = public_coin.unwrap();
+        let mut public_coin = public_coin.inner();
 
         let poly_count = das_commitment.poly_count;
 

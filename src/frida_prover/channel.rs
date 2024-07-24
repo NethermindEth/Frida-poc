@@ -47,7 +47,7 @@ where
         Self {
             domain_size,
             num_queries,
-            public_coin: FreshPublicCoin::new().unwrap(),
+            public_coin: FreshPublicCoin::new().inner(),
             commitments: Vec::new(),
         }
     }

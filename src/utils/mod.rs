@@ -56,7 +56,7 @@ where
     }
 
     /// Consume self, returning the contained coin.
-    pub fn unwrap(self) -> FridaRandom<E, HashHst, HashRandom> {
+    pub fn inner(self) -> FridaRandom<E, HashHst, HashRandom> {
         self.coin
     }
 }
