@@ -1,8 +1,8 @@
 use winter_math::FieldElement;
 
+mod channel;
 pub mod das;
 mod test;
-pub mod traits;
 
 fn get_query_values<E: FieldElement, const N: usize>(
     values: &[[E; N]],
@@ -67,7 +67,7 @@ mod tests {
     use crate::{
         frida_data::{build_evaluations_from_data, encoded_data_element_count},
         frida_prover::FridaProverBuilder,
-        frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
+        frida_verifier::das::FridaDasVerifier,
     };
 
     type FridaTestProverBuilder = FridaProverBuilder<

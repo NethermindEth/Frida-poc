@@ -9,7 +9,7 @@ use frida_poc::{
         bench::{COMMIT_TIME, ERASURE_TIME},
         Commitment, FridaProverBuilder,
     },
-    frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
+    frida_verifier::das::FridaDasVerifier,
 };
 use winter_crypto::{hashers::Blake3_256, ElementHasher};
 use winter_fri::FriOptions;

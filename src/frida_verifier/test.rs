@@ -4,7 +4,6 @@ mod test {
     use crate::frida_prover::{Commitment, FridaProverBuilder};
     use crate::frida_random::FridaRandomCoin;
     use crate::frida_verifier::das::FridaDasVerifier;
-    use crate::frida_verifier::traits::BaseFridaVerifier;
     use crate::utils::{test_build_evaluations, test_build_prover_channel};
     use winter_crypto::hashers::Blake3_256;
     use winter_fri::folding::fold_positions;

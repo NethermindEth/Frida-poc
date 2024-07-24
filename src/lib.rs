@@ -4,7 +4,6 @@ pub mod frida_error;
 pub mod frida_prover;
 pub mod frida_random;
 pub mod frida_verifier;
-pub mod frida_verifier_channel;
 pub mod utils;
 
 #[cfg(test)]
@@ -17,7 +16,7 @@ mod tests {
     use crate::{
         frida_error::FridaError,
         frida_prover::{proof::FridaProof, Commitment, FridaProverBuilder},
-        frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
+        frida_verifier::das::FridaDasVerifier,
         utils::{test_build_evaluations, test_build_prover_channel},
     };
 
