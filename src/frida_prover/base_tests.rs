@@ -2,7 +2,6 @@ use winter_fri::{FriOptions, FriProver};
 use winter_utils::Serializable;
 
 use crate::{
-    frida_prover::channel::FridaProverChannelTest,
     utils::{test_build_evaluations, test_build_prover_channel},
 };
 
@@ -70,8 +69,8 @@ fn fri_trait_check(
     };
 
     assert_eq!(
-        channel.layer_commitments(),
-        frida_channel.layer_commitments()
+        channel.commitments,
+        frida_channel.commitments
     );
 
     // Skipping 1 byte because frida_proof has batch layer information encoded

@@ -470,7 +470,7 @@ mod tests {
     use winter_math::fields::f128::BaseElement;
     use winter_rand_utils::{rand_value, rand_vector};
 
-    use crate::{frida_prover::channel::{FridaProverChannel, FridaProverChannelTest}, frida_random::FridaRandom};
+    use crate::{frida_prover::channel::FridaProverChannel, frida_random::FridaRandom};
 
     use super::*;
 
@@ -529,7 +529,7 @@ mod tests {
         assert_eq!(
             commitment,
             Commitment {
-                roots: channel.layer_commitments().to_vec(),
+                roots: channel.commitments.clone(),
                 proof: proof,
                 domain_size,
                 num_queries,

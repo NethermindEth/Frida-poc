@@ -6,9 +6,6 @@ use winter_math::FieldElement;
 
 use crate::{frida_const, frida_error::FridaError, frida_random::FridaRandomCoin};
 
-#[cfg(test)]
-use crate::frida_random::FridaRandomCoinTest;
-
 #[derive(Debug)]
 pub struct FridaProverChannel<E, HHst, HRandom, R>
 where
@@ -121,34 +118,5 @@ where
     fn draw_fri_alpha(&mut self) -> E {
         let alpha = self.public_coin.draw().expect("failed to draw FRI alpha");
         alpha
-    }
-}
-
-#[cfg(test)]
-pub trait FridaProverChannelTest<E: FieldElement, HRandom: ElementHasher<BaseField = E::BaseField>> {
-    fn drawn_alphas(&self) -> Vec<E>;
-
-    fn layer_commitments(&self) -> &[HRandom::Digest];
-}
-
-#[cfg(test)]
-impl<E, HHst, HRandom, R> FridaProverChannelTest<E, HRandom> for FridaProverChannel<E, HHst, HRandom, R>
-where
-    E: FieldElement,
-    HHst: ElementHasher<BaseField = E::BaseField>,
-    HRandom: ElementHasher<BaseField = E::BaseField>,
-    R: FridaRandomCoin<
-        BaseField = E::BaseField,
-        FieldElement = E,
-        HashHst = HHst,
-        HashRandom = HRandom,
-    > + FridaRandomCoinTest<FieldElement = E>,
-{
-    fn drawn_alphas(&self) -> Vec<E> {
-        self.public_coin.drawn_alphas()
-    }
-
-    fn layer_commitments(&self) -> &[HRandom::Digest] {
-        &self.commitments
     }
 }
