@@ -1,16 +1,11 @@
 use crate::frida_prover::proof::FridaProof;
-use crate::frida_prover::{Commitment, FridaProverBuilder};
+use crate::frida_prover::Commitment;
 use crate::frida_random::FridaRandomCoin;
-use crate::frida_verifier::das::FridaDasVerifier;
-use crate::utils::{test_build_evaluations, test_build_prover_channel};
-use winter_crypto::hashers::Blake3_256;
+use crate::utils::test_utils::*;
 use winter_fri::folding::fold_positions;
 use winter_fri::{FriOptions, ProverChannel};
 use winter_math::fields::f128::BaseElement;
 use winter_rand_utils::{rand_value, rand_vector};
-
-type Blake3 = Blake3_256<BaseElement>;
-type FriProverBuilder = FridaProverBuilder<BaseElement, Blake3>;
 
 #[test]
 fn test_drawn_alpha() {
@@ -29,7 +24,7 @@ fn test_drawn_alpha() {
     let evaluations: Vec<_> = test_build_evaluations(trace_length, lde_blowup);
 
     // instantiate the prover and generate the proof
-    let prover_builder = FriProverBuilder::new(options.clone());
+    let prover_builder = TestFridaProverBuilder::new(options.clone());
     let prover = prover_builder.test_build_layers(&mut channel, evaluations);
     let prover_drawn_alpha = channel.public_coin.test_drawn_alphas();
     let roots = channel.commitments.clone();
@@ -37,7 +32,7 @@ fn test_drawn_alpha() {
     let positions = channel.draw_query_positions();
     let proof = prover.open(&positions);
 
-    let (verifier, _coin) = FridaDasVerifier::<BaseElement, Blake3, Blake3>::new(
+    let (verifier, _coin) = TestFridaDasVerifier::new(
         Commitment {
             proof,
             roots,
@@ -71,7 +66,7 @@ fn test_drawn_alpha() {
     let positions = channel.draw_query_positions();
     let proof = prover.open(&positions);
 
-    let (verifier, _coin) = FridaDasVerifier::<BaseElement, Blake3, Blake3>::new(
+    let (verifier, _coin) = TestFridaDasVerifier::new(
         Commitment {
             proof,
             roots,
@@ -99,7 +94,7 @@ fn test_drawn_alpha_batch() {
     let options = FriOptions::new(lde_blowup, folding_factor, max_remainder_degree);
 
     // instantiate the prover and generate the proof
-    let prover_builder = FriProverBuilder::new(options.clone());
+    let prover_builder = TestFridaProverBuilder::new(options.clone());
     let poly_count = 10;
     let mut data = vec![];
     for _ in 0..poly_count {
@@ -119,7 +114,7 @@ fn test_drawn_alpha_batch() {
     let positions = channel.draw_query_positions();
     let proof = prover.open(&positions);
 
-    let (verifier, _coin) = FridaDasVerifier::<BaseElement, Blake3, Blake3>::new(
+    let (verifier, _coin) = TestFridaDasVerifier::new(
         Commitment {
             proof,
             roots,
@@ -148,7 +143,7 @@ fn verify_batch(
     let folding_factor = options.folding_factor();
 
     let (verifier, coin) =
-        FridaDasVerifier::<BaseElement, Blake3, Blake3>::new(commitment, options.clone()).unwrap();
+        TestFridaDasVerifier::new(commitment, options.clone()).unwrap();
 
     let mut query_positions = coin.draw_query_positions(4, domain_size).unwrap();
     query_positions.dedup();
@@ -185,7 +180,7 @@ fn test_verify_batch() {
     let blowup_factor = 2;
     let folding_factor = 2;
     let options = FriOptions::new(blowup_factor, folding_factor, 0);
-    let prover_builder = FriProverBuilder::new(options.clone());
+    let prover_builder = TestFridaProverBuilder::new(options.clone());
 
     let (commitment, prover) = prover_builder.commit_batch(&data, 4).unwrap();
     let proof = commitment.proof.clone();
@@ -211,7 +206,7 @@ fn test_batching_only_batch_layer() {
     let blowup_factor = 2;
     let folding_factor = 4;
     let options = FriOptions::new(blowup_factor, folding_factor, 0);
-    let prover_builder = FriProverBuilder::new(options.clone());
+    let prover_builder = TestFridaProverBuilder::new(options.clone());
 
     let (commitment, prover) = prover_builder.commit_batch(&data, 4).unwrap();
     let proof = commitment.proof.clone();

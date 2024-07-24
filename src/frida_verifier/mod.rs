@@ -61,21 +61,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use winter_crypto::hashers::Blake3_256;
     use winter_fri::FriOptions;
     use winter_math::fields::f128::BaseElement;
     use winter_rand_utils::rand_vector;
 
-    use crate::{
-        frida_data::{build_evaluations_from_data, encoded_data_element_count},
-        frida_prover::FridaProverBuilder,
-        frida_verifier::das::FridaDasVerifier,
-    };
-
-    type FridaTestProverBuilder = FridaProverBuilder<
-        BaseElement,
-        Blake3_256<BaseElement>,
-    >;
+    use crate::frida_data::{build_evaluations_from_data, encoded_data_element_count};
+    use crate::utils::test_utils::*;
 
     #[test]
     fn test_frida_das_verify_short() {
@@ -86,17 +77,13 @@ mod tests {
             let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
 
             // instantiate the prover and generate the proof
-            let prover_builder = FridaTestProverBuilder::new(options.clone());
+            let prover_builder = TestFridaProverBuilder::new(options.clone());
 
             let data: Vec<_> = (0..20).collect();
             let (commitment, prover) =
                 prover_builder.commit(&data, 3).unwrap();
 
-            let (verifier, _coin) = FridaDasVerifier::<
-                BaseElement,
-                Blake3_256<BaseElement>,
-                Blake3_256<BaseElement>
-            >::new(commitment, options.clone()).unwrap();
+            let (verifier, _coin) = TestFridaDasVerifier::new(commitment, options.clone()).unwrap();
 
             // query for a position
             let open_position = [1];
@@ -125,7 +112,7 @@ mod tests {
         let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
 
         // instantiate the prover and generate the proof
-        let prover_builder = FridaTestProverBuilder::new(options.clone());
+        let prover_builder = TestFridaProverBuilder::new(options.clone());
 
         let data = rand_vector::<u8>(200);
         let encoded_element_count =
@@ -133,11 +120,7 @@ mod tests {
         let (commitment, prover) =
             prover_builder.commit(&data, 31).unwrap();
 
-        let (verifier, _coin) = FridaDasVerifier::<
-            BaseElement,
-            Blake3_256<BaseElement>,
-            Blake3_256<BaseElement>
-        >::new(commitment, options.clone()).unwrap();
+        let (verifier, _coin) = TestFridaDasVerifier::new(commitment, options.clone()).unwrap();
 
         // query for a position
         let open_position = [1];
