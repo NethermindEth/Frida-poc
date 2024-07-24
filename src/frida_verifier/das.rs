@@ -3,6 +3,7 @@ use std::mem;
 use winter_crypto::{Digest, ElementHasher};
 use winter_fri::{folding::fold_positions, FriOptions, VerifierError};
 use winter_fri::utils::map_positions_to_indexes;
+use winter_fri::VerifierChannel;
 use winter_math::{FieldElement, polynom, StarkField};
 use winter_utils::{group_slice_elements, iter_mut};
 
@@ -14,7 +15,7 @@ use crate::{
     utils::FreshPublicCoin,
 };
 use super::{eval_horner, get_batch_query_values};
-use super::channel::{BaseVerifierChannel, FridaVerifierChannel};
+use super::channel::FridaVerifierChannel;
 
 pub struct FridaDasVerifier<E, HHst, HRandom>
 where
@@ -157,7 +158,7 @@ where
         evaluations: &[E],
         positions: &[usize],
     ) -> Result<(), VerifierError> {
-        if evaluations.len() != positions.len() * channel.poly_count() {
+        if evaluations.len() != positions.len() * channel.poly_count {
             return Err(VerifierError::NumPositionEvaluationMismatch(
                 positions.len(),
                 evaluations.len(),
@@ -167,10 +168,10 @@ where
         // static dispatch for folding factor parameter
         let folding_factor = self.options.folding_factor();
         match folding_factor {
-            2 => self.verify_generic::<2, _>(channel, evaluations, positions),
-            4 => self.verify_generic::<4, _>(channel, evaluations, positions),
-            8 => self.verify_generic::<8, _>(channel, evaluations, positions),
-            16 => self.verify_generic::<16, _>(channel, evaluations, positions),
+            2 => self.verify_generic::<2>(channel, evaluations, positions),
+            4 => self.verify_generic::<4>(channel, evaluations, positions),
+            8 => self.verify_generic::<8>(channel, evaluations, positions),
+            16 => self.verify_generic::<16>(channel, evaluations, positions),
             _ => Err(VerifierError::UnsupportedFoldingFactor(folding_factor)),
         }
     }
@@ -181,7 +182,7 @@ where
         folded_positions: &[usize],
         domain_size: usize,
     ) -> Vec<E> {
-        if verifier_channel.poly_count() > 1 {
+        if verifier_channel.poly_count > 1 {
             let layer_values = verifier_channel
                 .batch_data
                 .as_ref()
@@ -195,7 +196,7 @@ where
                 positions,
                 folded_positions,
                 domain_size,
-                verifier_channel.poly_count(),
+                verifier_channel.poly_count,
             )
         } else {
             let layer_values = group_slice_elements(&verifier_channel.layer_queries[0]);
@@ -205,14 +206,14 @@ where
 
     /// This is the actual implementation of the verification procedure described above, but it
     /// also takes folding factor as a generic parameter N.
-    fn verify_generic<const N: usize, C: BaseVerifierChannel<E, Hasher = HRandom>>(
+    fn verify_generic<const N: usize>(
         &self,
-        channel: &mut C,
+        channel: &mut FridaVerifierChannel<E, HRandom>,
         evaluations: &[E],
         positions: &[usize],
     ) -> Result<(), VerifierError> {
         let original_domain_size = self.domain_size;
-        let poly_count = channel.poly_count();
+        let poly_count = channel.poly_count;
         let folding_factor = self.options.folding_factor();
         let domain_offset: E::BaseField = self.options.domain_offset();
 
