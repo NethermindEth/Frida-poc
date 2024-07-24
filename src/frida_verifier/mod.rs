@@ -2,6 +2,8 @@ use winter_math::FieldElement;
 
 mod channel;
 pub mod das;
+
+#[cfg(test)]
 mod test;
 
 fn get_query_values<E: FieldElement, const N: usize>(
@@ -90,7 +92,7 @@ mod tests {
             let (commitment, prover) =
                 prover_builder.commit(&data, 3).unwrap();
 
-            let (verifier, _) = FridaDasVerifier::<
+            let (verifier, _coin) = FridaDasVerifier::<
                 BaseElement,
                 Blake3_256<BaseElement>,
                 Blake3_256<BaseElement>
@@ -131,7 +133,7 @@ mod tests {
         let (commitment, prover) =
             prover_builder.commit(&data, 31).unwrap();
 
-        let (verifier, _) = FridaDasVerifier::<
+        let (verifier, _coin) = FridaDasVerifier::<
             BaseElement,
             Blake3_256<BaseElement>,
             Blake3_256<BaseElement>
