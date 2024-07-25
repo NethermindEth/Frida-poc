@@ -3,8 +3,7 @@ use winter_fri::ProverChannel;
 use winter_math::FieldElement;
 
 use crate::{frida_const, frida_error::FridaError};
-use crate::frida_random::{FridaRandom, FridaRandomCoin};
-use crate::utils::FreshPublicCoin;
+use crate::frida_random::FridaRandom;
 
 #[derive(Debug)]
 pub struct FridaProverChannel<E, HHst, HRandom>
@@ -47,7 +46,7 @@ where
         Self {
             domain_size,
             num_queries,
-            public_coin: FreshPublicCoin::new().inner(),
+            public_coin: FridaRandom::new(),
             commitments: Vec::new(),
         }
     }

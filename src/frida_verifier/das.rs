@@ -7,12 +7,14 @@ use winter_fri::VerifierChannel;
 use winter_math::{FieldElement, polynom, StarkField};
 use winter_utils::{group_slice_elements, iter_mut};
 
+#[cfg(feature = "concurrent")]
+use winter_utils::iterators::*;
+
 use crate::{
     frida_error::FridaError,
     frida_prover::{proof::FridaProof, Commitment},
-    frida_random::{FridaRandom, FridaRandomCoin},
+    frida_random::FridaRandom,
     frida_verifier::get_query_values,
-    utils::FreshPublicCoin,
 };
 use super::{eval_horner, get_batch_query_values};
 use super::channel::FridaVerifierChannel;
@@ -353,8 +355,7 @@ where
         folding_factor: usize,
         domain_size: usize,
     ) -> Result<(RandomlyDrawn<E>, FridaRandom<E, HHst, HRandom>), FridaError> {
-        let public_coin = FreshPublicCoin::<E, HHst, HRandom>::new();
-        let mut public_coin = public_coin.inner();
+        let mut public_coin = FridaRandom::<E, HHst, HRandom>::new();
 
         let poly_count = das_commitment.poly_count;
 

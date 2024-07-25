@@ -15,36 +15,18 @@ pub struct FridaRandom<E: FieldElement, HashHst: ElementHasher, HashRandom: Elem
     _hash_digest2_random: PhantomData<HashRandom::Digest>,
 }
 
-pub trait FridaRandomCoin: Sync {
-    type FieldElement: FieldElement;
-    type HashHst: ElementHasher<BaseField = <Self::FieldElement as FieldElement>::BaseField>;
-    type HashRandom: ElementHasher<BaseField = <Self::FieldElement as FieldElement>::BaseField>;
-
-    fn new(hst_neg_1: &[u8]) -> Self;
-    fn draw(&mut self) -> Result<Self::FieldElement, FridaError>;
-    fn draw_query_positions(
-        &self,
-        num_queries: usize,
-        domain_size: usize,
-    ) -> Result<Vec<usize>, FridaError>;
-    fn draw_xi(&self, count: usize) -> Result<Vec<Self::FieldElement>, FridaError>;
-    fn reseed(&mut self, new_root: &[u8]);
-
-    #[cfg(test)]
-    fn test_drawn_alphas(&self) -> Vec<Self::FieldElement>;
-}
-
 impl<
     E: FieldElement,
     HashHst: ElementHasher<BaseField = E::BaseField>,
     HashRandom: ElementHasher<BaseField = E::BaseField>,
-> FridaRandomCoin for FridaRandom<E, HashHst, HashRandom>
-{
-    type FieldElement = E;
-    type HashHst = HashHst;
-    type HashRandom = HashRandom;
+> FridaRandom<E, HashHst, HashRandom> {
 
-    fn new(hst_neg_1: &[u8]) -> Self {
+    /// Create a fresh public coin with a predefined seed.
+    pub fn new() -> Self {
+        Self::from_hst(&[123])
+    }
+
+    fn from_hst(hst_neg_1: &[u8]) -> Self {
         Self {
             hst: hst_neg_1.to_vec(),
             counter: 0,
@@ -56,7 +38,7 @@ impl<
         }
     }
 
-    fn draw(&mut self) -> Result<E, FridaError> {
+    pub fn draw(&mut self) -> Result<E, FridaError> {
         let random_value = HashRandom::hash(&self.hst[..E::ELEMENT_BYTES]);
 
         let bytes = &random_value.as_bytes()[..E::ELEMENT_BYTES];
@@ -70,7 +52,7 @@ impl<
         Err(FridaError::DrawError())
     }
 
-    fn draw_query_positions(
+    pub fn draw_query_positions(
         &self,
         num_queries: usize,
         domain_size: usize,
@@ -109,7 +91,7 @@ impl<
         Ok(values)
     }
 
-    fn draw_xi(&self, count: usize) -> Result<Vec<Self::FieldElement>, FridaError> {
+    pub fn draw_xi(&self, count: usize) -> Result<Vec<E>, FridaError> {
         let mut values = Vec::with_capacity(count);
         for i in 0..count {
             let to_be_hashed = [&self.hst[..], &i.to_be_bytes()].concat();
@@ -129,7 +111,7 @@ impl<
         Ok(values)
     }
 
-    fn reseed(&mut self, new_root: &[u8]) {
+    pub fn reseed(&mut self, new_root: &[u8]) {
         let prev_hst = &self.hst;
         let merged = [new_root, prev_hst, &self.counter.to_be_bytes()].concat();
         let new_hst = HashHst::hash(&merged);
@@ -139,7 +121,7 @@ impl<
     }
 
     #[cfg(test)]
-    fn test_drawn_alphas(&self) -> Vec<E> {
+    pub fn test_drawn_alphas(&self) -> Vec<E> {
         self.drawn_alphas.clone()
     }
 }
