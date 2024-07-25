@@ -1,44 +1,28 @@
-use core::marker::PhantomData;
-
 use winter_crypto::{Digest, ElementHasher};
 use winter_fri::ProverChannel;
 use winter_math::FieldElement;
 
-use crate::{frida_const, frida_error::FridaError, frida_random::FridaRandomCoin};
+use crate::{frida_const, frida_error::FridaError};
+use crate::frida_random::FridaRandom;
 
 #[derive(Debug)]
-pub struct FridaProverChannel<E, HHst, HRandom, R>
+pub struct FridaProverChannel<E, HHst, HRandom>
 where
     E: FieldElement,
     HHst: ElementHasher<BaseField = E::BaseField>,
     HRandom: ElementHasher<BaseField = E::BaseField>,
-    R: FridaRandomCoin<
-        BaseField = E::BaseField,
-        FieldElement = E,
-        HashHst = HHst,
-        HashRandom = HRandom,
-    >,
 {
     pub commitments: Vec<HRandom::Digest>,
-    pub public_coin: R,
+    pub public_coin: FridaRandom<E, HHst, HRandom>,
     pub domain_size: usize,
     pub num_queries: usize,
-    _hash_function_hst: PhantomData<HHst>,
-    _hash_function_random: PhantomData<HRandom>,
-    _field_element: PhantomData<E>,
 }
 
-impl<E, HHst, HRandom, R> FridaProverChannel<E, HHst, HRandom, R>
+impl<E, HHst, HRandom> FridaProverChannel<E, HHst, HRandom>
 where
     E: FieldElement,
     HHst: ElementHasher<BaseField = E::BaseField>,
     HRandom: ElementHasher<BaseField = E::BaseField>,
-    R: FridaRandomCoin<
-        BaseField = E::BaseField,
-        FieldElement = E,
-        HashHst = HHst,
-        HashRandom = HRandom,
-    >,
 {
     /// Returns a new prover channel instantiated from the specified parameters.
     ///
@@ -62,11 +46,8 @@ where
         Self {
             domain_size,
             num_queries,
-            public_coin: FridaRandomCoin::new(&[123]),
+            public_coin: FridaRandom::new(),
             commitments: Vec::new(),
-            _hash_function_hst: PhantomData,
-            _hash_function_random: PhantomData,
-            _field_element: PhantomData,
         }
     }
 
@@ -91,17 +72,11 @@ where
     }
 }
 
-impl<E, HHst, HRandom, R> ProverChannel<E> for FridaProverChannel<E, HHst, HRandom, R>
+impl<E, HHst, HRandom> ProverChannel<E> for FridaProverChannel<E, HHst, HRandom>
 where
     E: FieldElement,
     HHst: ElementHasher<BaseField = E::BaseField>,
     HRandom: ElementHasher<BaseField = E::BaseField>,
-    R: FridaRandomCoin<
-        BaseField = E::BaseField,
-        FieldElement = E,
-        HashHst = HHst,
-        HashRandom = HRandom,
-    >,
 {
     // assuming merkle tree hash function uses the hash function
     // that will generate the randomness in our Fiat-shamir

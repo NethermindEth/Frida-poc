@@ -19,7 +19,6 @@ use crate::{
     frida_data::{build_evaluations_from_data, encoded_data_element_count},
     frida_error::FridaError,
     frida_prover::proof::{FridaProofBatchLayer, FridaProofLayer},
-    frida_random::FridaRandom,
 };
 
 // Channel is only exposed to tests
@@ -87,7 +86,7 @@ pub mod bench {
     pub static mut COMMIT_TIME: Option<Duration> = None;
 }
 
-type Channel<E, H> = FridaProverChannel<E, H, H, FridaRandom<H, H, E>>;
+type Channel<E, H> = FridaProverChannel<E, H, H>;
 
 // PROVER IMPLEMENTATION
 // ================================================================================================
@@ -470,7 +469,7 @@ mod tests {
     use winter_math::fields::f128::BaseElement;
     use winter_rand_utils::{rand_value, rand_vector};
 
-    use crate::{frida_prover::channel::FridaProverChannel, frida_random::FridaRandom};
+    use crate::frida_prover::channel::FridaProverChannel;
 
     use super::*;
 
@@ -520,7 +519,6 @@ mod tests {
             BaseElement,
             Blake3_256<BaseElement>,
             Blake3_256<BaseElement>,
-            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
         >::new(domain_size, num_queries);
         let prover = prover.test_build_layers(&mut channel, evaluations);
         let positions = channel.draw_query_positions();
@@ -562,7 +560,6 @@ mod tests {
             BaseElement,
             Blake3_256<BaseElement>,
             Blake3_256<BaseElement>,
-            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
         >::new(32, 31);
         for layer_root in commitment.roots {
             channel.commit_fri_layer(layer_root);
@@ -611,7 +608,6 @@ mod tests {
             BaseElement,
             Blake3_256<BaseElement>,
             Blake3_256<BaseElement>,
-            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
         >::new(prover.domain_size, 1);
         for layer_root in commitment.roots.iter() {
             channel.commit_fri_layer(*layer_root);
@@ -621,7 +617,7 @@ mod tests {
             prover.domain_size,
             folding_factor,
         );
-        let mut opening_prover_query_proof = opening_prover.open(&query_positions);
+        let opening_prover_query_proof = opening_prover.open(&query_positions);
         assert_eq!(commitment.proof, opening_prover_query_proof);
 
         let (_, merkle_proof) = opening_prover_query_proof

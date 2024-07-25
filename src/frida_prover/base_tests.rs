@@ -1,9 +1,7 @@
 use winter_fri::{FriOptions, FriProver};
 use winter_utils::Serializable;
 
-use crate::{
-    utils::{test_build_evaluations, test_build_prover_channel},
-};
+use crate::utils::test_utils::*;
 
 use super::FridaProverBuilder;
 

@@ -9,8 +9,7 @@ use frida_poc::{
         bench::{COMMIT_TIME, ERASURE_TIME},
         Commitment, FridaProverBuilder,
     },
-    frida_random::{FridaRandom, FridaRandomCoin},
-    frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
+    frida_verifier::das::FridaDasVerifier,
 };
 use winter_crypto::{hashers::Blake3_256, ElementHasher};
 use winter_fri::FriOptions;
@@ -43,10 +42,9 @@ fn prepare_verifier<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>
     folding_factor: usize,
     remainder_max_degree: usize,
     com: Commitment<H>,
-) -> FridaDasVerifier<E, H, H, FridaRandom<H, H, E>> {
+) -> FridaDasVerifier<E, H, H> {
     let options = FriOptions::new(blowup_factor, folding_factor, remainder_max_degree);
-    let mut coin = FridaRandom::<H, H, E>::new(&[123]);
-    FridaDasVerifier::new(com, &mut coin, options.clone()).unwrap()
+    FridaDasVerifier::new(com, options.clone()).unwrap().0
 }
 
 fn run<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
@@ -132,18 +130,18 @@ fn run<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
 
                     timer = Instant::now();
                     verifier
-                        .verify(proof_0, &evaluations[0..1], &positions[0..1])
+                        .verify(&proof_0, &evaluations[0..1], &positions[0..1])
                         .unwrap();
                     verify_time.1 += timer.elapsed();
 
                     timer = Instant::now();
                     verifier
-                        .verify(proof_1, &evaluations[0..16], &positions[0..16])
+                        .verify(&proof_1, &evaluations[0..16], &positions[0..16])
                         .unwrap();
                     verify_time.2 += timer.elapsed();
 
                     timer = Instant::now();
-                    verifier.verify(proof_2, &evaluations, &positions).unwrap();
+                    verifier.verify(&proof_2, &evaluations, &positions).unwrap();
                     verify_time.3 += timer.elapsed();
                 }
                 results.push(format!(
@@ -272,18 +270,18 @@ fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(batc
 
                     timer = Instant::now();
                     verifier
-                        .verify(proof_0, &evaluations[0..batch_size], &positions[0..1])
+                        .verify(&proof_0, &evaluations[0..batch_size], &positions[0..1])
                         .unwrap();
                     verify_time.1 += timer.elapsed();
 
                     timer = Instant::now();
                     verifier
-                        .verify(proof_1, &evaluations[0..batch_size * 16], &positions[0..16])
+                        .verify(&proof_1, &evaluations[0..batch_size * 16], &positions[0..16])
                         .unwrap();
                     verify_time.2 += timer.elapsed();
 
                     timer = Instant::now();
-                    verifier.verify(proof_2, &evaluations, &positions).unwrap();
+                    verifier.verify(&proof_2, &evaluations, &positions).unwrap();
                     verify_time.3 += timer.elapsed();
                 }
                 results.push(format!(
