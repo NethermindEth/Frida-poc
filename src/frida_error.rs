@@ -1,6 +1,6 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FridaError {
-    DeserializationError(),
+    DeserializationError(winter_utils::DeserializationError),
     XYCoordinateLengthMismatch(),
     NotEnoughDataPoints(),
     BadDataLength(),
@@ -15,4 +15,6 @@ pub enum FridaError {
     /// Polynomial degree at one of the FRI layers could not be divided evenly by the folding factor.
     DegreeTruncation(usize, usize, usize),
     UnsupportedFoldingFactor(usize),
+    SinglePolyBatch,
+    ProofPolyCountMismatch,
 }

@@ -4,6 +4,7 @@ use crate::{frida_const, frida_error::FridaError};
 use winter_crypto::{Digest, ElementHasher};
 use winter_math::{FieldElement, StarkField};
 
+#[derive(Debug)]
 pub struct FridaRandom<HashHst: ElementHasher, HashRandom: ElementHasher, E: FieldElement> {
     counter: u64,
     hst: Vec<u8>,
@@ -29,6 +30,9 @@ pub trait FridaRandomCoin: Sync {
     ) -> Result<Vec<usize>, FridaError>;
     fn draw_xi(&self, count: usize) -> Result<Vec<Self::FieldElement>, FridaError>;
     fn reseed(&mut self, new_root: &[u8]);
+
+    #[cfg(test)]
+    fn test_drawn_alphas(&self) -> Vec<Self::FieldElement>;
 }
 
 impl<
@@ -136,25 +140,9 @@ impl<
         self.hst = new_hst.as_bytes().to_vec();
         self.counter += 1;
     }
-}
 
-#[cfg(test)]
-pub trait FridaRandomCoinTest: Sync {
-    type FieldElement: FieldElement;
-    fn drawn_alphas(&self) -> Vec<Self::FieldElement>;
-}
-
-#[cfg(test)]
-impl<
-        B: StarkField,
-        HashHst: ElementHasher<BaseField = B>,
-        HashRandom: ElementHasher<BaseField = B>,
-        E: FieldElement<BaseField = B>,
-    > FridaRandomCoinTest for FridaRandom<HashHst, HashRandom, E>
-{
-    type FieldElement = E;
-
-    fn drawn_alphas(&self) -> Vec<E> {
+    #[cfg(test)]
+    fn test_drawn_alphas(&self) -> Vec<E> {
         self.drawn_alphas.clone()
     }
 }
