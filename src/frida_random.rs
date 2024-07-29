@@ -5,11 +5,7 @@ use winter_crypto::{Digest, ElementHasher};
 use winter_math::FieldElement;
 
 #[derive(Debug)]
-<<<<<<< HEAD
-pub struct FridaRandom<HashHst: ElementHasher, HashRandom: ElementHasher, E: FieldElement> {
-=======
 pub struct FridaRandom<E: FieldElement, HashHst: ElementHasher, HashRandom: ElementHasher> {
->>>>>>> main
     counter: u64,
     hst: Vec<u8>,
     #[cfg(test)]
@@ -19,29 +15,6 @@ pub struct FridaRandom<E: FieldElement, HashHst: ElementHasher, HashRandom: Elem
     _hash_digest2_random: PhantomData<HashRandom::Digest>,
 }
 
-<<<<<<< HEAD
-pub trait FridaRandomCoin: Sync {
-    type BaseField: StarkField;
-    type FieldElement: FieldElement;
-    type HashHst: ElementHasher<BaseField = Self::BaseField>;
-    type HashRandom: ElementHasher<BaseField = Self::BaseField>;
-
-    fn new(hst_neg_1: &[u8]) -> Self;
-    fn draw(&mut self) -> Result<Self::FieldElement, FridaError>;
-    fn draw_query_positions(
-        &self,
-        num_queries: usize,
-        domain_size: usize,
-    ) -> Result<Vec<usize>, FridaError>;
-    fn draw_xi(&self, count: usize) -> Result<Vec<Self::FieldElement>, FridaError>;
-    fn reseed(&mut self, new_root: &[u8]);
-
-    #[cfg(test)]
-    fn test_drawn_alphas(&self) -> Vec<Self::FieldElement>;
-}
-
-=======
->>>>>>> main
 impl<
     E: FieldElement,
     HashHst: ElementHasher<BaseField = E::BaseField>,
@@ -148,11 +121,7 @@ impl<
     }
 
     #[cfg(test)]
-<<<<<<< HEAD
-    fn test_drawn_alphas(&self) -> Vec<E> {
-=======
     pub fn test_drawn_alphas(&self) -> Vec<E> {
->>>>>>> main
         self.drawn_alphas.clone()
     }
 }

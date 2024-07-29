@@ -6,17 +6,10 @@ use crate::{frida_error::FridaError, frida_prover::proof::FridaProof};
 
 pub struct FridaVerifierChannel<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>> {
     layer_commitments: Vec<H::Digest>,
-<<<<<<< HEAD:src/frida_verifier_channel.rs
-    poly_count: usize,
-    layer_proofs: Vec<BatchMerkleProof<H>>,
-    pub(crate) batch_data: Option<BatchData<E, H>>,
-    pub(crate) layer_queries: Vec<Vec<E>>,
-=======
     pub poly_count: usize,
     layer_proofs: Vec<BatchMerkleProof<H>>,
     pub batch_data: Option<BatchData<E, H>>,
     pub layer_queries: Vec<Vec<E>>,
->>>>>>> main:src/frida_verifier/channel.rs
     remainder: Vec<E>,
     num_partitions: usize,
 }
@@ -32,11 +25,7 @@ where
     H: ElementHasher<BaseField = E::BaseField>,
 {
     pub fn new(
-<<<<<<< HEAD:src/frida_verifier_channel.rs
-        mut proof: FridaProof,
-=======
         proof: &FridaProof,
->>>>>>> main:src/frida_verifier/channel.rs
         layer_commitments: Vec<H::Digest>,
         domain_size: usize,
         folding_factor: usize,
@@ -122,40 +111,3 @@ where
         self.remainder.clone()
     }
 }
-<<<<<<< HEAD:src/frida_verifier_channel.rs
-
-pub trait BaseVerifierChannel<E>: VerifierChannel<E>
-where
-    E: FieldElement,
-{
-    fn poly_count(&self) -> usize;
-    fn read_batch_layer_queries(
-        &mut self,
-        positions: &[usize],
-        commitment: &<<Self as VerifierChannel<E>>::Hasher as Hasher>::Digest,
-    ) -> Result<Vec<E>, VerifierError>;
-}
-
-impl<E, H> BaseVerifierChannel<E> for FridaVerifierChannel<E, H>
-where
-    E: FieldElement,
-    H: ElementHasher<BaseField = E::BaseField>,
-{
-    fn poly_count(&self) -> usize {
-        self.poly_count
-    }
-    fn read_batch_layer_queries(
-        &mut self,
-        positions: &[usize],
-        commitment: &<<Self as VerifierChannel<E>>::Hasher as Hasher>::Digest,
-    ) -> Result<Vec<E>, VerifierError> {
-        let mut batch_data = self.batch_data.take().unwrap();
-        let layer_proof = batch_data.batch_layer_proof.take().unwrap();
-        MerkleTree::<Self::Hasher>::verify_batch(commitment, positions, &layer_proof)
-            .map_err(|_| VerifierError::LayerCommitmentMismatch)?;
-        let layer_queries = batch_data.batch_layer_queries.take().unwrap();
-        Ok(layer_queries)
-    }
-}
-=======
->>>>>>> main:src/frida_verifier/channel.rs

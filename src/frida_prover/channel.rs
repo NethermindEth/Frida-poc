@@ -1,47 +1,16 @@
-<<<<<<< HEAD
-use core::marker::PhantomData;
-
-=======
->>>>>>> main
 use winter_crypto::{Digest, ElementHasher};
 use winter_fri::ProverChannel;
 use winter_math::FieldElement;
 
-<<<<<<< HEAD
-use crate::{frida_const, frida_error::FridaError, frida_random::FridaRandomCoin};
-
-#[derive(Debug)]
-pub struct FridaProverChannel<E, HHst, HRandom, R>
-=======
 use crate::{frida_const, frida_error::FridaError};
 use crate::frida_random::FridaRandom;
 
 #[derive(Debug)]
 pub struct FridaProverChannel<E, HHst, HRandom>
->>>>>>> main
 where
     E: FieldElement,
     HHst: ElementHasher<BaseField = E::BaseField>,
     HRandom: ElementHasher<BaseField = E::BaseField>,
-<<<<<<< HEAD
-    R: FridaRandomCoin<
-        BaseField = E::BaseField,
-        FieldElement = E,
-        HashHst = HHst,
-        HashRandom = HRandom,
-    >,
-{
-    pub commitments: Vec<HRandom::Digest>,
-    pub public_coin: R,
-    pub domain_size: usize,
-    pub num_queries: usize,
-    _hash_function_hst: PhantomData<HHst>,
-    _hash_function_random: PhantomData<HRandom>,
-    _field_element: PhantomData<E>,
-}
-
-impl<E, HHst, HRandom, R> FridaProverChannel<E, HHst, HRandom, R>
-=======
 {
     pub commitments: Vec<HRandom::Digest>,
     pub public_coin: FridaRandom<E, HHst, HRandom>,
@@ -50,20 +19,10 @@ impl<E, HHst, HRandom, R> FridaProverChannel<E, HHst, HRandom, R>
 }
 
 impl<E, HHst, HRandom> FridaProverChannel<E, HHst, HRandom>
->>>>>>> main
 where
     E: FieldElement,
     HHst: ElementHasher<BaseField = E::BaseField>,
     HRandom: ElementHasher<BaseField = E::BaseField>,
-<<<<<<< HEAD
-    R: FridaRandomCoin<
-        BaseField = E::BaseField,
-        FieldElement = E,
-        HashHst = HHst,
-        HashRandom = HRandom,
-    >,
-=======
->>>>>>> main
 {
     /// Returns a new prover channel instantiated from the specified parameters.
     ///
@@ -87,16 +46,8 @@ where
         Self {
             domain_size,
             num_queries,
-<<<<<<< HEAD
-            public_coin: FridaRandomCoin::new(&[123]),
-            commitments: Vec::new(),
-            _hash_function_hst: PhantomData,
-            _hash_function_random: PhantomData,
-            _field_element: PhantomData,
-=======
             public_coin: FridaRandom::new(),
             commitments: Vec::new(),
->>>>>>> main
         }
     }
 
@@ -121,24 +72,11 @@ where
     }
 }
 
-<<<<<<< HEAD
-impl<E, HHst, HRandom, R> ProverChannel<E> for FridaProverChannel<E, HHst, HRandom, R>
-=======
 impl<E, HHst, HRandom> ProverChannel<E> for FridaProverChannel<E, HHst, HRandom>
->>>>>>> main
 where
     E: FieldElement,
     HHst: ElementHasher<BaseField = E::BaseField>,
     HRandom: ElementHasher<BaseField = E::BaseField>,
-<<<<<<< HEAD
-    R: FridaRandomCoin<
-        BaseField = E::BaseField,
-        FieldElement = E,
-        HashHst = HHst,
-        HashRandom = HRandom,
-    >,
-=======
->>>>>>> main
 {
     // assuming merkle tree hash function uses the hash function
     // that will generate the randomness in our Fiat-shamir

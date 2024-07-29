@@ -180,11 +180,7 @@ impl FridaProof {
         assert!(folding_factor > 1, "folding factor must be greater than 1");
         assert!(poly_count > 1, "poly_count must be greater than 1");
 
-<<<<<<< HEAD
-        if let Some(layer) = self.batch_layer.take() {
-=======
         if let Some(layer) = self.batch_layer.as_ref() {
->>>>>>> main
             return layer.parse::<H, E>(domain_size, folding_factor, poly_count);
         }
         Err(DeserializationError::InvalidValue(

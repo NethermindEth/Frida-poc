@@ -34,14 +34,8 @@ where
     options: FriOptions,
     num_partitions: usize,
     poly_count: usize,
-<<<<<<< HEAD
-    _public_coin: PhantomData<R>,
-    _field_element: PhantomData<E>,
-    _h_random: PhantomData<HRandom>,
-=======
     _phantom_hash_hst: PhantomData<HHst>,
     _phantom_hash_random: PhantomData<HRandom>,
->>>>>>> main
 }
 
 struct RandomlyDrawn<E: FieldElement> {
@@ -190,11 +184,7 @@ where
         folded_positions: &[usize],
         domain_size: usize,
     ) -> Vec<E> {
-<<<<<<< HEAD
-        if verifier_channel.poly_count() > 1 {
-=======
         if verifier_channel.poly_count > 1 {
->>>>>>> main
             let layer_values = verifier_channel
                 .batch_data
                 .as_ref()
@@ -208,11 +198,7 @@ where
                 positions,
                 folded_positions,
                 domain_size,
-<<<<<<< HEAD
-                verifier_channel.poly_count(),
-=======
                 verifier_channel.poly_count,
->>>>>>> main
             )
         } else {
             let layer_values = group_slice_elements(&verifier_channel.layer_queries[0]);
@@ -233,38 +219,6 @@ where
         let folding_factor = self.options.folding_factor();
         let domain_offset: E::BaseField = self.options.domain_offset();
 
-<<<<<<< HEAD
-impl<E, HHst, HRandom, R> BaseFridaVerifier<E, HHst, HRandom, R>
-    for FridaDasVerifier<E, HHst, HRandom, R>
-where
-    E: FieldElement<BaseField: StarkField>,
-    HHst: ElementHasher<BaseField = E::BaseField>,
-    HRandom: ElementHasher<BaseField = E::BaseField>,
-    R: FridaRandomCoin<
-        FieldElement = E,
-        BaseField = E::BaseField,
-        HashHst = HHst,
-        HashRandom = HRandom,
-    >,
-{
-    /**
-     * Accepts DAS commitment as input
-     * Will perform verification on correctness of folding
-     */
-    fn new(
-        das_commitment: Commitment<HRandom>,
-        public_coin: &mut R,
-        options: FriOptions,
-    ) -> Result<Self, FridaError> {
-        let domain_size = das_commitment.domain_size;
-        let num_partitions = das_commitment.proof.num_partitions();
-        let max_poly_degree = domain_size / options.blowup_factor() - 1;
-
-        // read layer commitments from the channel and use them to build a list of alphas
-        let poly_count = das_commitment.poly_count;
-        let layer_commitments = das_commitment.roots;
-        let alpha_commitments = &layer_commitments[..];
-=======
         let mut domain_generator = self.domain_generator;
 
         // pre-compute roots of unity used in computing x coordinates in the folded domain
@@ -407,7 +361,6 @@ where
 
         // read layer commitments from the channel and use them to build a list of alphas
         let alpha_commitments = &das_commitment.roots[..];
->>>>>>> main
 
         let mut xi = None;
         let mut layer_alphas = Vec::with_capacity(alpha_commitments.len());
@@ -437,63 +390,7 @@ where
 
         let positions =
             public_coin.draw_query_positions(das_commitment.num_queries, domain_size)?;
-<<<<<<< HEAD
-
-        let mut verifier_channel = FridaVerifierChannel::<E, HRandom>::new(
-            das_commitment.proof,
-            layer_commitments.clone(),
-            domain_size,
-            options.folding_factor(),
-            poly_count,
-        )
-        .map_err(|_e| FridaError::InvalidDASCommitment)?;
-
-        // get query value from commitment
-        let query_values = {
-            let folded_positions =
-                fold_positions(&positions, domain_size, options.folding_factor());
-
-            let folding_factor = options.folding_factor();
-            match folding_factor {
-                2 => Ok(Self::get_query_values_from_commitment::<2>(
-                    &mut verifier_channel,
-                    &positions,
-                    &folded_positions,
-                    domain_size,
-                )),
-                4 => Ok(Self::get_query_values_from_commitment::<4>(
-                    &mut verifier_channel,
-                    &positions,
-                    &folded_positions,
-                    domain_size,
-                )),
-                8 => Ok(Self::get_query_values_from_commitment::<8>(
-                    &mut verifier_channel,
-                    &positions,
-                    &folded_positions,
-                    domain_size,
-                )),
-                16 => Ok(Self::get_query_values_from_commitment::<16>(
-                    &mut verifier_channel,
-                    &positions,
-                    &folded_positions,
-                    domain_size,
-                )),
-                _ => Err(FridaError::UnsupportedFoldingFactor(folding_factor)),
-            }?
-        };
-
-        let domain_generator = E::BaseField::get_root_of_unity(domain_size.ilog2());
-
-        let verifier = Self {
-            max_poly_degree,
-            domain_size,
-            num_partitions,
-            poly_count,
-            layer_commitments,
-=======
         Ok((RandomlyDrawn {
->>>>>>> main
             xi,
             layer_alphas,
             positions,
