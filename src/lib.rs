@@ -4,39 +4,40 @@ pub mod frida_error;
 pub mod frida_prover;
 pub mod frida_random;
 pub mod frida_verifier;
-pub mod frida_verifier_channel;
 pub mod utils;
 
 #[cfg(test)]
 mod tests {
-    use winter_crypto::{hashers::Blake3_256, Hasher};
+    use winter_crypto::Hasher;
     use winter_fri::FriOptions;
-    use winter_math::fields::f128::BaseElement;
+    use winter_math::fields::f128;
     use winter_rand_utils::rand_array;
 
     use crate::{
         frida_error::FridaError,
         frida_prover::{proof::FridaProof, Commitment, FridaProverBuilder},
+<<<<<<< HEAD
         frida_random::{FridaRandom, FridaRandomCoin},
         frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
         utils::{test_build_evaluations, test_build_prover_channel},
+=======
+        utils::test_utils::*,
+>>>>>>> main
     };
 
     #[test]
     fn test_verify() {
-        type Blake3 = Blake3_256<BaseElement>;
         pub fn verify_proof(
             opening_proof: FridaProof,
             proof: FridaProof,
             roots: Vec<<Blake3 as Hasher>::Digest>,
-            evaluations: &[BaseElement],
+            evaluations: &[f128::BaseElement],
             domain_size: usize,
             positions: &[usize],
             options: &FriOptions,
         ) -> Result<(), FridaError> {
             // verify the proof
-            let mut coin = FridaRandom::<Blake3, Blake3, BaseElement>::new(&[123]);
-            let verifier = FridaDasVerifier::new(
+            let (verifier, _) = TestFridaDasVerifier::new(
                 Commitment {
                     roots,
                     proof,
@@ -44,7 +45,6 @@ mod tests {
                     num_queries: 32,
                     poly_count: 1,
                 },
-                &mut coin,
                 options.clone(),
             )?;
 
@@ -52,7 +52,7 @@ mod tests {
                 .iter()
                 .map(|&p| evaluations[p])
                 .collect::<Vec<_>>();
-            verifier.verify(opening_proof, &queried_evaluations, positions)
+            verifier.verify(&opening_proof, &queried_evaluations, positions)
         }
 
         fn fri_prove_verify(

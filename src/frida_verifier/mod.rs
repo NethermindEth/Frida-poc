@@ -1,8 +1,10 @@
 use winter_math::FieldElement;
 
+mod channel;
 pub mod das;
+
+#[cfg(test)]
 mod test;
-pub mod traits;
 
 fn get_query_values<E: FieldElement, const N: usize>(
     values: &[[E; N]],
@@ -59,11 +61,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use winter_crypto::hashers::Blake3_256;
     use winter_fri::FriOptions;
     use winter_math::fields::f128::BaseElement;
     use winter_rand_utils::rand_vector;
 
+<<<<<<< HEAD
     use crate::{
         frida_data::{build_evaluations_from_data, encoded_data_element_count},
         frida_prover::FridaProverBuilder,
@@ -75,6 +77,10 @@ mod tests {
         BaseElement,
         Blake3_256<BaseElement>,
     >;
+=======
+    use crate::frida_data::{build_evaluations_from_data, encoded_data_element_count};
+    use crate::utils::test_utils::*;
+>>>>>>> main
 
     #[test]
     fn test_frida_das_verify_short() {
@@ -85,12 +91,17 @@ mod tests {
             let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
 
             // instantiate the prover and generate the proof
+<<<<<<< HEAD
             let prover_builder = FridaTestProverBuilder::new(options.clone());
+=======
+            let prover_builder = TestFridaProverBuilder::new(options.clone());
+>>>>>>> main
 
             let data: Vec<_> = (0..20).collect();
             let (commitment, prover) =
                 prover_builder.commit(&data, 3).unwrap();
 
+<<<<<<< HEAD
             let mut public_coin =
                 FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(
                     &[123],
@@ -98,6 +109,9 @@ mod tests {
 
             let verifier =
                 FridaDasVerifier::new(commitment, &mut public_coin, options.clone()).unwrap();
+=======
+            let (verifier, _coin) = TestFridaDasVerifier::new(commitment, options.clone()).unwrap();
+>>>>>>> main
 
             // query for a position
             let open_position = [1];
@@ -112,7 +126,11 @@ mod tests {
                 .map(|&p| evaluations[p])
                 .collect::<Vec<_>>();
             verifier
+<<<<<<< HEAD
                 .verify(proof, &queried_evaluations, &open_position)
+=======
+                .verify(&proof, &queried_evaluations, &open_position)
+>>>>>>> main
                 .unwrap();
         }
     }
@@ -126,7 +144,11 @@ mod tests {
         let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
 
         // instantiate the prover and generate the proof
+<<<<<<< HEAD
         let prover_builder = FridaTestProverBuilder::new(options.clone());
+=======
+        let prover_builder = TestFridaProverBuilder::new(options.clone());
+>>>>>>> main
 
         let data = rand_vector::<u8>(200);
         let encoded_element_count =
@@ -134,6 +156,7 @@ mod tests {
         let (commitment, prover) =
             prover_builder.commit(&data, 31).unwrap();
 
+<<<<<<< HEAD
         let mut public_coin =
             FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[
                 123,
@@ -141,6 +164,9 @@ mod tests {
 
         let verifier =
             FridaDasVerifier::new(commitment, &mut public_coin, options.clone()).unwrap();
+=======
+        let (verifier, _coin) = TestFridaDasVerifier::new(commitment, options.clone()).unwrap();
+>>>>>>> main
 
         // query for a position
         let open_position = [1];
@@ -155,7 +181,11 @@ mod tests {
             .map(|&p| evaluations[p])
             .collect::<Vec<_>>();
         verifier
+<<<<<<< HEAD
             .verify(proof, &queried_evaluations, &open_position)
+=======
+            .verify(&proof, &queried_evaluations, &open_position)
+>>>>>>> main
             .unwrap();
     }
 }

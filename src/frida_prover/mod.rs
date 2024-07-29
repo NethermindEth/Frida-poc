@@ -19,7 +19,10 @@ use crate::{
     frida_data::{build_evaluations_from_data, encoded_data_element_count},
     frida_error::FridaError,
     frida_prover::proof::{FridaProofBatchLayer, FridaProofLayer},
+<<<<<<< HEAD
     frida_random::FridaRandom,
+=======
+>>>>>>> main
 };
 
 // Channel is only exposed to tests
@@ -87,7 +90,11 @@ pub mod bench {
     pub static mut COMMIT_TIME: Option<Duration> = None;
 }
 
+<<<<<<< HEAD
 type Channel<E, H> = FridaProverChannel<E, H, H, FridaRandom<H, H, E>>;
+=======
+type Channel<E, H> = FridaProverChannel<E, H, H>;
+>>>>>>> main
 
 // PROVER IMPLEMENTATION
 // ================================================================================================
@@ -221,12 +228,19 @@ where
             return Err(FridaError::BadNumQueries(num_queries));
         }
         if self.options.num_fri_layers(domain_size) == 0 {
+<<<<<<< HEAD
             println!("\n\nError parameters:\nBlowup: {}\nFolding: {}\nRemainder Max Degree: {}\nDomain size: {}\n\n", self.options.blowup_factor(), self.options.folding_factor(), self.options.remainder_max_degree(), domain_size);
 
             // Verification currently cannot work without FRI layers
             return Err(FridaError::NotEnoughDataPoints())
         }
 
+=======
+            // Verification currently cannot work without FRI layers
+            return Err(FridaError::NotEnoughDataPoints())
+        }
+
+>>>>>>> main
         let mut evaluations = unsafe { uninit_vector(poly_count * domain_size) };
         for (i, data) in data_list.iter().enumerate() {
             build_evaluations_from_data::<E>(data, domain_size, blowup_factor)?
@@ -284,7 +298,10 @@ where
             return Err(FridaError::BadNumQueries(num_queries));
         }
         if self.options.num_fri_layers(domain_size) == 0 {
+<<<<<<< HEAD
             println!("Error parameters:\nBlowup: {}\nFolding: {}\nRemainder Max Degree: {}\nDomain size: {}", self.options.blowup_factor(), self.options.folding_factor(), self.options.remainder_max_degree(), domain_size);
+=======
+>>>>>>> main
             // Verification currently cannot work without FRI layers
             return Err(FridaError::NotEnoughDataPoints())
         }
@@ -473,7 +490,11 @@ mod tests {
     use winter_math::fields::f128::BaseElement;
     use winter_rand_utils::{rand_value, rand_vector};
 
+<<<<<<< HEAD
     use crate::{frida_prover::channel::FridaProverChannel, frida_random::FridaRandom};
+=======
+    use crate::frida_prover::channel::FridaProverChannel;
+>>>>>>> main
 
     use super::*;
 
@@ -523,7 +544,6 @@ mod tests {
             BaseElement,
             Blake3_256<BaseElement>,
             Blake3_256<BaseElement>,
-            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
         >::new(domain_size, num_queries);
         let prover = prover.test_build_layers(&mut channel, evaluations);
         let positions = channel.draw_query_positions();
@@ -565,7 +585,6 @@ mod tests {
             BaseElement,
             Blake3_256<BaseElement>,
             Blake3_256<BaseElement>,
-            FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
         >::new(32, 31);
         for layer_root in commitment.roots {
             channel.commit_fri_layer(layer_root);
@@ -614,7 +633,10 @@ mod tests {
             BaseElement,
             Blake3_256<BaseElement>,
             Blake3_256<BaseElement>,
+<<<<<<< HEAD
             FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
+=======
+>>>>>>> main
         >::new(prover.domain_size, 1);
         for layer_root in commitment.roots.iter() {
             channel.commit_fri_layer(*layer_root);
@@ -624,7 +646,7 @@ mod tests {
             prover.domain_size,
             folding_factor,
         );
-        let mut opening_prover_query_proof = opening_prover.open(&query_positions);
+        let opening_prover_query_proof = opening_prover.open(&query_positions);
         assert_eq!(commitment.proof, opening_prover_query_proof);
 
         let (_, merkle_proof) = opening_prover_query_proof
