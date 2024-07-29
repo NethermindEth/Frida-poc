@@ -17,6 +17,26 @@ impl DataDesign {
         chunk_amount * E::ELEMENT_BYTES - (mem::size_of::<u64>() + E::ELEMENT_BYTES - 1)
     }
 
+    // the function generates the numbers within the specified limit range
+    // that can both be square-rooted and cube-rooted.
+    // essentially these are numbers that are perfect sixth powers.
+    pub fn generate_sixth_powers(lower_limit: usize, upper_limit: usize) -> Vec<usize> {
+        let mut sixth_powers = Vec::new();
+        let mut n: usize = 1;
+    
+        while n.pow(6) < lower_limit {
+            n += 1;
+        }
+    
+        while n.pow(6) <= upper_limit {
+            sixth_powers.push(n.pow(6));
+            n += 1;
+        }
+    
+        sixth_powers
+    }
+    
+
     // Approach 1 data creation:
     pub fn create_data<E: FieldElement>(&self) -> Vec<Vec<u8>> {
         let square_k = (self.chunk_amount as f64).sqrt().ceil() as usize;
