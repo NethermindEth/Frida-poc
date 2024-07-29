@@ -4,13 +4,14 @@ use std::{
     time::{Duration, Instant},
 };
 
+use core::mem;
+
 use frida_poc::{
     frida_prover::{
         bench::{COMMIT_TIME, ERASURE_TIME},
         Commitment, FridaProverBuilder,
     },
-    frida_random::{FridaRandom, FridaRandomCoin},
-    frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
+    frida_verifier::das::FridaDasVerifier,
 };
 use winter_crypto::{hashers::Blake3_256, ElementHasher};
 use winter_fri::FriOptions;
@@ -19,16 +20,33 @@ use winter_rand_utils::rand_vector;
 
 mod data_structure;
 
+
 const RUNS: u32 = 10;
 
-fn data_sizes<E: FieldElement>() -> Vec<usize> {
-    // for now using more than 1 size at once results in the index out of range error, will fix it asap
+fn amount_of_chunks() -> Vec<usize> {
     vec![
-        (128 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8, // 114680
-        // (256 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
-        // (512 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
-        // (1024 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
-        // (2048 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
+        16,
+        64, 
+        256,
+        1024,
+        4096,
+        16384,
+        65536
+    ]
+}
+
+fn data_size<E: FieldElement>(chunk_amount: usize) -> usize {
+    chunk_amount * E::ELEMENT_BYTES - (mem::size_of::<u64>() + E::ELEMENT_BYTES - 1)
+}
+
+// needed for fn run
+fn data_sizes<E: FieldElement>() -> Vec<usize> {
+    vec![
+        (128 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
+        (256 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
+        (512 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
+        (1024 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
+        (2048 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
     ]
 }
 
@@ -46,10 +64,9 @@ fn prepare_verifier<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>
     folding_factor: usize,
     remainder_max_degree: usize,
     com: Commitment<H>,
-) -> FridaDasVerifier<E, H, H, FridaRandom<H, H, E>> {
+) -> FridaDasVerifier<E, H, H> {
     let options = FriOptions::new(blowup_factor, folding_factor, remainder_max_degree);
-    let mut coin = FridaRandom::<H, H, E>::new(&[123]);
-    FridaDasVerifier::new(com, &mut coin, options.clone()).unwrap()
+    FridaDasVerifier::new(com, options.clone()).unwrap().0
 }
 
 fn run<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
@@ -97,7 +114,7 @@ fn run<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
                 for _ in 0..RUNS {
                     let (com, prover) =
                         prover_builder.commit(&data, *num_query).unwrap();
-                    // +1 roots len, +1 batch_size, +1 num_query = +3 at the end
+                    // +1 roots len, +1 num_chunks, +1 num_query = +3 at the end
                     commit_size += com.proof.size() + com.roots.len() * 32 + 3;
 
                     let positions = rand_vector::<u64>(32)
@@ -135,18 +152,18 @@ fn run<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
 
                     timer = Instant::now();
                     verifier
-                        .verify(proof_0, &evaluations[0..1], &positions[0..1])
+                        .verify(&proof_0, &evaluations[0..1], &positions[0..1])
                         .unwrap();
                     verify_time.1 += timer.elapsed();
 
                     timer = Instant::now();
                     verifier
-                        .verify(proof_1, &evaluations[0..16], &positions[0..16])
+                        .verify(&proof_1, &evaluations[0..16], &positions[0..16])
                         .unwrap();
                     verify_time.2 += timer.elapsed();
 
                     timer = Instant::now();
-                    verifier.verify(proof_2, &evaluations, &positions).unwrap();
+                    verifier.verify(&proof_2, &evaluations, &positions).unwrap();
                     verify_time.3 += timer.elapsed();
                 }
                 results.push(format!(
@@ -183,23 +200,22 @@ fn run<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
 }
 
 fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
-    let mut batch_size: usize = 0;
+    let mut num_chunks: usize = 0;
 
-    let datas = data_sizes::<E>()
+    let datas = amount_of_chunks()
         .into_iter()
-        .map(|size| {
-            let data_struct = data_structure::DataDesign::new(size);
-            let data = data_struct.create_square_data();
+        .map(|chunk_amount| {
+            num_chunks = data_size::<E>(chunk_amount);
 
-            batch_size = data.len();
-            println!("Batch size: {}, data size: {}", batch_size, size);
+            let data_struct = data_structure::DataDesign::new(num_chunks);
+            let data = data_struct.create_data();
+
+            println!("\nk^1/2 = {}\n", num_chunks);
             data
         })
         .collect::<Vec<_>>();
     let num_queries = vec![8, 16, 32];
 
-    // when using remainder_max_degree (option 3) that's more than 16, the program results in "NotEnoughDataPoints" error.
-    // so, i have just commented out the ones that are more than 16 for testing purposes
     let prover_options = vec![
         (2, 2, 0),
         // (2, 2, 256),
@@ -211,7 +227,7 @@ fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
         // (2, 16, 256),
     ];
 
-    println!("FriOptions, Queries, Data Size (Batched {}), Erasure Coding, Commitment, Proofs (1, 16, 32), Verification (Com, 1, 16, 32), Commitment Size, Proof Size (1, 16, 32)", batch_size);
+    println!("FriOptions, Queries, Data Size (Batched {}), Erasure Coding, Commitment, Proofs (1, 16, 32), Verification (Com, 1, 16, 32), Commitment Size, Proof Size (1, 16, 32)", num_chunks);
 
     let mut results = vec![];
 
@@ -239,7 +255,7 @@ fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
                     let (com, prover) =
                         prover_builder.commit_batch(&data, *num_query).unwrap();
 
-                    // +1 roots len, +1 batch_size, +1 num_query = +3 at the end
+                    // +1 roots len, +1 num_chunks, +1 num_query = +3 at the end
                     commit_size += com.proof.size() + com.roots.len() * 32 + 3;
 
                     let positions = rand_vector::<u64>(32)
@@ -250,9 +266,9 @@ fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
                     let mut evaluations = vec![];
                     for position in positions.iter() {
                         let bucket = position % (com.domain_size / opt.1);
-                        let start_index = bucket * (batch_size * opt.1)
-                            + (position / (com.domain_size / opt.1)) * batch_size;
-                        prover.get_first_layer_evalutaions()[start_index..start_index + batch_size]
+                        let start_index = bucket * (num_chunks * opt.1)
+                            + (position / (com.domain_size / opt.1)) * num_chunks;
+                        prover.get_first_layer_evalutaions()[start_index..start_index + num_chunks]
                             .iter()
                             .for_each(|e| {
                                 evaluations.push(*e);
@@ -280,25 +296,25 @@ fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
 
                     timer = Instant::now();
                     verifier
-                        .verify(proof_0, &evaluations[0..batch_size], &positions[0..1])
+                        .verify(&proof_0, &evaluations[0..num_chunks], &positions[0..1])
                         .unwrap();
                     verify_time.1 += timer.elapsed();
 
                     timer = Instant::now();
                     verifier
-                        .verify(proof_1, &evaluations[0..batch_size * 16], &positions[0..16])
+                        .verify(&proof_1, &evaluations[0..num_chunks * 16], &positions[0..16])
                         .unwrap();
                     verify_time.2 += timer.elapsed();
 
                     timer = Instant::now();
-                    verifier.verify(proof_2, &evaluations, &positions).unwrap();
+                    verifier.verify(&proof_2, &evaluations, &positions).unwrap();
                     verify_time.3 += timer.elapsed();
                 }
                 results.push(format!(
                     "{:?}, {}, {}Kb, {:?}, {:?}, ({:?}, {:?}, {:?}), ({:?}, {:?}, {:?}, {:?}), {}, ({}, {}, {})",
                     opt,
                     num_query,
-                    data[0].len() / 1024 * batch_size,
+                    data[0].len() / 1024 * num_chunks,
                     unsafe { ERASURE_TIME.unwrap() / RUNS },
                     unsafe { COMMIT_TIME.unwrap() / RUNS },
                     prove_time.0 / RUNS,
@@ -328,7 +344,8 @@ fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
 }
 
 fn main() {
-    // println!("FRI...\n\n");
+    println!("FRI...\n\n");
+
     // println!("64bit...");
     // run::<f64::BaseElement, Blake3_256<f64::BaseElement>>();
 
