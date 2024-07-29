@@ -35,11 +35,6 @@ fn amount_of_chunks() -> Vec<usize> {
     ]
 }
 
-// move to data struct
-fn data_size<E: FieldElement>(chunk_amount: usize) -> usize {
-    chunk_amount * E::ELEMENT_BYTES - (mem::size_of::<u64>() + E::ELEMENT_BYTES - 1)
-}
-
 fn prepare_prover_builder<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(
     blowup_factor: usize,
     folding_factor: usize,
@@ -61,17 +56,17 @@ fn prepare_verifier<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>
 
 fn run_approach_1<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
     // data size
-    let mut num_chunks: usize = 0; // k^1/2
+    let mut batch_size: usize = 0; // k^1/2
 
     let datas = amount_of_chunks()
         .into_iter()
         .map(|chunk_amount| {
-            num_chunks = data_size::<E>(chunk_amount);
+            let data_struct = data_structure::DataDesign::new(chunk_amount);
+            let data = data_struct.create_data::<E>();
 
-            let data_struct = data_structure::DataDesign::new(num_chunks);
-            let data = data_struct.create_data();
+            batch_size = data.len();
 
-            println!("\nk^1/2 = {}\n", num_chunks);
+            println!("\nk^1/2 = {}\n", batch_size);
             data
         })
         .collect::<Vec<_>>();
@@ -88,7 +83,7 @@ fn run_approach_1<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>()
         // (2, 16, 256),
     ];
 
-    println!("FriOptions, Queries, Data Size (Batched {}), Erasure Coding, Commitment, Proofs (1, 16, 32), Verification (Com, 1, 16, 32), Commitment Size, Proof Size (1, 16, 32)", num_chunks);
+    println!("FriOptions, Queries, Data Size (Batched {}), Erasure Coding, Commitment, Proofs (1, 16, 32), Verification (Com, 1, 16, 32), Commitment Size, Proof Size (1, 16, 32)", batch_size);
 
     let mut results = vec![];
 
@@ -116,7 +111,7 @@ fn run_approach_1<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>()
                     let (com, prover) =
                         prover_builder.commit_batch(&data, *num_query).unwrap();
 
-                    // +1 roots len, +1 num_chunks, +1 num_query = +3 at the end
+                    // +1 roots len, +1 batch_size, +1 num_query = +3 at the end
                     commit_size += com.proof.size() + com.roots.len() * 32 + 3;
 
                     let positions = rand_vector::<u64>(32)
@@ -127,9 +122,9 @@ fn run_approach_1<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>()
                     let mut evaluations = vec![];
                     for position in positions.iter() {
                         let bucket = position % (com.domain_size / opt.1);
-                        let start_index = bucket * (num_chunks * opt.1)
-                            + (position / (com.domain_size / opt.1)) * num_chunks;
-                        prover.get_first_layer_evalutaions()[start_index..start_index + num_chunks]
+                        let start_index = bucket * (batch_size * opt.1)
+                            + (position / (com.domain_size / opt.1)) * batch_size;
+                        prover.get_first_layer_evalutaions()[start_index..start_index + batch_size]
                             .iter()
                             .for_each(|e| {
                                 evaluations.push(*e);
@@ -157,13 +152,13 @@ fn run_approach_1<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>()
 
                     timer = Instant::now();
                     verifier
-                        .verify(&proof_0, &evaluations[0..num_chunks], &positions[0..1])
+                        .verify(&proof_0, &evaluations[0..batch_size], &positions[0..1])
                         .unwrap();
                     verify_time.1 += timer.elapsed();
 
                     timer = Instant::now();
                     verifier
-                        .verify(&proof_1, &evaluations[0..num_chunks * 16], &positions[0..16])
+                        .verify(&proof_1, &evaluations[0..batch_size * 16], &positions[0..16])
                         .unwrap();
                     verify_time.2 += timer.elapsed();
 
@@ -175,7 +170,7 @@ fn run_approach_1<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>()
                     "{:?}, {}, {}Kb, {:?}, {:?}, ({:?}, {:?}, {:?}), ({:?}, {:?}, {:?}, {:?}), {}, ({}, {}, {})",
                     opt,
                     num_query,
-                    data[0].len() / 1024 * num_chunks,
+                    data[0].len() / 1024 * batch_size,
                     unsafe { ERASURE_TIME.unwrap() / RUNS },
                     unsafe { COMMIT_TIME.unwrap() / RUNS },
                     prove_time.0 / RUNS,
@@ -209,10 +204,10 @@ fn run_approach_2<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>()
 }
 
 fn main() {
-    println!("\nBatched FRI...\n\n");
+    println!("\nBatched FRI | Approach 1\n\n");
     println!("64bit...");
-    run_batched::<f64::BaseElement, Blake3_256<f64::BaseElement>>();
+    run_approach_1::<f64::BaseElement, Blake3_256<f64::BaseElement>>();
 
     println!("\n128bit...");
-    run_batched::<f128::BaseElement, Blake3_256<f128::BaseElement>>();
+    run_approach_1::<f128::BaseElement, Blake3_256<f128::BaseElement>>();
 }

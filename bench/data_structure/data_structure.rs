@@ -1,5 +1,6 @@
 use winter_math::{FieldElement, fields::{f64, f128}};
 use winter_rand_utils::rand_vector;
+use core::mem;
 
 pub struct DataDesign {
     pub chunk_amount: usize
@@ -12,14 +13,14 @@ impl DataDesign {
         }
     }
 
-    fn data_size<E: FieldElement>(chunk_amount: usize) -> usize {
+    pub fn data_size<E: FieldElement>(chunk_amount: usize) -> usize {
         chunk_amount * E::ELEMENT_BYTES - (mem::size_of::<u64>() + E::ELEMENT_BYTES - 1)
     }
 
     // Approach 1 data creation:
-    pub fn create_data(&self) -> Vec<Vec<u8>> {
+    pub fn create_data<E: FieldElement>(&self) -> Vec<Vec<u8>> {
         let square_k = (self.chunk_amount as f64).sqrt().ceil() as usize;
-        let data_size = data_size(square_k);
+        let data_size = DataDesign::data_size::<E>(square_k);
     
         let mut res = Vec::with_capacity(square_k);
 
@@ -30,9 +31,9 @@ impl DataDesign {
     }
 
     // Approach 2 data creation:
-    pub fn create_subsquare_data(&self) -> Vec<Vec<Vec<u8>>> {
+    pub fn create_subsquare_data<E: FieldElement>(&self) -> Vec<Vec<Vec<u8>>> {
         let cubic_k = f64::powf(self.chunk_amount as f64, 1.0 / 3.0).ceil() as usize;
-        let data_size = data_size(square_k);
+        let data_size = DataDesign::data_size::<E>(cubic_k);
 
         let mut res = Vec::with_capacity(cubic_k);
     
