@@ -1,5 +1,3 @@
-use std::mem;
-
 use winter_crypto::ElementHasher;
 use winter_fri::{
     folding::fold_positions, utils::map_positions_to_indexes, FriOptions, VerifierError,
