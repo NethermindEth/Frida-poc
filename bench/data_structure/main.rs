@@ -9,22 +9,26 @@ use frida_poc::{
         bench::{COMMIT_TIME, ERASURE_TIME},
         Commitment, FridaProverBuilder,
     },
-    frida_verifier::das::FridaDasVerifier,
+    frida_random::{FridaRandom, FridaRandomCoin},
+    frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
 };
 use winter_crypto::{hashers::Blake3_256, ElementHasher};
 use winter_fri::FriOptions;
 use winter_math::{FieldElement, fields::{f64, f128}};
 use winter_rand_utils::rand_vector;
 
+mod data_structure;
+
 const RUNS: u32 = 10;
 
 fn data_sizes<E: FieldElement>() -> Vec<usize> {
+    // for now using more than 1 size at once results in the index out of range error, will fix it asap
     vec![
-        (128 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
-        (256 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
-        (512 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
-        (1024 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
-        (2048 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
+        (128 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8, // 114680
+        // (256 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
+        // (512 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
+        // (1024 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
+        // (2048 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
     ]
 }
 
@@ -42,9 +46,10 @@ fn prepare_verifier<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>
     folding_factor: usize,
     remainder_max_degree: usize,
     com: Commitment<H>,
-) -> FridaDasVerifier<E, H, H> {
+) -> FridaDasVerifier<E, H, H, FridaRandom<H, H, E>> {
     let options = FriOptions::new(blowup_factor, folding_factor, remainder_max_degree);
-    FridaDasVerifier::new(com, options.clone()).unwrap().0
+    let mut coin = FridaRandom::<H, H, E>::new(&[123]);
+    FridaDasVerifier::new(com, &mut coin, options.clone()).unwrap()
 }
 
 fn run<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
@@ -130,18 +135,18 @@ fn run<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
 
                     timer = Instant::now();
                     verifier
-                        .verify(&proof_0, &evaluations[0..1], &positions[0..1])
+                        .verify(proof_0, &evaluations[0..1], &positions[0..1])
                         .unwrap();
                     verify_time.1 += timer.elapsed();
 
                     timer = Instant::now();
                     verifier
-                        .verify(&proof_1, &evaluations[0..16], &positions[0..16])
+                        .verify(proof_1, &evaluations[0..16], &positions[0..16])
                         .unwrap();
                     verify_time.2 += timer.elapsed();
 
                     timer = Instant::now();
-                    verifier.verify(&proof_2, &evaluations, &positions).unwrap();
+                    verifier.verify(proof_2, &evaluations, &positions).unwrap();
                     verify_time.3 += timer.elapsed();
                 }
                 results.push(format!(
@@ -177,28 +182,33 @@ fn run<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
     }
 }
 
-fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(batch_size: usize) {
+fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
+    let mut batch_size: usize = 0;
+
     let datas = data_sizes::<E>()
         .into_iter()
         .map(|size| {
-            let mut res = Vec::with_capacity(batch_size);
-            for _ in 0..batch_size {
-                res.push(rand_vector::<u8>(size));
-            }
-            res
+            let data_struct = data_structure::DataDesign::new(size);
+            let data = data_struct.create_square_data();
+
+            batch_size = data.len();
+            println!("Batch size: {}, data size: {}", batch_size, size);
+            data
         })
         .collect::<Vec<_>>();
     let num_queries = vec![8, 16, 32];
 
+    // when using remainder_max_degree (option 3) that's more than 16, the program results in "NotEnoughDataPoints" error.
+    // so, i have just commented out the ones that are more than 16 for testing purposes
     let prover_options = vec![
         (2, 2, 0),
-        (2, 2, 256),
+        // (2, 2, 256),
         (2, 4, 2),
-        (2, 4, 256),
+        // (2, 4, 256),
         (2, 8, 4),
-        (2, 8, 256),
+        // (2, 8, 256),
         (2, 16, 8),
-        (2, 16, 256),
+        // (2, 16, 256),
     ];
 
     println!("FriOptions, Queries, Data Size (Batched {}), Erasure Coding, Commitment, Proofs (1, 16, 32), Verification (Com, 1, 16, 32), Commitment Size, Proof Size (1, 16, 32)", batch_size);
@@ -270,18 +280,18 @@ fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(batc
 
                     timer = Instant::now();
                     verifier
-                        .verify(&proof_0, &evaluations[0..batch_size], &positions[0..1])
+                        .verify(proof_0, &evaluations[0..batch_size], &positions[0..1])
                         .unwrap();
                     verify_time.1 += timer.elapsed();
 
                     timer = Instant::now();
                     verifier
-                        .verify(&proof_1, &evaluations[0..batch_size * 16], &positions[0..16])
+                        .verify(proof_1, &evaluations[0..batch_size * 16], &positions[0..16])
                         .unwrap();
                     verify_time.2 += timer.elapsed();
 
                     timer = Instant::now();
-                    verifier.verify(&proof_2, &evaluations, &positions).unwrap();
+                    verifier.verify(proof_2, &evaluations, &positions).unwrap();
                     verify_time.3 += timer.elapsed();
                 }
                 results.push(format!(
@@ -318,22 +328,23 @@ fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(batc
 }
 
 fn main() {
-    println!("FRI...\n\n");
+    // println!("FRI...\n\n");
+    // println!("64bit...");
+    // run::<f64::BaseElement, Blake3_256<f64::BaseElement>>();
 
-    println!("64bit...");
-    run::<f64::BaseElement, Blake3_256<f64::BaseElement>>();
-
-    println!("\n128bit...");
-    run::<f128::BaseElement, Blake3_256<f128::BaseElement>>();
+    // println!("\n128bit...");
+    // run::<f128::BaseElement, Blake3_256<f128::BaseElement>>();
 
     println!("\nBatched FRI...\n\n");
     println!("64bit...");
-    for i in [2, 4, 8, 16] {
-        run_batched::<f64::BaseElement, Blake3_256<f64::BaseElement>>(i);
-    }
+    run_batched::<f64::BaseElement, Blake3_256<f64::BaseElement>>();
+    // for i in [2, 4, 8, 16] {
+    //     run_batched::<f64::BaseElement, Blake3_256<f64::BaseElement>>(i);
+    // }
 
     println!("\n128bit...");
-    for i in [2, 4, 8, 16] {
-        run_batched::<f128::BaseElement, Blake3_256<f128::BaseElement>>(i);
-    }
+    run_batched::<f128::BaseElement, Blake3_256<f128::BaseElement>>();
+    // for i in [2, 4, 8, 16] {
+    //     run_batched::<f128::BaseElement, Blake3_256<f128::BaseElement>>(i);
+    // }
 }
