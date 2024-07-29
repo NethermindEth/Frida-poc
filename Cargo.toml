@@ -11,7 +11,8 @@ bench = []
 
 [[bin]]
 name = "benchmark"
-path = "bench/fri/main.rs"
+# path = "bench/fri/main.rs"
+path = "bench/data_structure/main.rs"
 required-features = ["bench"]
 
 [dependencies]
