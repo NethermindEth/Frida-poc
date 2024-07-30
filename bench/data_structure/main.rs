@@ -52,11 +52,11 @@ fn run_approach_1<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(k
 
     let num_queries = vec![8, 16, 32];
 
-    /// when remainder max degree is larger than 16,
-    /// it's impossible to form enough evauluation points ("NotEnoughDataPoints" error)
-    /// 
-    /// BUT if k >= 117649,
-    /// any remainder max degree works
+    // when remainder max degree is larger than 16,
+    // it's impossible to form enough evauluation points ("NotEnoughDataPoints" error)
+    // 
+    // BUT if k >= 117649,
+    // any remainder max degree works
     let prover_options = vec![
         (2, 2, 0),
         (2, 2, 256),
@@ -191,12 +191,12 @@ fn main() {
     println!("\nBatched FRI | Approach 1\n\n");
     println!("64bit...");
 
-    /// when k <= 64, domain size becomes smaller than number of queries
-    /// which results in the 'BadNumQueries' error
-    /// k = [16, 64, 256, 1024, 4096, 16384, 65536]
-    /// 
-    /// for k values we are using numbers that that can be both square-rooted and cube-rooted
-    /// these numbers are the same as the perfect sixth powers
+    // when k <= 64, domain size becomes smaller than number of queries
+    // which results in the 'BadNumQueries' error
+    // k = [16, 64, 256, 1024, 4096, 16384, 65536]
+    // 
+    // for k values we are using numbers that that can be both square-rooted and cube-rooted
+    // these numbers are the same as the perfect sixth powers
     let k_values = data_structure::DataDesign::generate_sixth_powers(117649, 1_000_000);
     println!("k values used: {:?}", k_values);
 
