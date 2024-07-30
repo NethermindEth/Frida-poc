@@ -124,6 +124,87 @@ mod test {
     }
     
     #[test]
+    fn test_verify_query_numbers() {
+        let batch_size = 10;
+        let mut data = vec![];
+        for _ in 0..batch_size {
+            data.push(rand_vector::<u8>(usize::min(
+                rand_value::<u64>() as usize,
+                128,
+            )));
+        }
+        
+        let blowup_factor = 2;
+        let folding_factor = 2;
+        let options = FriOptions::new(blowup_factor, folding_factor, 0);
+        let mut prover: FridaProver<
+            BaseElement,
+            BaseElement,
+            FridaProverChannel<
+                BaseElement,
+                Blake3_256<BaseElement>,
+                Blake3_256<BaseElement>,
+                FridaRandom<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>,
+            >,
+            Blake3_256<BaseElement>,
+        > = FridaProver::new(options.clone());
+        
+        let (commitment, _) = prover.commit_batch(data, 4).unwrap();
+        
+        let mut coin =
+            FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[
+                123,
+            ]);
+        
+        let is_verifiier_err = FridaDasVerifier::new(
+            Commitment {
+                roots: commitment.roots.clone(),
+                proof: commitment.proof.clone(),
+                num_queries: 3,
+                batch_size: batch_size,
+            },
+            &mut coin,
+            options.clone(),
+            prover.domain_size() / options.blowup_factor() - 1,
+        ).is_err();
+        assert!(is_verifiier_err, "Error: Verifier has less queries than prover has provided");
+        
+        fn call_verifier(
+            commitment: Commitment<Blake3_256<BaseElement>>,
+            options: FriOptions,
+            domain_size: usize
+        ) {
+            let mut coin = FridaRandom::<Blake3_256<BaseElement>, Blake3_256<BaseElement>, BaseElement>::new(&[
+                123,
+            ]);
+            FridaDasVerifier::new(commitment, &mut coin, options, domain_size).unwrap();
+        }
+        
+        let result = std::panic::catch_unwind(|| {
+            call_verifier(
+                Commitment {
+                    roots: commitment.roots.clone(),
+                    proof: commitment.proof.clone(),
+                    num_queries: 7, // This is the modification
+                    batch_size: batch_size,
+                }, 
+                options.clone(), 
+                prover.domain_size() / options.blowup_factor() - 1
+            );
+        });
+        let is_result_err: bool;
+        match result {
+            Ok(_) => {
+                is_result_err = false;
+            }
+            Err(_) => {
+                is_result_err = true;
+            }
+        }
+        assert!(is_result_err, "Error: Verifier has more queries than prover has provided");
+    }
+    
+    #[test]
     fn test_verifier_coin() {
         let batch_size = 10;
         let mut data = vec![];
