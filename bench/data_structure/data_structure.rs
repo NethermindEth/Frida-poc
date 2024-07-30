@@ -1,4 +1,4 @@
-use winter_math::{FieldElement, fields::{f64, f128}};
+use winter_math::FieldElement;
 use winter_rand_utils::rand_vector;
 use core::mem;
 
