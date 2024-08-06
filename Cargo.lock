@@ -214,6 +214,7 @@ name = "frida-poc"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "rayon",
  "serde",
  "serde_json",
  "winter-crypto",

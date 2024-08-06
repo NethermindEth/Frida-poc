@@ -21,6 +21,10 @@ use crate::{
     frida_prover::proof::{FridaProofBatchLayer, FridaProofLayer},
 };
 
+use rayon::prelude::*;
+use std::sync::{Arc, Mutex};
+use std::mem::MaybeUninit;
+
 // Channel is only exposed to tests
 #[cfg(test)]
 pub mod channel;
@@ -224,17 +228,44 @@ where
             return Err(FridaError::NotEnoughDataPoints())
         }
 
-        let mut evaluations = unsafe { uninit_vector(poly_count * domain_size) };
-        for (i, data) in data_list.iter().enumerate() {
-            build_evaluations_from_data::<E>(data, domain_size, blowup_factor)?
-                .into_iter()
-                .enumerate()
-                .for_each(|(j, e)| {
-                    let bucket = j % bucket_count;
-                    let position = i + poly_count * (j / bucket_count);
-                    evaluations[bucket * bucket_size + position] = e;
-                });
-        }
+        // let mut evaluations = unsafe { uninit_vector(poly_count * domain_size) };
+
+        // for (i, data) in data_list.iter().enumerate() {
+        //     build_evaluations_from_data::<E>(data, domain_size, blowup_factor)?
+        //         .into_iter()
+        //         .enumerate()
+        //         .for_each(|(j, e)| {
+        //             let bucket = j % bucket_count;
+        //             let position = i + poly_count * (j / bucket_count);
+        //             evaluations[bucket * bucket_size + position] = e;
+        //         });
+        //     }
+
+        // Create an uninitialized vector
+        let mut evaluations: Vec<MaybeUninit<E>> = Vec::with_capacity(poly_count * domain_size);
+        unsafe { evaluations.set_len(poly_count * domain_size) };
+
+        // Wrap in Arc<Mutex<...>> for shared, thread-safe access
+        let evaluations = Arc::new(Mutex::new(evaluations));
+
+        data_list.par_iter().enumerate().try_for_each(|(i, data)| {
+            let evals = Arc::clone(&evaluations);
+            build_evaluations_from_data::<E>(data, domain_size, blowup_factor)
+                .map(|data_evals| {
+                    data_evals.into_iter().enumerate().for_each(|(j, e)| {
+                        let bucket = j % bucket_count;
+                        let position = i + poly_count * (j / bucket_count);
+                        let mut evals = evals.lock().unwrap();
+                        evals[bucket * bucket_size + position] = MaybeUninit::new(e);
+                    });
+                })
+            }).expect("Evaluation failed");
+        
+        // Safely assume all elements are initialized
+        let evaluations = unsafe { 
+            std::mem::transmute::<Vec<MaybeUninit<E>>, Vec<E>>(Arc::try_unwrap(evaluations).unwrap().into_inner().unwrap())
+        };
+    
 
         #[cfg(feature = "bench")]
         unsafe {
