@@ -43,17 +43,15 @@ fn prepare_verifier<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>
     FridaDasVerifier::new(com, options.clone()).unwrap().0
 }
 
-// formatting duration to denote the time units in front
-// rounding precision is not working properly, will fix in the next commit
+/// the function handles formatting duration to denote the time units in front
 fn format_duration(d: Duration) -> String {
     let total_micros = d.as_micros();
     let millis = total_micros / 1_000;
-    let micros = total_micros % 1_000;
 
     if millis > 0 {
-        format!("ms {:.6}", millis as f64 + micros as f64 / 1_000.0)
+        format!("ms {}.{:03}", millis, total_micros % 1_000)
     } else {
-        format!("µs {:.6}", micros as f64)
+        format!("µs {}", total_micros)
     }
 }
 
@@ -67,20 +65,11 @@ fn run_approach_1<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(k
 
     let num_queries = vec![8, 16, 32];
 
-    // when remainder max degree is larger than 16,
-    // it's impossible to form enough evauluation points ("NotEnoughDataPoints" error)
-    // 
-    // BUT if k >= 117649,
-    // any remainder max degree works
     let prover_options = vec![
         (2, 2, 0),
-        // (2, 2, 256),
         (2, 4, 2),
-        // (2, 4, 256),
         (2, 8, 4),
-        // (2, 8, 256),
         (2, 16, 8),
-        // (2, 16, 256),
         (2, 16, 16),
     ];
 
@@ -168,7 +157,7 @@ fn run_approach_1<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(k
             }
             
             results.push(format!(
-                "{:?}, {}, Kb {:.2}, {:?}, {:?}, ({:?}, {:?}, {:?}), ({:?}, {:?}, {:?}, {:?}), {}, ({}, {}, {})",
+                "{:?}, {}, Kb {:.2}, {}, {}, ({}, {}, {}), ({}, {}, {}, {}), {}, ({}, {}, {})",
                 opt,
                 num_query,
                 data[0].len() as f64 / 1024.0 * k_amount_sqrt as f64,
@@ -320,8 +309,9 @@ where
             let verify_time = *verify_time.lock().unwrap();
             let commit_size = *commit_size.lock().unwrap() / RUNS as usize;
             let proof_size = *proof_size.lock().unwrap();
+            
             results.push(format!(
-                "{:?}, {}, Kb {:.2}, {:?}, {:?}, ({:?}, {:?}, {:?}), ({:?}, {:?}, {:?}, {:?}), {}, ({}, {}, {})",
+                "{:?}, {}, Kb {:.2}, {}, {}, ({}, {}, {}), ({}, {}, {}, {}), {}, ({}, {}, {})",
                 opt,
                 num_query,
                 batch_total_data_size,
@@ -355,14 +345,6 @@ where
 fn main() {
     println!("\nBatched FRI\n");
 
-    // when k <= 64, domain size becomes smaller than the number of queries
-    // which results in the 'BadNumQueries' error
-    // 
-    // Old k values:
-    // k = [16, 64, 256, 1024, 4096, 16384, 65536]
-    // 
-    // Now, for k values we are using numbers that that can be both square-rooted and cube-rooted
-    // these numbers are the same as the perfect sixth powers
     let k_values = data_structure::DataDesign::generate_sixth_powers(730, 300_000);
     println!("k values used: {:?}", k_values);
 
