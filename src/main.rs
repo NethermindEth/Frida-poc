@@ -91,10 +91,10 @@ enum Commands {
 }
 
 fn main() {
-    let mut prover: Option<FridaProverBuilderType> = None;
+    let mut prover_builder: Option<FridaProverBuilderType> = None;
 
-    fn try_unwrap_mut<T>(prover: &mut Option<T>) -> Result<&mut T, String> {
-        prover
+    fn try_unwrap_mut<T>(prover_builder: &mut Option<T>) -> Result<&mut T, String> {
+        prover_builder
             .as_mut()
             .ok_or("Please call the init command first.".to_owned())
     }
@@ -104,19 +104,19 @@ fn main() {
 
         match cli.command {
             Commands::Init { .. } => {
-                prover = handle_init(cli.command);
+                prover_builder = handle_init(cli.command);
             }
             Commands::GenerateData { .. } => {
                 handle_generate_data(cli.command);
             }
             Commands::Commit { .. } => {
-                handle_commit(cli.command, try_unwrap_mut(&mut prover)?);
+                handle_commit(cli.command, try_unwrap_mut(&mut prover_builder)?);
             }
             Commands::Open { .. } => {
-                handle_open(cli.command, try_unwrap_mut(&mut prover)?);
+                handle_open(cli.command, try_unwrap_mut(&mut prover_builder)?);
             }
             Commands::Verify { .. } => {
-                handle_verify(cli.command, try_unwrap_mut(&mut prover)?);
+                handle_verify(cli.command, try_unwrap_mut(&mut prover_builder)?);
             }
         }
         Ok(())
@@ -143,10 +143,12 @@ fn read_and_parse_command() -> Result<Cli, String> {
         std::process::exit(0);
     }
 
-    let args = shlex::split(input)
-        .ok_or_else(|| "Failed to parse input.".to_string())?
-        .into_iter()
-        .chain(Some("frida-poc".to_string()))
+    let args = std::iter::once("frida-poc".to_string())
+        .chain(
+            shlex::split(input)
+                .ok_or_else(|| "Failed to parse input.".to_string())?
+                .into_iter(),
+        )
         .collect::<Vec<_>>();
 
     Cli::try_parse_from(args).map_err(|err| err.to_string())
