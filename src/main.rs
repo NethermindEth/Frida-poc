@@ -1,10 +1,5 @@
 use clap::{Parser, Subcommand};
-use frida_poc::{
-    commands,
-    frida_prover::{traits::BaseFriProver, FridaProver},
-    frida_prover_channel::FridaProverChannel,
-    frida_random::FridaRandom,
-};
+use frida_poc::{commands, frida_prover::FridaProverBuilder};
 use std::{
     fs,
     io::{self, Write},
@@ -15,9 +10,7 @@ use winter_fri::FriOptions;
 use winter_math::fields::f128::BaseElement;
 
 type Blake3 = Blake3_256<BaseElement>;
-type FridaChannel =
-    FridaProverChannel<BaseElement, Blake3, Blake3, FridaRandom<Blake3, Blake3, BaseElement>>;
-type FridaProverType = FridaProver<BaseElement, BaseElement, FridaChannel, Blake3>;
+type FridaProverBuilderType = FridaProverBuilder<BaseElement, Blake3>;
 
 #[derive(Parser)]
 #[command(name = "frida_cli")]
@@ -98,7 +91,7 @@ enum Commands {
 }
 
 fn main() {
-    let mut prover: Option<FridaProverType> = None;
+    let mut prover: Option<FridaProverBuilderType> = None;
 
     fn try_unwrap_mut<T>(prover: &mut Option<T>) -> Result<&mut T, String> {
         prover
@@ -159,7 +152,7 @@ fn read_and_parse_command() -> Result<Cli, String> {
     Cli::try_parse_from(args).map_err(|err| err.to_string())
 }
 
-fn handle_init(cmd: Commands) -> Option<FridaProverType> {
+fn handle_init(cmd: Commands) -> Option<FridaProverBuilderType> {
     if let Commands::Init {
         data_path,
         blowup_factor,
@@ -179,7 +172,7 @@ fn handle_init(cmd: Commands) -> Option<FridaProverType> {
             );
             return None;
         }
-        Some(FridaProverType::new(options))
+        Some(FridaProverBuilderType::new(options))
     } else {
         None
     }
@@ -193,20 +186,22 @@ fn handle_generate_data(cmd: Commands) {
     }
 }
 
-fn handle_commit(cmd: Commands, prover: &mut FridaProverType) {
+fn handle_commit(cmd: Commands, prover_builder: &mut FridaProverBuilderType) {
     if let Commands::Commit {
         num_queries,
         data_path,
         commitment_path,
     } = cmd
     {
-        if let Err(err) = commands::commit::run(prover, num_queries, &data_path, &commitment_path) {
+        if let Err(err) =
+            commands::commit::run(prover_builder, num_queries, &data_path, &commitment_path)
+        {
             eprintln!("Failed to commit data: {}", err);
         }
     }
 }
 
-fn handle_open(cmd: Commands, prover: &mut FridaProverType) {
+fn handle_open(cmd: Commands, prover_builder: &mut FridaProverBuilderType) {
     if let Commands::Open {
         positions,
         positions_path,
@@ -216,7 +211,7 @@ fn handle_open(cmd: Commands, prover: &mut FridaProverType) {
     } = cmd
     {
         if let Err(err) = commands::open::run(
-            prover,
+            prover_builder,
             &positions,
             &positions_path,
             &evaluations_path,
@@ -228,7 +223,7 @@ fn handle_open(cmd: Commands, prover: &mut FridaProverType) {
     }
 }
 
-fn handle_verify(cmd: Commands, prover: &mut FridaProverType) {
+fn handle_verify(cmd: Commands, prover_builder: &mut FridaProverBuilderType) {
     if let Commands::Verify {
         commitment_path,
         positions_path,
@@ -241,7 +236,7 @@ fn handle_verify(cmd: Commands, prover: &mut FridaProverType) {
             &positions_path,
             &evaluations_path,
             &proof_path,
-            prover.options().clone(),
+            prover_builder.options.clone(),
         ) {
             eprintln!("Failed to verify proof: {}", err);
             return;

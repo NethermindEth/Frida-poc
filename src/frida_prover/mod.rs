@@ -22,10 +22,10 @@ use crate::{
 };
 
 // Channel is only exposed to tests
-#[cfg(test)]
+#[cfg(any(test, feature = "cli"))]
 pub mod channel;
 
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "cli")))]
 mod channel;
 
 pub mod proof;
@@ -35,7 +35,7 @@ where
     E: FieldElement,
     H: ElementHasher<BaseField = E::BaseField>,
 {
-    pub(crate) options: FriOptions,
+    pub options: FriOptions,
     _phantom_field_element: PhantomData<E>,
     _phantom_hasher: PhantomData<H>,
 }

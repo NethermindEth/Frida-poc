@@ -1,4 +1,4 @@
-#[cfg(any(test, cli))]
+#[cfg(any(test, feature = "cli"))]
 pub mod commands;
 pub mod frida_const;
 pub mod frida_data;
