@@ -1,53 +1,46 @@
+#[cfg(any(test, cli))]
 pub mod commands;
 pub mod frida_const;
 pub mod frida_data;
 pub mod frida_error;
 pub mod frida_prover;
-pub mod frida_prover_channel;
 pub mod frida_random;
 pub mod frida_verifier;
-pub mod frida_verifier_channel;
 pub mod utils;
 
 #[cfg(test)]
 mod tests {
-    use winter_crypto::{hashers::Blake3_256, Hasher};
+    use winter_crypto::Hasher;
     use winter_fri::FriOptions;
-    use winter_math::fields::f128::BaseElement;
+    use winter_math::fields::f128;
     use winter_rand_utils::rand_array;
 
     use crate::{
         frida_error::FridaError,
-        frida_prover::{proof::FridaProof, traits::BaseFriProver, Commitment, FridaProver},
-        frida_prover_channel::BaseProverChannel,
-        frida_random::{FridaRandom, FridaRandomCoin},
-        frida_verifier::{das::FridaDasVerifier, traits::BaseFridaVerifier},
-        utils::{build_evaluations, build_prover_channel},
+        frida_prover::{proof::FridaProof, Commitment, FridaProverBuilder},
+        utils::test_utils::*,
     };
 
     #[test]
     fn test_verify() {
-        type Blake3 = Blake3_256<BaseElement>;
         pub fn verify_proof(
             opening_proof: FridaProof,
             proof: FridaProof,
             roots: Vec<<Blake3 as Hasher>::Digest>,
-            evaluations: &[BaseElement],
+            evaluations: &[f128::BaseElement],
             domain_size: usize,
             positions: &[usize],
             options: &FriOptions,
         ) -> Result<(), FridaError> {
             // verify the proof
-            let mut coin = FridaRandom::<Blake3, Blake3, BaseElement>::new(&[123]);
-            let verifier = FridaDasVerifier::new(
+            let (verifier, _) = TestFridaDasVerifier::new(
                 Commitment {
                     roots,
                     proof,
                     domain_size,
                     num_queries: 32,
-                    batch_size: 0,
+                    poly_count: 1,
                 },
-                &mut coin,
                 options.clone(),
             )?;
 
@@ -55,7 +48,7 @@ mod tests {
                 .iter()
                 .map(|&p| evaluations[p])
                 .collect::<Vec<_>>();
-            verifier.verify(opening_proof, &queried_evaluations, positions)
+            verifier.verify(&opening_proof, &queried_evaluations, positions)
         }
 
         fn fri_prove_verify(
@@ -69,24 +62,24 @@ mod tests {
             let folding_factor = 1 << folding_factor_e;
 
             let options = FriOptions::new(lde_blowup, folding_factor, max_remainder_degree);
-            let mut channel = build_prover_channel(trace_length, &options);
-            let evaluations = build_evaluations(trace_length, lde_blowup);
+            let mut channel = test_build_prover_channel(trace_length, &options);
+            let evaluations = test_build_evaluations(trace_length, lde_blowup);
 
             // instantiate the prover and generate the proof
-            let mut prover = FridaProver::new(options.clone());
-            prover.build_layers(&mut channel, evaluations.clone());
+            let prover_builder = FridaProverBuilder::new(options.clone());
+            let prover = prover_builder.test_build_layers(&mut channel, evaluations.clone());
 
             let positions = channel.draw_query_positions();
-            let proof = prover.build_proof(&positions);
+            let proof = prover.open(&positions);
 
             let positions = rand_array::<u64, 5>()
                 .iter()
                 .map(|v| usize::min(*v as usize, lde_blowup * trace_length - 1))
                 .collect::<Vec<_>>();
-            let opening_proof = prover.build_proof(&positions);
+            let opening_proof = prover.open(&positions);
 
             // make sure the proof can be verified
-            let commitments = channel.layer_commitments().to_vec();
+            let commitments = channel.commitments.clone();
             let domain_size = trace_length * lde_blowup;
             let result = verify_proof(
                 opening_proof.clone(),

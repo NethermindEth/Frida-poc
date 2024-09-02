@@ -71,6 +71,10 @@ impl FridaProof {
     // PUBLIC ACCESSORS
     // --------------------------------------------------------------------------------------------
 
+    pub fn has_batch_layer(&self) -> bool {
+        self.batch_layer.is_some()
+    }
+
     /// Returns the number of layers in this proof.
     pub fn num_layers(&self) -> usize {
         self.layers.len()
@@ -119,8 +123,8 @@ impl FridaProof {
     /// * Any of the layers could not be parsed successfully.
     #[allow(clippy::type_complexity)]
     pub fn parse_layers<HRandom, E>(
-        self,
-        mut domain_size: usize,
+        &self,
+        domain_size: usize,
         folding_factor: usize,
     ) -> Result<(Vec<Vec<E>>, Vec<BatchMerkleProof<HRandom>>), DeserializationError>
     where
@@ -139,9 +143,10 @@ impl FridaProof {
 
         let mut layer_proofs = Vec::new();
         let mut layer_queries = Vec::new();
+        let mut domain_size = domain_size;
 
         // parse all layers
-        for (i, layer) in self.layers.into_iter().enumerate() {
+        for (i, layer) in self.layers.iter().enumerate() {
             domain_size /= folding_factor;
             let (qv, mp) = layer.parse(domain_size, folding_factor).map_err(|err| {
                 DeserializationError::InvalidValue(format!("failed to parse FRI layer {i}: {err}"))
@@ -155,11 +160,11 @@ impl FridaProof {
 
     #[allow(clippy::type_complexity)]
     pub fn parse_batch_layer<H, E>(
-        &mut self,
+        &self,
         domain_size: usize,
         folding_factor: usize,
-        batch_size: usize,
-    ) -> Result<(Vec<Vec<E>>, BatchMerkleProof<H>), DeserializationError>
+        poly_count: usize,
+    ) -> Result<(Vec<E>, BatchMerkleProof<H>), DeserializationError>
     where
         E: FieldElement,
         H: ElementHasher<BaseField = E::BaseField>,
@@ -173,14 +178,14 @@ impl FridaProof {
             "folding factor must be a power of two"
         );
         assert!(folding_factor > 1, "folding factor must be greater than 1");
-        assert!(batch_size > 0, "batch size must be greater than 0");
+        assert!(poly_count > 1, "poly_count must be greater than 1");
 
-        if let Some(layer) = self.batch_layer.take() {
-            return Ok(layer.parse::<H, E>(domain_size, folding_factor, batch_size)?);
+        if let Some(layer) = self.batch_layer.as_ref() {
+            return layer.parse::<H, E>(domain_size, folding_factor, poly_count);
         }
-        return Err(DeserializationError::InvalidValue(format!(
-            "failed to parse Batch Layer: it does not exist"
-        )));
+        Err(DeserializationError::InvalidValue(
+            "failed to parse Batch Layer: it does not exist".to_owned(),
+        ))
     }
 
     /// Returns a vector of remainder values (last FRI layer) parsed from this proof.
@@ -241,12 +246,11 @@ impl Deserializable for FridaProof {
     fn read_from<R: ByteReader>(source: &mut R) -> Result<Self, DeserializationError> {
         // read batch layer
         let has_batch_layer = source.read_u8()? == 1;
-        let batch_layer: Option<FridaProofBatchLayer>;
-        if has_batch_layer {
-            batch_layer = Some(source.read()?);
+        let batch_layer = if has_batch_layer {
+            Some(source.read()?)
         } else {
-            batch_layer = None;
-        }
+            None
+        };
 
         // read layers
         let num_layers = source.read_u8()? as usize;
@@ -324,7 +328,7 @@ impl FridaProofLayer {
     /// * Parsing of any of the query values or the corresponding Merkle paths fails.
     /// * Not all bytes have been consumed while parsing this layer.
     pub fn parse<H, E>(
-        self,
+        &self,
         domain_size: usize,
         folding_factor: usize,
     ) -> Result<(Vec<E>, BatchMerkleProof<H>), DeserializationError>
@@ -420,17 +424,14 @@ pub struct FridaProofBatchLayer {
 
 impl FridaProofBatchLayer {
     pub(crate) fn new<H: Hasher, E: FieldElement>(
-        query_values: Vec<&Vec<E>>,
+        query_values: Vec<E>,
         merkle_proof: BatchMerkleProof<H>,
     ) -> Self {
         assert!(!query_values.is_empty(), "query values cannot be empty");
 
         // TODO: add debug check that values actually hash into the leaf nodes of the batch proof
-
-        let mut value_bytes =
-            Vec::with_capacity(E::ELEMENT_BYTES * query_values[0].len() * query_values.len());
-        let iter_over_elements = query_values.into_iter().flatten();
-        value_bytes.write_many(iter_over_elements);
+        let mut value_bytes = Vec::with_capacity(E::ELEMENT_BYTES * query_values.len());
+        value_bytes.write_many(&query_values);
 
         // concatenate all query values and all internal Merkle proof nodes into vectors of bytes;
         // we care about internal nodes only because leaf nodes can be reconstructed from hashes
@@ -447,17 +448,19 @@ impl FridaProofBatchLayer {
     }
 
     pub fn parse<H, E>(
-        self,
+        &self,
         domain_size: usize,
         folding_factor: usize,
-        batch_size: usize,
-    ) -> Result<(Vec<Vec<E>>, BatchMerkleProof<H>), DeserializationError>
+        poly_count: usize,
+    ) -> Result<(Vec<E>, BatchMerkleProof<H>), DeserializationError>
     where
         E: FieldElement,
         H: ElementHasher<BaseField = E::BaseField>,
     {
+        let bucket_size = poly_count * folding_factor;
+
         // make sure the number of value bytes can be parsed into a whole number of queries
-        let num_query_bytes = E::ELEMENT_BYTES * batch_size * folding_factor;
+        let num_query_bytes = E::ELEMENT_BYTES * bucket_size;
         if self.values.len() % num_query_bytes != 0 {
             return Err(DeserializationError::InvalidValue(format!(
                 "number of value bytes ({}) does not divide into whole number of queries",
@@ -472,15 +475,15 @@ impl FridaProofBatchLayer {
             ));
         }
         let mut hashed_queries = vec![H::Digest::default(); num_queries];
-        let mut query_values = Vec::with_capacity(num_queries * batch_size * folding_factor);
 
         // read bytes corresponding to each query, convert them into field elements,
         // and also hash them to build leaf nodes of the batch Merkle proof
         let mut reader = SliceReader::new(&self.values);
-        for query_hash in hashed_queries.iter_mut() {
-            let qe = reader.read_many::<E>(batch_size * folding_factor)?;
-            *query_hash = H::hash_elements(&qe);
-            query_values.push(qe);
+        let query_values = reader.read_many::<E>(num_queries * bucket_size)?;
+
+        for (i, query_hash) in hashed_queries.iter_mut().enumerate() {
+            *query_hash =
+                H::hash_elements(&query_values[i * bucket_size..i * bucket_size + bucket_size]);
         }
         if reader.has_more_bytes() {
             return Err(DeserializationError::UnconsumedBytes);

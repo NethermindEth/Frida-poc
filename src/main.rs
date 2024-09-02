@@ -73,6 +73,9 @@ enum Commands {
         /// Path to the evaluations file
         #[arg(long, default_value = "data/evaluations.bin")]
         evaluations_path: PathBuf,
+        /// Path to the data file
+        #[arg(long, default_value = "data/data.bin")]
+        data_path: PathBuf,
         /// Path to the proof file
         #[arg(long, default_value = "data/proof.bin")]
         proof_path: PathBuf,
@@ -208,6 +211,7 @@ fn handle_open(cmd: Commands, prover: &mut FridaProverType) {
         positions,
         positions_path,
         evaluations_path,
+        data_path,
         proof_path,
     } = cmd
     {
@@ -216,6 +220,7 @@ fn handle_open(cmd: Commands, prover: &mut FridaProverType) {
             &positions,
             &positions_path,
             &evaluations_path,
+            &data_path,
             &proof_path,
         ) {
             eprintln!("Failed to open proof: {}", err);

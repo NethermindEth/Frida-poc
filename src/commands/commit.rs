@@ -1,8 +1,6 @@
 use crate::{
-    frida_prover::{Commitment, FridaProver},
-    frida_prover_channel::FridaProverChannel,
-    frida_random::FridaRandom,
-    utils::{read_file_to_vec, write_to_file},
+    frida_prover::{Commitment, FridaProverBuilder},
+    utils::test_utils::{read_file_to_vec, write_to_file},
 };
 use std::path::Path;
 use winter_crypto::hashers::Blake3_256;
@@ -10,13 +8,11 @@ use winter_math::fields::f128::BaseElement;
 use winter_utils::{Deserializable, Serializable};
 
 type Blake3 = Blake3_256<BaseElement>;
-type FridaChannel =
-    FridaProverChannel<BaseElement, Blake3, Blake3, FridaRandom<Blake3, Blake3, BaseElement>>;
-type FridaProverType = FridaProver<BaseElement, BaseElement, FridaChannel, Blake3>;
+type FridaProverBuilderType = FridaProverBuilder<BaseElement, Blake3>;
 
 /// Runs the commitment process, saving the commitment to a file.
 pub fn run(
-    prover: &mut FridaProverType,
+    prover_builder: &mut FridaProverBuilderType,
     num_queries: usize,
     data_path: &Path,
     commitment_path: &Path,
@@ -26,8 +22,8 @@ pub fn run(
 
     // Create commitment from data
     let (commitment, _) =
-        prover
-            .commit(data, num_queries)
+        prover_builder
+            .commit(&data, num_queries)
             .map_err(|e| -> Box<dyn std::error::Error> {
                 format!("Prover commit error: {}", e).into()
             })?;
@@ -57,15 +53,13 @@ pub fn read_commitment_from_file(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        commands::generate_data, frida_prover::traits::BaseFriProver, utils::CleanupFiles,
-    };
+    use crate::{commands::generate_data, utils::test_utils::CleanupFiles};
     use winter_fri::FriOptions;
 
     #[test]
     fn test_commit() {
-        let data_path = Path::new("data/data.bin");
-        let commitment_path = Path::new("data/commitment.bin");
+        let data_path = Path::new("data/data_commit.bin");
+        let commitment_path = Path::new("data/commitment_commit.bin");
 
         let _cleanup = CleanupFiles::new(vec![data_path, commitment_path]);
 
@@ -73,10 +67,10 @@ mod tests {
             generate_data::run(200, data_path).unwrap();
         }
 
-        let mut prover = FridaProverType::new(FriOptions::new(8, 2, 7));
+        let mut prover_builder = FridaProverBuilder::new(FriOptions::new(8, 2, 7));
 
         // Run the commitment process
-        let commitment = run(&mut prover, 31, data_path, commitment_path).unwrap();
+        let commitment = run(&mut prover_builder, 31, data_path, commitment_path).unwrap();
 
         // Read the commitment from the file
         let commitment_file = read_commitment_from_file(commitment_path).unwrap();

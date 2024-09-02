@@ -2,7 +2,7 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FridaError {
-    DeserializationError(),
+    DeserializationError(winter_utils::DeserializationError),
     XYCoordinateLengthMismatch(),
     NotEnoughDataPoints(),
     BadDataLength(),
@@ -17,12 +17,16 @@ pub enum FridaError {
     /// Polynomial degree at one of the FRI layers could not be divided evenly by the folding factor.
     DegreeTruncation(usize, usize, usize),
     UnsupportedFoldingFactor(usize),
+    SinglePolyBatch,
+    ProofPolyCountMismatch,
 }
 
 impl fmt::Display for FridaError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FridaError::DeserializationError() => write!(f, "Deserialization error occurred"),
+            FridaError::DeserializationError(e) => {
+                write!(f, "Deserialization error occurred: {}", e)
+            }
             FridaError::XYCoordinateLengthMismatch() => write!(f, "XY coordinate length mismatch"),
             FridaError::NotEnoughDataPoints() => write!(f, "Not enough data points"),
             FridaError::BadDataLength() => write!(f, "Bad data length"),
@@ -52,6 +56,10 @@ impl fmt::Display for FridaError {
             FridaError::UnsupportedFoldingFactor(factor) => {
                 write!(f, "Unsupported folding factor: {}", factor)
             }
+            FridaError::ProofPolyCountMismatch => {
+                write!(f, "Proof's polynomial count does not match")
+            }
+            FridaError::SinglePolyBatch => write!(f, "Batch has only 1 polynomial"),
         }
     }
 }

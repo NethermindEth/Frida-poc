@@ -1,4 +1,4 @@
-use crate::utils::write_to_file;
+use crate::utils::test_utils::write_to_file;
 use std::{fs, io, path::Path};
 use winter_rand_utils::rand_vector;
 
@@ -27,12 +27,12 @@ pub fn run(size: usize, file_path: &Path) -> Result<Vec<u8>, GenerateDataError> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::{read_file_to_vec, CleanupFiles};
+    use crate::utils::test_utils::{read_file_to_vec, CleanupFiles};
 
     #[test]
     fn test_generate_data() -> Result<(), GenerateDataError> {
         let size = 200;
-        let file_path = Path::new("data/data.bin");
+        let file_path = Path::new("data/data_generate.bin");
 
         let _cleanup = CleanupFiles::new(vec![file_path]);
 
