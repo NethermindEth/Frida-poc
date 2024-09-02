@@ -7,7 +7,7 @@ use winter_fri::{FriOptions, ProverChannel};
 use winter_fri::folding;
 use winter_fri::utils::hash_values;
 use winter_math::{fft, FieldElement};
-use winter_utils::{flatten_vector_elements, group_slice_elements, iter_mut, transpose_slice, uninit_vector};
+use winter_utils::{flatten_vector_elements, group_slice_elements, iter_mut, transpose_slice, uninit_vector, ByteReader, Deserializable, DeserializationError, Serializable};
 #[cfg(feature = "concurrent")]
 use winter_utils::iterators::*;
 
@@ -35,7 +35,7 @@ where
     E: FieldElement,
     H: ElementHasher<BaseField = E::BaseField>,
 {
-    options: FriOptions,
+    pub(crate) options: FriOptions,
     _phantom_field_element: PhantomData<E>,
     _phantom_hasher: PhantomData<H>,
 }
@@ -86,7 +86,7 @@ where
         self.proof.write_into(target);
         self.domain_size.write_into(target);
         self.num_queries.write_into(target);
-        self.batch_size.write_into(target);
+        self.poly_count.write_into(target);
     }
 
     fn get_size_hint(&self) -> usize {
@@ -104,14 +104,14 @@ where
         let proof = FridaProof::read_from(source)?;
         let domain_size = usize::read_from(source)?;
         let num_queries = usize::read_from(source)?;
-        let batch_size = usize::read_from(source)?;
+        let poly_count = usize::read_from(source)?;
 
         Ok(Commitment {
             roots,
             proof,
             domain_size,
             num_queries,
-            batch_size,
+            poly_count,
         })
     }
 }
