@@ -13,7 +13,10 @@ use frida_poc::{
 };
 use winter_crypto::{hashers::Blake3_256, ElementHasher};
 use winter_fri::FriOptions;
-use winter_math::{FieldElement, fields::{f64, f128}};
+use winter_math::{
+    fields::{f128, f64},
+    FieldElement,
+};
 use winter_rand_utils::rand_vector;
 
 const RUNS: u32 = 10;
@@ -90,8 +93,7 @@ fn run<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>() {
                 let mut proof_size = (0, 0, 0);
 
                 for _ in 0..RUNS {
-                    let (com, prover) =
-                        prover_builder.commit(&data, *num_query).unwrap();
+                    let (com, prover) = prover_builder.commit(&data, *num_query).unwrap();
                     // +1 roots len, +1 batch_size, +1 num_query = +3 at the end
                     commit_size += com.proof.size() + com.roots.len() * 32 + 3;
 
@@ -226,8 +228,7 @@ fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(batc
                 let mut proof_size = (0, 0, 0);
 
                 for _ in 0..RUNS {
-                    let (com, prover) =
-                        prover_builder.commit_batch(&data, *num_query).unwrap();
+                    let (com, prover) = prover_builder.commit_batch(&data, *num_query).unwrap();
 
                     // +1 roots len, +1 batch_size, +1 num_query = +3 at the end
                     commit_size += com.proof.size() + com.roots.len() * 32 + 3;
@@ -276,7 +277,11 @@ fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(batc
 
                     timer = Instant::now();
                     verifier
-                        .verify(&proof_1, &evaluations[0..batch_size * 16], &positions[0..16])
+                        .verify(
+                            &proof_1,
+                            &evaluations[0..batch_size * 16],
+                            &positions[0..16],
+                        )
                         .unwrap();
                     verify_time.2 += timer.elapsed();
 

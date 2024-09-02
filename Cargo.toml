@@ -8,16 +8,23 @@ edition = "2021"
 [features]
 concurrent = ["winter-crypto/concurrent", "winter-fri/concurrent", "winter-math/concurrent", "winter-utils/concurrent"]
 bench = []
+cli = []
 
 [[bin]]
 name = "benchmark"
 path = "bench/fri/main.rs"
 required-features = ["bench"]
 
+[[bin]]
+name = "cli"
+path = "src/main.rs"
+required-features = ["cli"]
+
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+shlex = "1.3.0"
 winter-crypto = "0.9.0"
 winter-fri = "0.9.0"
 winter-math = "0.9.0"

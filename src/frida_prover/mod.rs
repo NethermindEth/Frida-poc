@@ -7,7 +7,7 @@ use winter_fri::{FriOptions, ProverChannel};
 use winter_fri::folding;
 use winter_fri::utils::hash_values;
 use winter_math::{fft, FieldElement};
-use winter_utils::{flatten_vector_elements, group_slice_elements, iter_mut, transpose_slice, uninit_vector};
+use winter_utils::{flatten_vector_elements, group_slice_elements, iter_mut, transpose_slice, uninit_vector, ByteReader, Deserializable, DeserializationError, Serializable};
 #[cfg(feature = "concurrent")]
 use winter_utils::iterators::*;
 
@@ -22,10 +22,10 @@ use crate::{
 };
 
 // Channel is only exposed to tests
-#[cfg(test)]
+#[cfg(any(test, feature = "cli"))]
 pub mod channel;
 
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "cli")))]
 mod channel;
 
 pub mod proof;
@@ -35,7 +35,7 @@ where
     E: FieldElement,
     H: ElementHasher<BaseField = E::BaseField>,
 {
-    options: FriOptions,
+    pub options: FriOptions,
     _phantom_field_element: PhantomData<E>,
     _phantom_hasher: PhantomData<H>,
 }
@@ -75,6 +75,45 @@ pub struct Commitment<HRoot: ElementHasher> {
     pub domain_size: usize,
     pub num_queries: usize,
     pub poly_count: usize,
+}
+
+impl<HRoot: ElementHasher> Serializable for Commitment<HRoot>
+where
+    HRoot::Digest: Serializable,
+{
+    fn write_into<W: winter_utils::ByteWriter>(&self, target: &mut W) {
+        self.roots.write_into(target);
+        self.proof.write_into(target);
+        self.domain_size.write_into(target);
+        self.num_queries.write_into(target);
+        self.poly_count.write_into(target);
+    }
+
+    fn get_size_hint(&self) -> usize {
+        // 24 + 104 + 8 + 8 + 8
+        152
+    }
+}
+
+impl<HRoot: ElementHasher> Deserializable for Commitment<HRoot>
+where
+    HRoot::Digest: Deserializable,
+{
+    fn read_from<R: ByteReader>(source: &mut R) -> Result<Self, DeserializationError> {
+        let roots = Vec::<HRoot::Digest>::read_from(source)?;
+        let proof = FridaProof::read_from(source)?;
+        let domain_size = usize::read_from(source)?;
+        let num_queries = usize::read_from(source)?;
+        let poly_count = usize::read_from(source)?;
+
+        Ok(Commitment {
+            roots,
+            proof,
+            domain_size,
+            num_queries,
+            poly_count,
+        })
+    }
 }
 
 #[cfg(feature = "bench")]

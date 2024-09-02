@@ -1,9 +1,16 @@
 use clap::{Parser, Subcommand};
-use serde::Deserialize;
-use std::fs;
+use frida_poc::{commands, frida_prover::FridaProverBuilder};
+use std::{
+    fs,
+    io::{self, Write},
+    path::PathBuf,
+};
+use winter_crypto::hashers::Blake3_256;
 use winter_fri::FriOptions;
+use winter_math::fields::f128::BaseElement;
 
-mod commands;
+type Blake3 = Blake3_256<BaseElement>;
+type FridaProverBuilderType = FridaProverBuilder<BaseElement, Blake3>;
 
 #[derive(Parser)]
 #[command(name = "frida_cli")]
@@ -13,103 +20,229 @@ struct Cli {
     command: Commands,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 enum Commands {
+    /// Initialize the prover and data
+    Init {
+        /// Data Path
+        #[arg(long, default_value = "data/data.bin")]
+        data_path: PathBuf,
+        /// Blowup factor
+        #[arg(long, default_value = "8")]
+        blowup_factor: usize,
+        /// Folding factor
+        #[arg(long, default_value = "2")]
+        folding_factor: usize,
+        /// Number of layers
+        #[arg(long, default_value = "7")]
+        max_remainder_degree: usize,
+    },
     /// Generate random data
     GenerateData {
         /// Size of the data
         size: usize,
         /// Path to the data file
         #[arg(long, default_value = "data/data.bin")]
-        file_path: Option<String>,
+        data_path: PathBuf,
     },
     /// Commit data and generate a proof
     Commit {
-        /// Path to the data file
-        data: String,
         /// Number of queries to generate
         num_queries: usize,
-        /// Path to the FriOptions file (optional)
-        #[arg(long)]
-        fri_options_path: Option<String>,
+        /// Path to the data file
+        #[arg(long, default_value = "data/data.bin")]
+        data_path: PathBuf,
+        /// Path to the commitment file
+        #[arg(long, default_value = "data/commitment.bin")]
+        commitment_path: PathBuf,
     },
     /// Open a proof for a given position
     Open {
-        /// Path to the proof file
-        proof: String,
         /// Position to open
-        position: usize,
-        /// Path to the FriOptions file (optional)
-        #[arg(long)]
-        fri_options_path: Option<String>,
+        positions: Vec<usize>,
+        /// Path to the positions file
+        #[arg(long, default_value = "data/positions.bin")]
+        positions_path: PathBuf,
+        /// Path to the evaluations file
+        #[arg(long, default_value = "data/evaluations.bin")]
+        evaluations_path: PathBuf,
+        /// Path to the data file
+        #[arg(long, default_value = "data/data.bin")]
+        data_path: PathBuf,
+        /// Path to the proof file
+        #[arg(long, default_value = "data/proof.bin")]
+        proof_path: PathBuf,
     },
     /// Verify a proof
     Verify {
+        /// Path to the commitment file
+        #[arg(long, default_value = "data/commitment.bin")]
+        commitment_path: PathBuf,
+        /// Path to the positions file
+        #[arg(long, default_value = "data/positions.bin")]
+        positions_path: PathBuf,
+        /// Path to the evaluations file
+        #[arg(long, default_value = "data/evaluations.bin")]
+        evaluations_path: PathBuf,
         /// Path to the proof file
-        proof: String,
-        /// Path to the data file
-        data: String,
-        /// Position to verify
-        position: usize,
-        /// Path to the FriOptions file (optional)
-        #[arg(long)]
-        fri_options_path: Option<String>,
+        #[arg(long, default_value = "data/proof.bin")]
+        proof_path: PathBuf,
     },
 }
 
-#[derive(Deserialize)]
-struct FriOptionsConfig {
-    blowup_factor: usize,
-    folding_factor: usize,
-    max_remainder_degree: usize,
-}
+fn main() {
+    let mut prover_builder: Option<FridaProverBuilderType> = None;
 
-fn load_fri_options(file_path: Option<&String>) -> FriOptions {
-    if let Some(path) = file_path {
-        let file_content = fs::read_to_string(path).expect("Unable to read FriOptions file");
-        let config: FriOptionsConfig =
-            serde_json::from_str(&file_content).expect("Invalid FriOptions file format");
-        FriOptions::new(
-            config.blowup_factor,
-            config.folding_factor,
-            config.max_remainder_degree,
-        )
-    } else {
-        FriOptions::new(8, 2, 7)
+    fn try_unwrap_mut<T>(prover_builder: &mut Option<T>) -> Result<&mut T, String> {
+        prover_builder
+            .as_mut()
+            .ok_or("Please call the init command first.".to_owned())
+    }
+
+    let mut iteration = || -> Result<(), String> {
+        let cli = read_and_parse_command()?;
+
+        match cli.command {
+            Commands::Init { .. } => {
+                prover_builder = handle_init(cli.command);
+            }
+            Commands::GenerateData { .. } => {
+                handle_generate_data(cli.command);
+            }
+            Commands::Commit { .. } => {
+                handle_commit(cli.command, try_unwrap_mut(&mut prover_builder)?);
+            }
+            Commands::Open { .. } => {
+                handle_open(cli.command, try_unwrap_mut(&mut prover_builder)?);
+            }
+            Commands::Verify { .. } => {
+                handle_verify(cli.command, try_unwrap_mut(&mut prover_builder)?);
+            }
+        }
+        Ok(())
+    };
+
+    loop {
+        if let Err(err) = iteration() {
+            eprintln!("Error: {}", err);
+        }
     }
 }
 
-fn main() {
-    let cli = Cli::parse();
+fn read_and_parse_command() -> Result<Cli, String> {
+    print!("Enter command: ");
+    io::stdout().flush().unwrap();
 
-    match &cli.command {
-        Commands::GenerateData { size, file_path } => {
-            commands::generate_data::run(*size, file_path.as_deref().unwrap());
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .expect("Failed to read input.");
+    let input = input.trim();
+
+    if input.eq_ignore_ascii_case("exit") {
+        std::process::exit(0);
+    }
+
+    let args = std::iter::once("frida-poc".to_string())
+        .chain(
+            shlex::split(input)
+                .ok_or_else(|| "Failed to parse input.".to_string())?
+                .into_iter(),
+        )
+        .collect::<Vec<_>>();
+
+    Cli::try_parse_from(args).map_err(|err| err.to_string())
+}
+
+fn handle_init(cmd: Commands) -> Option<FridaProverBuilderType> {
+    if let Commands::Init {
+        data_path,
+        blowup_factor,
+        folding_factor,
+        max_remainder_degree,
+    } = cmd
+    {
+        println!(
+            "Initializing prover with data path: {}, blowup factor: {}, folding factor: {}, max remainder degree: {}",
+            data_path.display(), blowup_factor, folding_factor, max_remainder_degree
+        );
+        let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
+        if let Err(err) = fs::read(&data_path) {
+            eprintln!(
+                "Failed to read data file: {}\nUse `generate-data <SIZE>` command.",
+                err
+            );
+            return None;
         }
-        Commands::Commit {
-            data,
-            num_queries,
-            fri_options_path,
-        } => {
-            let options = load_fri_options(fri_options_path.as_ref());
-            commands::commit::run(data, *num_queries, options);
+        Some(FridaProverBuilderType::new(options))
+    } else {
+        None
+    }
+}
+
+fn handle_generate_data(cmd: Commands) {
+    if let Commands::GenerateData { size, data_path } = cmd {
+        if let Err(err) = commands::generate_data::run(size, &data_path) {
+            eprintln!("Failed to generate data: {}", err);
         }
-        Commands::Open {
-            proof,
-            position,
-            fri_options_path,
-        } => {
-            let options = load_fri_options(fri_options_path.as_ref());
-            commands::open::run(proof, *position, options);
+    }
+}
+
+fn handle_commit(cmd: Commands, prover_builder: &mut FridaProverBuilderType) {
+    if let Commands::Commit {
+        num_queries,
+        data_path,
+        commitment_path,
+    } = cmd
+    {
+        if let Err(err) =
+            commands::commit::run(prover_builder, num_queries, &data_path, &commitment_path)
+        {
+            eprintln!("Failed to commit data: {}", err);
         }
-        Commands::Verify {
-            proof,
-            data,
-            position,
-            fri_options_path,
-        } => {
-            let options = load_fri_options(fri_options_path.as_ref());
-            commands::verify::run(proof, data, *position, options);
+    }
+}
+
+fn handle_open(cmd: Commands, prover_builder: &mut FridaProverBuilderType) {
+    if let Commands::Open {
+        positions,
+        positions_path,
+        evaluations_path,
+        data_path,
+        proof_path,
+    } = cmd
+    {
+        if let Err(err) = commands::open::run(
+            prover_builder,
+            &positions,
+            &positions_path,
+            &evaluations_path,
+            &data_path,
+            &proof_path,
+        ) {
+            eprintln!("Failed to open proof: {}", err);
         }
+    }
+}
+
+fn handle_verify(cmd: Commands, prover_builder: &mut FridaProverBuilderType) {
+    if let Commands::Verify {
+        commitment_path,
+        positions_path,
+        evaluations_path,
+        proof_path,
+    } = cmd
+    {
+        if let Err(err) = commands::verify::run(
+            &commitment_path,
+            &positions_path,
+            &evaluations_path,
+            &proof_path,
+            prover_builder.options.clone(),
+        ) {
+            eprintln!("Failed to verify proof: {}", err);
+            return;
+        }
+        println!("Verification successful");
     }
 }
