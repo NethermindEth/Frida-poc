@@ -7,18 +7,16 @@ pub mod frida_prover;
 pub mod frida_random;
 pub mod frida_verifier;
 pub mod utils;
+pub mod winterfell;
 
 #[cfg(test)]
 mod tests {
-    use winter_crypto::Hasher;
-    use winter_fri::FriOptions;
-    use winter_math::fields::f128;
-    use winter_rand_utils::rand_array;
+    use crate::winterfell::{Hasher, FriOptions, f128, rand_array};
 
     use crate::{
         frida_error::FridaError,
         frida_prover::{proof::FridaProof, Commitment, FridaProverBuilder},
-        utils::test_utils::*,
+        utils::test_utils::{*, Blake3},
     };
 
     #[test]
