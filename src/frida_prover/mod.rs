@@ -80,7 +80,7 @@ pub struct Commitment<HRoot: ElementHasher> {
 /// A lightweight commitment to the data, containing only the Merkle roots and metadata.
 /// This object is small and can be broadcast publicly (e.g., in a block header).
 /// It does NOT contain a proof itself.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ProverCommitment<H: Hasher> {
     pub roots: Vec<H::Digest>,
     pub domain_size: usize,
