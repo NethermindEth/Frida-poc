@@ -87,6 +87,16 @@ pub struct ProverCommitment<H: Hasher> {
     pub poly_count: usize,
 }
 
+impl<H: Hasher> Clone for ProverCommitment<H> {
+    fn clone(&self) -> Self {
+        Self {
+            roots: self.roots.clone(),
+            domain_size: self.domain_size,
+            poly_count: self.poly_count,
+        }
+    }
+}
+
 // Manual implementation of Serializable and Deserializable for ProverCommitment
 impl<H: Hasher> Serializable for ProverCommitment<H>
 where
