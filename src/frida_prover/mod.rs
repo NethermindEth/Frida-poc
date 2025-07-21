@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 #[cfg(feature = "bench")]
 use std::time::Instant;
 
-use winter_crypto::{ElementHasher, MerkleTree};
+use winter_crypto::{ElementHasher, Hasher, MerkleTree};
 use winter_fri::{FriOptions, ProverChannel};
 use winter_fri::folding;
 use winter_fri::utils::hash_values;
@@ -75,6 +75,45 @@ pub struct Commitment<HRoot: ElementHasher> {
     pub domain_size: usize,
     pub num_queries: usize,
     pub poly_count: usize,
+}
+
+/// A lightweight commitment to the data, containing only the Merkle roots and metadata.
+/// This object is small and can be broadcast publicly (e.g., in a block header).
+/// It does NOT contain a proof itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProverCommitment<H: Hasher> {
+    pub roots: Vec<H::Digest>,
+    pub domain_size: usize,
+    pub poly_count: usize,
+}
+
+// Manual implementation of Serializable and Deserializable for ProverCommitment
+impl<H: Hasher> Serializable for ProverCommitment<H>
+where
+    H::Digest: Serializable,
+{
+    fn write_into<W: winter_utils::ByteWriter>(&self, target: &mut W) {
+        self.roots.write_into(target);
+        self.domain_size.write_into(target);
+        self.poly_count.write_into(target);
+    }
+}
+
+impl<H: Hasher> Deserializable for ProverCommitment<H>
+where
+    H::Digest: Deserializable,
+{
+    fn read_from<R: ByteReader>(source: &mut R) -> Result<Self, DeserializationError> {
+        let roots = Vec::<H::Digest>::read_from(source)?;
+        let domain_size = usize::read_from(source)?;
+        let poly_count = usize::read_from(source)?;
+
+        Ok(ProverCommitment {
+            roots,
+            domain_size,
+            poly_count,
+        })
+    }
 }
 
 impl<HRoot: ElementHasher> Serializable for Commitment<HRoot>
@@ -452,6 +491,47 @@ where
         }
     }
 
+    /// Performs the expensive part of the commitment process (encoding and FRI layer generation).
+    ///
+    /// This method returns a lightweight commitment containing only the Merkle roots and metadata,
+    /// and a stateful `FridaProver` instance which can be used to efficiently generate many
+    /// proofs for different query sets.
+    ///
+    /// # Returns
+    /// A tuple containing:
+    /// - `ProverCommitment`: A small object with roots and metadata, suitable for public broadcast.
+    /// - `FridaProver`: A stateful object to be used for generating proofs via `.open()`.
+    pub fn commit_to_data(
+        &self,
+        data: &[u8],
+    ) -> Result<(ProverCommitment<H>, FridaProver<E, H>), FridaError> {
+        let blowup_factor = self.options.blowup_factor();
+        let encoded_element_count = encoded_data_element_count::<E>(data.len());
+
+        let domain_size = usize::max(
+            encoded_element_count.next_power_of_two() * blowup_factor,
+            frida_const::MIN_DOMAIN_SIZE,
+        );
+
+        if domain_size > frida_const::MAX_DOMAIN_SIZE {
+            return Err(FridaError::DomainSizeTooBig(domain_size));
+        }
+
+        let evaluations = build_evaluations_from_data(data, domain_size, blowup_factor)?;
+
+        // We use a dummy num_queries here because we are not generating a proof yet.
+        let mut channel = Channel::<E, H>::new(domain_size, 1);
+        let prover = self.build_layers(&mut channel, evaluations, 1, None);
+
+        let commitment = ProverCommitment {
+            roots: channel.commitments,
+            domain_size: prover.domain_size,
+            poly_count: prover.poly_count,
+        };
+
+        Ok((commitment, prover))
+    }
+
     #[cfg(test)]
     pub fn test_build_layers(&self, channel: &mut Channel<E, H>, evaluations: Vec<E>) -> FridaProver<E, H> {
         self.build_layers(channel, evaluations, 1, None)
@@ -740,4 +820,115 @@ fn apply_drp_batched<E: FieldElement, const N: usize>(
     });
 
     folding::apply_drp(&final_eval, options.domain_offset(), alpha)
+}
+
+#[cfg(test)]
+mod distributed_api_tests {
+    use super::*;
+    use crate::{
+        frida_data::build_evaluations_from_data,
+        frida_verifier::das::FridaDasVerifier,
+        // Corrected import path
+        winterfell::{f128::BaseElement, Blake3_256, FriOptions},
+    };
+    use winter_rand_utils::rand_vector;
+
+    type Blake3 = Blake3_256<BaseElement>;
+
+    // This helper function would live in your application logic, not the library.
+    // It shows how the PointSampling algorithm is used.
+    fn compute_position_assignments(
+        n_validators: usize,
+        query_positions: &[usize],
+        h: usize,
+    ) -> Vec<Vec<usize>> {
+        let s = query_positions.len();
+        let n = n_validators;
+        if n == 0 { return vec![]; }
+        if n <= s {
+            let span_length = s.saturating_sub(h) + 1;
+            (1..=n).map(|i| {
+                let offset = (i - 1) % s;
+                (0..span_length).map(|j| query_positions[(offset + j) % s]).collect()
+            }).collect()
+        } else {
+            let n_prime = (n / s) * s;
+            if n_prime == 0 { return vec![Vec::new(); n]; }
+            let replication_factor = n_prime / s;
+            let h_prime = (h.saturating_sub(n - n_prime) + replication_factor - 1) / replication_factor;
+            let base_subsets = compute_position_assignments(s, query_positions, h_prime);
+            (1..=n).map(|i| {
+                if i <= n_prime {
+                    base_subsets[(i - 1) % s].clone()
+                } else {
+                    Vec::new()
+                }
+            }).collect()
+        }
+    }
+
+    #[test]
+    fn test_distributed_proof_workflow() {
+        // 1. SETUP: A block producer sets up the prover.
+        let data = rand_vector::<u8>(512);
+        let options = FriOptions::new(8, 4, 31);
+        let n_validators = 10;
+        let total_queries = 32;
+        let prover_builder = FridaProverBuilder::<BaseElement, Blake3>::new(options.clone());
+
+        // 2. COMMIT: The producer creates the lightweight commitment and the stateful prover.
+        let (prover_commitment, prover) = prover_builder
+            .commit_to_data(&data)
+            .expect("Commitment generation failed");
+
+        // The `prover_commitment` is now broadcast to all validators.
+
+        // 3. DISTRIBUTE: The producer (or anyone) determines the query sets for each validator.
+        let f = (n_validators - 1) / 3;
+        let h = f + 1;
+        let base_positions: Vec<usize> = (0..total_queries).collect();
+        let validator_positions = compute_position_assignments(n_validators, &base_positions, h);
+
+        // 4. PROVE: The producer generates a specific, small proof for each validator.
+        let validator_proofs: Vec<_> = validator_positions
+            .iter()
+            .map(|positions| {
+                if positions.is_empty() {
+                    None
+                } else {
+                    Some(prover.open(positions))
+                }
+            })
+            .collect();
+
+        // 5. VERIFY: Each validator independently verifies their assigned proof.
+        let all_evaluations =
+            build_evaluations_from_data::<BaseElement>(&data, prover_commitment.domain_size, options.blowup_factor())
+                .unwrap();
+
+        for i in 0..n_validators {
+            if let Some(proof) = &validator_proofs[i] {
+                let positions = &validator_positions[i];
+                let evaluations: Vec<BaseElement> = positions.iter().map(|&p| all_evaluations[p]).collect();
+
+                // A. Validator initializes a verifier from the lightweight public commitment.
+                //    This correctly establishes the global Fiat-Shamir context.
+                let verifier = FridaDasVerifier::<BaseElement, Blake3, Blake3>::from_commitment(
+                    &prover_commitment,
+                    options.clone(),
+                )
+                .expect("Verifier initialization failed");
+
+                // B. Validator verifies their specific proof against the global context.
+                let verification_result = verifier.verify(proof, &evaluations, positions);
+
+                assert!(
+                    verification_result.is_ok(),
+                    "Verification failed for validator {} with error: {:?}",
+                    i,
+                    verification_result.err()
+                );
+            }
+        }
+    }
 }
