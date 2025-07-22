@@ -79,22 +79,13 @@ pub struct Commitment<HRoot: ElementHasher> {
 
 /// A commitment to the data, containing only the Merkle roots and metadata.
 /// It does NOT contain a proof itself.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ProverCommitment<H: Hasher> {
     pub roots: Vec<H::Digest>,
     pub domain_size: usize,
     pub poly_count: usize,
 }
 
-impl<H: Hasher> Clone for ProverCommitment<H> {
-    fn clone(&self) -> Self {
-        Self {
-            roots: self.roots.clone(),
-            domain_size: self.domain_size,
-            poly_count: self.poly_count,
-        }
-    }
-}
 
 impl<H: Hasher> Serializable for ProverCommitment<H>
 where
@@ -336,22 +327,11 @@ where
         Ok((commitment, prover))
     }
 
-    /// Builds a prover for a specific data, along with a channel that should be used for commitment.
-    pub fn commit(
+    /// It calculates the domain size and generates the initial evaluations.
+    fn prepare_prover_state(
         &self,
         data: &[u8],
-        num_queries: usize,
-    ) -> Result<(Commitment<H>, FridaProver<E, H>), FridaError> {
-        #[cfg(feature = "bench")]
-        unsafe {
-            bench::TIMER = Some(Instant::now());
-        }
-
-        if num_queries == 0 {
-            return Err(FridaError::BadNumQueries(num_queries));
-        }
-
-        // TODO: Decide if we want to dynamically set domain_size like here
+    ) -> Result<(Vec<E>, usize), FridaError> {
         let blowup_factor = self.options.blowup_factor();
         let encoded_element_count = encoded_data_element_count::<E>(data.len());
 
@@ -363,21 +343,28 @@ where
         if domain_size > frida_const::MAX_DOMAIN_SIZE {
             return Err(FridaError::DomainSizeTooBig(domain_size));
         }
+
+        let evaluations = build_evaluations_from_data(data, domain_size, blowup_factor)?;
+        Ok((evaluations, domain_size))
+    }
+
+    /// Builds a prover for a specific data, along with a channel that should be used for commitment.
+    pub fn commit(
+        &self,
+        data: &[u8],
+        num_queries: usize,
+    ) -> Result<(Commitment<H>, FridaProver<E, H>), FridaError> {
+        if num_queries == 0 {
+            return Err(FridaError::BadNumQueries(num_queries));
+        }
+
+        let (evaluations, domain_size) = self.prepare_prover_state(data)?;
+
         if num_queries >= domain_size {
             return Err(FridaError::BadNumQueries(num_queries));
         }
         if self.options.num_fri_layers(domain_size) == 0 {
-            // Verification currently cannot work without FRI layers
-            return Err(FridaError::NotEnoughDataPoints())
-        }
-
-        let evaluations = build_evaluations_from_data(data, domain_size, blowup_factor)?;
-
-        #[cfg(feature = "bench")]
-        unsafe {
-            bench::ERASURE_TIME =
-                Some(bench::ERASURE_TIME.unwrap_or_default() + bench::TIMER.unwrap().elapsed());
-            bench::TIMER = Some(Instant::now());
+            return Err(FridaError::NotEnoughDataPoints());
         }
 
         let mut channel = Channel::<E, H>::new(domain_size, num_queries);
@@ -506,19 +493,7 @@ where
         &self,
         data: &[u8],
     ) -> Result<(ProverCommitment<H>, FridaProver<E, H>), FridaError> {
-        let blowup_factor = self.options.blowup_factor();
-        let encoded_element_count = encoded_data_element_count::<E>(data.len());
-
-        let domain_size = usize::max(
-            encoded_element_count.next_power_of_two() * blowup_factor,
-            frida_const::MIN_DOMAIN_SIZE,
-        );
-
-        if domain_size > frida_const::MAX_DOMAIN_SIZE {
-            return Err(FridaError::DomainSizeTooBig(domain_size));
-        }
-
-        let evaluations = build_evaluations_from_data(data, domain_size, blowup_factor)?;
+        let (evaluations, domain_size) = self.prepare_prover_state(data)?;
 
         // We use a dummy num_queries here because we are not generating a proof yet.
         let mut channel = Channel::<E, H>::new(domain_size, 1);
