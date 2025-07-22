@@ -77,8 +77,7 @@ pub struct Commitment<HRoot: ElementHasher> {
     pub poly_count: usize,
 }
 
-/// A lightweight commitment to the data, containing only the Merkle roots and metadata.
-/// This object is small and can be broadcast publicly (e.g., in a block header).
+/// A commitment to the data, containing only the Merkle roots and metadata.
 /// It does NOT contain a proof itself.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ProverCommitment<H: Hasher> {
@@ -97,7 +96,6 @@ impl<H: Hasher> Clone for ProverCommitment<H> {
     }
 }
 
-// Manual implementation of Serializable and Deserializable for ProverCommitment
 impl<H: Hasher> Serializable for ProverCommitment<H>
 where
     H::Digest: Serializable,
@@ -501,16 +499,9 @@ where
         }
     }
 
-    /// Performs the expensive part of the commitment process (encoding and FRI layer generation).
-    ///
-    /// This method returns a lightweight commitment containing only the Merkle roots and metadata,
-    /// and a stateful `FridaProver` instance which can be used to efficiently generate many
+    /// This method returns a commitment containing only the Merkle roots and metadata,
+    /// and a stateful `FridaProver` instance which can be used generate many
     /// proofs for different query sets.
-    ///
-    /// # Returns
-    /// A tuple containing:
-    /// - `ProverCommitment`: A small object with roots and metadata, suitable for public broadcast.
-    /// - `FridaProver`: A stateful object to be used for generating proofs via `.open()`.
     pub fn commit_to_data(
         &self,
         data: &[u8],
@@ -838,7 +829,6 @@ mod distributed_api_tests {
     use crate::{
         frida_data::build_evaluations_from_data,
         frida_verifier::das::FridaDasVerifier,
-        // Corrected import path
         winterfell::{f128::BaseElement, Blake3_256, FriOptions},
     };
     use winter_rand_utils::rand_vector;
@@ -846,7 +836,6 @@ mod distributed_api_tests {
     type Blake3 = Blake3_256<BaseElement>;
 
     // This helper function would live in your application logic, not the library.
-    // It shows how the PointSampling algorithm is used.
     fn compute_position_assignments(
         n_validators: usize,
         query_positions: &[usize],
@@ -886,12 +875,11 @@ mod distributed_api_tests {
         let total_queries = 32;
         let prover_builder = FridaProverBuilder::<BaseElement, Blake3>::new(options.clone());
 
-        // 2. COMMIT: The producer creates the lightweight commitment and the stateful prover.
+        // 2. COMMIT: The producer creates the commitment and the stateful prover.
         let (prover_commitment, prover) = prover_builder
             .commit_to_data(&data)
             .expect("Commitment generation failed");
 
-        // The `prover_commitment` is now broadcast to all validators.
 
         // 3. DISTRIBUTE: The producer (or anyone) determines the query sets for each validator.
         let f = (n_validators - 1) / 3;
@@ -921,8 +909,7 @@ mod distributed_api_tests {
                 let positions = &validator_positions[i];
                 let evaluations: Vec<BaseElement> = positions.iter().map(|&p| all_evaluations[p]).collect();
 
-                // A. Validator initializes a verifier from the lightweight public commitment.
-                //    This correctly establishes the global Fiat-Shamir context.
+                // A. Validator initializes a verifier from the public commitment.
                 let verifier = FridaDasVerifier::<BaseElement, Blake3, Blake3>::from_commitment(
                     &prover_commitment,
                     options.clone(),

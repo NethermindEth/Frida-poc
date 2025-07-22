@@ -154,11 +154,7 @@ where
             .map_err(|_e| FridaError::FailToVerify)
     }
 
-    /// Creates a new verifier instance from a lightweight `ProverCommitment`.
-    ///
-    /// This method establishes the context (the Fiat-Shamir challenges)
-    /// from the global commitment roots. The returned verifier is then ready to verify
-    /// individual, partial proofs.
+    /// Creates a new verifier instance from `ProverCommitment`.
     pub fn from_commitment(
         commitment: &crate::frida_prover::ProverCommitment<HRandom>,
         options: FriOptions,
@@ -167,7 +163,6 @@ where
         let max_poly_degree = domain_size / options.blowup_factor() - 1;
 
         // Create a public coin and derive the challenges (`alpha` and `xi`) from the roots.
-        // This is the core of re-establishing the Fiat-Shamir context.
         let mut public_coin = FridaRandom::<E, HHst, HRandom>::new();
         let mut layer_alphas = Vec::with_capacity(commitment.roots.len());
         let mut xi = None;
