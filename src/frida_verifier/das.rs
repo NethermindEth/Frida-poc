@@ -154,6 +154,46 @@ where
             .map_err(|_e| FridaError::FailToVerify)
     }
 
+    /// Creates a new verifier instance from `ProverCommitment`.
+    pub fn from_commitment(
+        commitment: &crate::frida_prover::ProverCommitment<HRandom>,
+        options: FriOptions,
+    ) -> Result<Self, FridaError> {
+        let domain_size = commitment.domain_size;
+        let max_poly_degree = domain_size / options.blowup_factor() - 1;
+
+        // Create a public coin and derive the challenges (`alpha` and `xi`) from the roots.
+        let mut public_coin = FridaRandom::<E, HHst, HRandom>::new();
+        let mut layer_alphas = Vec::with_capacity(commitment.roots.len());
+        let mut xi = None;
+
+        for (depth, root) in commitment.roots.iter().enumerate() {
+            public_coin.reseed(&root.as_bytes());
+            if depth == 0 && commitment.poly_count > 1 {
+                xi = Some(public_coin.draw_xi(commitment.poly_count)?);
+            }
+            let alpha = public_coin.draw()?;
+            layer_alphas.push(alpha);
+        }
+
+        let domain_generator = E::BaseField::get_root_of_unity(domain_size.ilog2());
+
+        Ok(Self {
+            max_poly_degree,
+            domain_size,
+            domain_generator,
+            layer_commitments: commitment.roots.clone(),
+            xi,
+            layer_alphas,
+            options,
+            // We set num_partitions to a default of 1; it's derived from the proof during verification anyway.
+            num_partitions: 1,
+            poly_count: commitment.poly_count,
+            _phantom_hash_hst: PhantomData,
+            _phantom_hash_random: PhantomData,
+        })
+    }
+
     fn check_auth(
         &self,
         channel: &mut FridaVerifierChannel<E, HRandom>,
