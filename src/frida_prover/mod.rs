@@ -260,6 +260,32 @@ where
         data_list: &[Vec<u8>],
         num_queries: usize,
     ) -> Result<(Commitment<H>, FridaProver<E, H>), FridaError> {
+        let (channel, prover) = self.prepare_prover_state_batch(data_list, num_queries)?;
+
+        let commitment = self.build_commitment(&prover, channel)?;
+        Ok((commitment, prover))
+    }
+
+    pub fn calculate_commitment_batch(
+        &self,
+        data_list: &[Vec<u8>],
+    ) -> Result<(ProverCommitment<H>, FridaProver<E, H>), FridaError> {
+        let (channel, prover) = self.prepare_prover_state_batch(data_list, 1)?;
+
+        let commitment = ProverCommitment {
+            roots: channel.commitments,
+            domain_size: prover.domain_size,
+            poly_count: prover.poly_count,
+        };
+
+        Ok((commitment, prover))
+    }
+
+    fn prepare_prover_state_batch(
+        &self,
+        data_list: &[Vec<u8>],
+        num_queries: usize,
+    ) -> Result<(Channel<E, H>, FridaProver<E, H>), FridaError> {
         #[cfg(feature = "bench")]
         unsafe {
             bench::TIMER = Some(Instant::now());
@@ -326,8 +352,7 @@ where
         let mut channel = Channel::<E, H>::new(domain_size, num_queries);
         let prover = self.build_layers_batched(&mut channel, evaluations, domain_size)?;
 
-        let commitment = self.build_commitment(&prover, channel)?;
-        Ok((commitment, prover))
+        Ok((channel, prover))
     }
 
     /// It calculates the domain size and generates the initial evaluations.
@@ -502,7 +527,7 @@ where
     /// This method returns a commitment containing only the Merkle roots and metadata,
     /// and a stateful `FridaProver` instance which can be used generate many
     /// proofs for different query sets.
-    pub fn commit_to_data(
+    pub fn calculate_commitment(
         &self,
         data: &[u8],
     ) -> Result<(ProverCommitment<H>, FridaProver<E, H>), FridaError> {
@@ -869,7 +894,7 @@ mod distributed_api_tests {
 
         // 2. COMMIT: The producer creates the commitment and the stateful prover.
         let (prover_commitment, prover) = prover_builder
-            .commit_to_data(&data)
+            .calculate_commitment(&data)
             .expect("Commitment generation failed");
 
         // 3. DISTRIBUTE: The producer (or anyone) determines the query sets for each validator.
