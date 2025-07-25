@@ -336,6 +336,10 @@ where
         data: &[u8],
         num_queries: usize,
     ) -> Result<(Channel<E, H>, FridaProver<E, H>), FridaError> {
+        if num_queries == 0 {
+            return Err(FridaError::BadNumQueries(num_queries));
+        }
+
         let blowup_factor = self.options.blowup_factor();
         let encoded_element_count = encoded_data_element_count::<E>(data.len());
 
@@ -368,21 +372,8 @@ where
         data: &[u8],
         num_queries: usize,
     ) -> Result<(Commitment<H>, FridaProver<E, H>), FridaError> {
-        if num_queries == 0 {
-            return Err(FridaError::BadNumQueries(num_queries));
-        }
-
         let (channel, prover) = self.prepare_prover_state(data, num_queries)?;
 
-        // if num_queries >= domain_size {
-        //     return Err(FridaError::BadNumQueries(num_queries));
-        // }
-        // if self.options.num_fri_layers(domain_size) == 0 {
-        //     return Err(FridaError::NotEnoughDataPoints());
-        // }
-
-        // let mut channel = Channel::<E, H>::new(domain_size, num_queries);
-        // let prover = self.build_layers(&mut channel, evaluations, 1, None);
         let commitment = self.build_commitment(&prover, channel)?;
         Ok((commitment, prover))
     }
