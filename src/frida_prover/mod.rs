@@ -837,7 +837,7 @@ mod distributed_api_tests {
         frida_verifier::das::FridaDasVerifier,
         winterfell::{f128::BaseElement, Blake3_256, FriOptions},
     };
-    use winter_rand_utils::rand_vector;
+    use winter_rand_utils::{rand_value, rand_vector};
 
     type Blake3 = Blake3_256<BaseElement>;
 
@@ -947,5 +947,181 @@ mod distributed_api_tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_distributed_proof_workflow_batch() {
+        // 1. SETUP: A block producer sets up the prover.
+        // let mut data_list: Vec<Vec<u8>> = vec![];
+        // let poly_count = 10;
+        // // for _ in 0..poly_count {
+        // //     data_list.push(rand_vector::<u8>(poly_count));
+        // // }
+        // for _ in 0..poly_count {
+        //     data_list.push(rand_vector::<u8>(usize::min(
+        //         rand_value::<u64>() as usize,
+        //         128,
+        //     )));
+        // }
+
+        let poly_count = 10;
+        let mut data_list = vec![];
+        for _ in 0..poly_count {
+            data_list.push(rand_vector::<u8>(usize::min(
+                rand_value::<u64>() as usize,
+                128,
+            )));
+        }
+
+        let options = FriOptions::new(2, 2, 1);
+        let n_validators = 10;
+        let total_queries = 32;
+        let prover_builder = FridaProverBuilder::<BaseElement, Blake3>::new(options.clone());
+
+        // 2. COMMIT: The producer creates the commitment and the stateful prover.
+        let (prover_commitment, prover) = prover_builder
+            .calculate_commitment_batch(&data_list)
+            .expect("Commitment generation failed");
+
+        // 3. DISTRIBUTE: The producer (or anyone) determines the query sets for each validator.
+        let f = (n_validators - 1) / 3;
+        let h = f + 1;
+        let base_positions: Vec<usize> = (0..total_queries).collect();
+        let validator_positions = compute_position_assignments(n_validators, &base_positions, h);
+
+        // 4. PROVE: The producer generates a specific, small proof for each validator.
+        let validator_proofs: Vec<_> = validator_positions
+            .iter()
+            .map(|positions| {
+                if positions.is_empty() {
+                    None
+                } else {
+                    Some(prover.open(positions))
+                }
+            })
+            .collect();
+
+        // 5. VERIFY: Each validator independently verifies their assigned proof.
+        let blowup_factor = options.blowup_factor();
+
+        let max_data_len = encoded_data_element_count::<BaseElement>(
+            data_list
+                .iter()
+                .map(|data| data.len())
+                .max()
+                .unwrap_or_default(),
+        );
+
+        let domain_size = usize::max(
+            (max_data_len * blowup_factor).next_power_of_two(),
+            frida_const::MIN_DOMAIN_SIZE,
+        );
+
+        let bucket_count = domain_size / options.folding_factor();
+        let bucket_size = poly_count * options.folding_factor();
+
+        let mut all_evaluations = unsafe { uninit_vector(poly_count * domain_size) };
+        for (i, data) in data_list.iter().enumerate() {
+            build_evaluations_from_data::<BaseElement>(data, domain_size, blowup_factor)
+                .unwrap()
+                .into_iter()
+                .enumerate()
+                .for_each(|(j, e)| {
+                    let bucket = j % bucket_count;
+                    let position = i + poly_count * (j / bucket_count);
+                    all_evaluations[bucket * bucket_size + position] = e;
+                });
+        }
+
+        //================================================
+        // let mut evaluations = vec![];
+        // for position in positions.iter() {
+        //     let bucket = position % (com.domain_size / opt.1);
+        //     let start_index = bucket * (batch_size * opt.1)
+        //         + (position / (com.domain_size / opt.1)) * batch_size;
+        //     prover.get_first_layer_evalutaions()[start_index..start_index + batch_size]
+        //         .iter()
+        //         .for_each(|e| {
+        //             evaluations.push(*e);
+        //         });
+        // }
+
+        // let proof = prover.open(&positions);
+
+        // let (verifier, _coin) = TestFridaDasVerifier::new(
+        //     Commitment {
+        //         proof,
+        //         roots,
+        //         domain_size: commitment.domain_size,
+        //         num_queries: 32,
+        //         poly_count: 10,
+        //     },
+        //     options.clone(),
+        // )
+        // .unwrap();
+        // ================================================
+
+        let first_layer_evaluation = prover.get_first_layer_evalutaions();
+        assert_eq!(first_layer_evaluation, all_evaluations);
+
+        for i in 0..n_validators {
+            if let Some(proof) = &validator_proofs[i] {
+                let positions = &validator_positions[i];
+
+                let mut evaluations = vec![];
+                for position in positions.iter() {
+                    let bucket = position % (domain_size / options.folding_factor());
+                    let start_index = bucket * (poly_count * options.folding_factor())
+                        + (position / (domain_size / options.folding_factor())) * poly_count;
+                    all_evaluations[start_index..start_index + poly_count]
+                        .iter()
+                        .for_each(|e| {
+                            evaluations.push(*e);
+                        });
+                }
+
+                // A. Validator initializes a verifier from the public commitment.
+                let verifier = FridaDasVerifier::<BaseElement, Blake3, Blake3>::from_commitment(
+                    &prover_commitment,
+                    options.clone(),
+                )
+                .expect("Verifier initialization failed");
+
+                // B. Validator verifies their specific proof against the global context.
+                let verification_result = verifier.verify(proof, &evaluations, positions);
+
+                assert!(
+                    verification_result.is_ok(),
+                    "Verification failed for validator {} with error: {:?}",
+                    i,
+                    verification_result.err()
+                );
+            }
+        }
+
+        // for i in 0..n_validators {
+        //     if let Some(proof) = &validator_proofs[i] {
+        //         let positions = &validator_positions[i];
+        //         let evaluations: Vec<BaseElement> =
+        //             positions.iter().map(|&p| all_evaluations[p]).collect();
+
+        //         // A. Validator initializes a verifier from the public commitment.
+        //         let verifier = FridaDasVerifier::<BaseElement, Blake3, Blake3>::from_commitment(
+        //             &prover_commitment,
+        //             options.clone(),
+        //         )
+        //         .expect("Verifier initialization failed");
+
+        //         // B. Validator verifies their specific proof against the global context.
+        //         let verification_result = verifier.verify(proof, &evaluations, positions);
+
+        //         assert!(
+        //             verification_result.is_ok(),
+        //             "Verification failed for validator {} with error: {:?}",
+        //             i,
+        //             verification_result.err()
+        //         );
+        //     }
+        // }
     }
 }
