@@ -248,18 +248,6 @@ fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(batc
                         folding_factor,
                     );
 
-                    // let mut evaluations = vec![];
-                    // for position in positions.iter() {
-                    //     let bucket = position % (com.domain_size / opt.1);
-                    //     let start_index = bucket * (batch_size * opt.1)
-                    //         + (position / (com.domain_size / opt.1)) * batch_size;
-                    //     prover.get_first_layer_evalutaions()[start_index..start_index + batch_size]
-                    //         .iter()
-                    //         .for_each(|e| {
-                    //             evaluations.push(*e);
-                    //         });
-                    // }
-
                     let mut timer = Instant::now();
                     let proof_0 = prover.open(&positions[0..1]);
                     proof_size.0 += proof_0.size();
