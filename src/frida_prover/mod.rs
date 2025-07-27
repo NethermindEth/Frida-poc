@@ -330,17 +330,14 @@ where
             return Err(FridaError::NotEnoughDataPoints());
         }
 
-        let mut evaluations = unsafe { uninit_vector(poly_count * domain_size) };
-        for (i, data) in data_list.iter().enumerate() {
-            build_evaluations_from_data::<E>(data, domain_size, blowup_factor)?
-                .into_iter()
-                .enumerate()
-                .for_each(|(j, e)| {
-                    let bucket = j % bucket_count;
-                    let position = i + poly_count * (j / bucket_count);
-                    evaluations[bucket * bucket_size + position] = e;
-                });
-        }
+        let evaluations = batch_data_to_evaluations::<E>(
+            data_list,
+            poly_count,
+            domain_size,
+            blowup_factor,
+            bucket_count,
+            bucket_size,
+        )?;
 
         #[cfg(feature = "bench")]
         unsafe {
@@ -599,6 +596,53 @@ where
 
         FridaRemainder(remainder_poly)
     }
+}
+
+pub fn batch_data_to_evaluations<E>(
+    data_list: &[Vec<u8>],
+    poly_count: usize,
+    domain_size: usize,
+    blowup_factor: usize,
+    bucket_count: usize,
+    bucket_size: usize,
+) -> Result<Vec<E>, FridaError>
+where
+    E: FieldElement,
+{
+    let mut evaluations = unsafe { uninit_vector(poly_count * domain_size) };
+    for (i, data) in data_list.iter().enumerate() {
+        build_evaluations_from_data::<E>(data, domain_size, blowup_factor)?
+            .into_iter()
+            .enumerate()
+            .for_each(|(j, e)| {
+                let bucket = j % bucket_count;
+                let position = i + poly_count * (j / bucket_count);
+                evaluations[bucket * bucket_size + position] = e;
+            });
+    }
+
+    Ok(evaluations)
+}
+
+pub fn get_evaluations_from_positions<E: FieldElement>(
+    all_evaluations: &[E],
+    positions: &[usize],
+    poly_count: usize,
+    domain_size: usize,
+    folding_factor: usize,
+) -> Vec<E> {
+    let mut evaluations = vec![];
+    for position in positions.iter() {
+        let bucket = position % (domain_size / folding_factor);
+        let start_index = bucket * (poly_count * folding_factor)
+            + (position / (domain_size / folding_factor)) * poly_count;
+        all_evaluations[start_index..start_index + poly_count]
+            .iter()
+            .for_each(|e| {
+                evaluations.push(*e);
+            });
+    }
+    evaluations
 }
 
 #[cfg(test)]
@@ -951,19 +995,6 @@ mod distributed_api_tests {
 
     #[test]
     fn test_distributed_proof_workflow_batch() {
-        // 1. SETUP: A block producer sets up the prover.
-        // let mut data_list: Vec<Vec<u8>> = vec![];
-        // let poly_count = 10;
-        // // for _ in 0..poly_count {
-        // //     data_list.push(rand_vector::<u8>(poly_count));
-        // // }
-        // for _ in 0..poly_count {
-        //     data_list.push(rand_vector::<u8>(usize::min(
-        //         rand_value::<u64>() as usize,
-        //         128,
-        //     )));
-        // }
-
         let poly_count = 10;
         let mut data_list = vec![];
         for _ in 0..poly_count {
@@ -1020,65 +1051,27 @@ mod distributed_api_tests {
         let bucket_count = domain_size / options.folding_factor();
         let bucket_size = poly_count * options.folding_factor();
 
-        let mut all_evaluations = unsafe { uninit_vector(poly_count * domain_size) };
-        for (i, data) in data_list.iter().enumerate() {
-            build_evaluations_from_data::<BaseElement>(data, domain_size, blowup_factor)
-                .unwrap()
-                .into_iter()
-                .enumerate()
-                .for_each(|(j, e)| {
-                    let bucket = j % bucket_count;
-                    let position = i + poly_count * (j / bucket_count);
-                    all_evaluations[bucket * bucket_size + position] = e;
-                });
-        }
-
-        //================================================
-        // let mut evaluations = vec![];
-        // for position in positions.iter() {
-        //     let bucket = position % (com.domain_size / opt.1);
-        //     let start_index = bucket * (batch_size * opt.1)
-        //         + (position / (com.domain_size / opt.1)) * batch_size;
-        //     prover.get_first_layer_evalutaions()[start_index..start_index + batch_size]
-        //         .iter()
-        //         .for_each(|e| {
-        //             evaluations.push(*e);
-        //         });
-        // }
-
-        // let proof = prover.open(&positions);
-
-        // let (verifier, _coin) = TestFridaDasVerifier::new(
-        //     Commitment {
-        //         proof,
-        //         roots,
-        //         domain_size: commitment.domain_size,
-        //         num_queries: 32,
-        //         poly_count: 10,
-        //     },
-        //     options.clone(),
-        // )
-        // .unwrap();
-        // ================================================
-
-        let first_layer_evaluation = prover.get_first_layer_evalutaions();
-        assert_eq!(first_layer_evaluation, all_evaluations);
+        let all_evaluations = batch_data_to_evaluations::<BaseElement>(
+            &data_list,
+            poly_count,
+            domain_size,
+            blowup_factor,
+            bucket_count,
+            bucket_size,
+        )
+        .unwrap();
 
         for i in 0..n_validators {
             if let Some(proof) = &validator_proofs[i] {
                 let positions = &validator_positions[i];
 
-                let mut evaluations = vec![];
-                for position in positions.iter() {
-                    let bucket = position % (domain_size / options.folding_factor());
-                    let start_index = bucket * (poly_count * options.folding_factor())
-                        + (position / (domain_size / options.folding_factor())) * poly_count;
-                    all_evaluations[start_index..start_index + poly_count]
-                        .iter()
-                        .for_each(|e| {
-                            evaluations.push(*e);
-                        });
-                }
+                let evaluations = get_evaluations_from_positions(
+                    &all_evaluations,
+                    positions,
+                    poly_count,
+                    domain_size,
+                    options.folding_factor(),
+                );
 
                 // A. Validator initializes a verifier from the public commitment.
                 let verifier = FridaDasVerifier::<BaseElement, Blake3, Blake3>::from_commitment(
@@ -1098,30 +1091,5 @@ mod distributed_api_tests {
                 );
             }
         }
-
-        // for i in 0..n_validators {
-        //     if let Some(proof) = &validator_proofs[i] {
-        //         let positions = &validator_positions[i];
-        //         let evaluations: Vec<BaseElement> =
-        //             positions.iter().map(|&p| all_evaluations[p]).collect();
-
-        //         // A. Validator initializes a verifier from the public commitment.
-        //         let verifier = FridaDasVerifier::<BaseElement, Blake3, Blake3>::from_commitment(
-        //             &prover_commitment,
-        //             options.clone(),
-        //         )
-        //         .expect("Verifier initialization failed");
-
-        //         // B. Validator verifies their specific proof against the global context.
-        //         let verification_result = verifier.verify(proof, &evaluations, positions);
-
-        //         assert!(
-        //             verification_result.is_ok(),
-        //             "Verification failed for validator {} with error: {:?}",
-        //             i,
-        //             verification_result.err()
-        //         );
-        //     }
-        // }
     }
 }
