@@ -3,13 +3,16 @@ use core::marker::PhantomData;
 use std::time::Instant;
 
 use winter_crypto::{ElementHasher, Hasher, MerkleTree};
-use winter_fri::{FriOptions, ProverChannel};
 use winter_fri::folding;
 use winter_fri::utils::hash_values;
+use winter_fri::{FriOptions, ProverChannel};
 use winter_math::{fft, FieldElement};
-use winter_utils::{flatten_vector_elements, group_slice_elements, iter_mut, transpose_slice, uninit_vector, ByteReader, Deserializable, DeserializationError, Serializable};
 #[cfg(feature = "concurrent")]
 use winter_utils::iterators::*;
+use winter_utils::{
+    flatten_vector_elements, group_slice_elements, iter_mut, transpose_slice, uninit_vector,
+    ByteReader, Deserializable, DeserializationError, Serializable,
+};
 
 use channel::FridaProverChannel;
 use proof::FridaProof;
@@ -85,7 +88,6 @@ pub struct ProverCommitment<H: Hasher> {
     pub domain_size: usize,
     pub poly_count: usize,
 }
-
 
 impl<H: Hasher> Serializable for ProverCommitment<H>
 where
@@ -185,8 +187,7 @@ where
 
             let batch_layer = if is_batch {
                 positions = folding::fold_positions(&positions, domain_size, folding_factor);
-                let proof = self
-                    .layers[0]
+                let proof = self.layers[0]
                     .tree
                     .prove_batch(&positions)
                     .expect("failed to generate a Merkle proof for FRI layer queries");
@@ -209,22 +210,24 @@ where
             // for all FRI layers, except the last one, record tree root, determine a set of query
             // positions, and query the layer at these positions.
             let start = if is_batch { 1 } else { 0 };
-            let layers = (start..layers_len).map(|i| {
-                positions = folding::fold_positions(&positions, domain_size, folding_factor);
+            let layers = (start..layers_len)
+                .map(|i| {
+                    positions = folding::fold_positions(&positions, domain_size, folding_factor);
 
-                let layer = &self.layers[i];
-                // sort of a static dispatch for folding_factor parameter
-                let proof_layer = match folding_factor {
-                    2 => query_layer::<E, H, 2>(layer, &positions),
-                    4 => query_layer::<E, H, 4>(layer, &positions),
-                    8 => query_layer::<E, H, 8>(layer, &positions),
-                    16 => query_layer::<E, H, 16>(layer, &positions),
-                    _ => unimplemented!("folding factor {} is not supported", folding_factor),
-                };
+                    let layer = &self.layers[i];
+                    // sort of a static dispatch for folding_factor parameter
+                    let proof_layer = match folding_factor {
+                        2 => query_layer::<E, H, 2>(layer, &positions),
+                        4 => query_layer::<E, H, 4>(layer, &positions),
+                        8 => query_layer::<E, H, 8>(layer, &positions),
+                        16 => query_layer::<E, H, 16>(layer, &positions),
+                        _ => unimplemented!("folding factor {} is not supported", folding_factor),
+                    };
 
-                domain_size /= folding_factor;
-                proof_layer
-            }).collect::<Vec<_>>();
+                    domain_size /= folding_factor;
+                    proof_layer
+                })
+                .collect::<Vec<_>>();
             (layers, batch_layer)
         };
 
@@ -257,6 +260,32 @@ where
         data_list: &[Vec<u8>],
         num_queries: usize,
     ) -> Result<(Commitment<H>, FridaProver<E, H>), FridaError> {
+        let (channel, prover) = self.prepare_prover_state_batch(data_list, num_queries)?;
+
+        let commitment = self.build_commitment(&prover, channel)?;
+        Ok((commitment, prover))
+    }
+
+    pub fn calculate_commitment_batch(
+        &self,
+        data_list: &[Vec<u8>],
+    ) -> Result<(ProverCommitment<H>, FridaProver<E, H>), FridaError> {
+        let (channel, prover) = self.prepare_prover_state_batch(data_list, 1)?;
+
+        let commitment = ProverCommitment {
+            roots: channel.commitments,
+            domain_size: prover.domain_size,
+            poly_count: prover.poly_count,
+        };
+
+        Ok((commitment, prover))
+    }
+
+    fn prepare_prover_state_batch(
+        &self,
+        data_list: &[Vec<u8>],
+        num_queries: usize,
+    ) -> Result<(Channel<E, H>, FridaProver<E, H>), FridaError> {
         #[cfg(feature = "bench")]
         unsafe {
             bench::TIMER = Some(Instant::now());
@@ -298,20 +327,17 @@ where
         }
         if self.options.num_fri_layers(domain_size) == 0 {
             // Verification currently cannot work without FRI layers
-            return Err(FridaError::NotEnoughDataPoints())
+            return Err(FridaError::NotEnoughDataPoints());
         }
 
-        let mut evaluations = unsafe { uninit_vector(poly_count * domain_size) };
-        for (i, data) in data_list.iter().enumerate() {
-            build_evaluations_from_data::<E>(data, domain_size, blowup_factor)?
-                .into_iter()
-                .enumerate()
-                .for_each(|(j, e)| {
-                    let bucket = j % bucket_count;
-                    let position = i + poly_count * (j / bucket_count);
-                    evaluations[bucket * bucket_size + position] = e;
-                });
-        }
+        let evaluations = batch_data_to_evaluations::<E>(
+            data_list,
+            poly_count,
+            domain_size,
+            blowup_factor,
+            bucket_count,
+            bucket_size,
+        )?;
 
         #[cfg(feature = "bench")]
         unsafe {
@@ -323,15 +349,19 @@ where
         let mut channel = Channel::<E, H>::new(domain_size, num_queries);
         let prover = self.build_layers_batched(&mut channel, evaluations, domain_size)?;
 
-        let commitment = self.build_commitment(&prover, channel)?;
-        Ok((commitment, prover))
+        Ok((channel, prover))
     }
 
     /// It calculates the domain size and generates the initial evaluations.
     fn prepare_prover_state(
         &self,
         data: &[u8],
-    ) -> Result<(Vec<E>, usize), FridaError> {
+        num_queries: usize,
+    ) -> Result<(Channel<E, H>, FridaProver<E, H>), FridaError> {
+        if num_queries == 0 {
+            return Err(FridaError::BadNumQueries(num_queries));
+        }
+
         let blowup_factor = self.options.blowup_factor();
         let encoded_element_count = encoded_data_element_count::<E>(data.len());
 
@@ -345,20 +375,6 @@ where
         }
 
         let evaluations = build_evaluations_from_data(data, domain_size, blowup_factor)?;
-        Ok((evaluations, domain_size))
-    }
-
-    /// Builds a prover for a specific data, along with a channel that should be used for commitment.
-    pub fn commit(
-        &self,
-        data: &[u8],
-        num_queries: usize,
-    ) -> Result<(Commitment<H>, FridaProver<E, H>), FridaError> {
-        if num_queries == 0 {
-            return Err(FridaError::BadNumQueries(num_queries));
-        }
-
-        let (evaluations, domain_size) = self.prepare_prover_state(data)?;
 
         if num_queries >= domain_size {
             return Err(FridaError::BadNumQueries(num_queries));
@@ -369,6 +385,17 @@ where
 
         let mut channel = Channel::<E, H>::new(domain_size, num_queries);
         let prover = self.build_layers(&mut channel, evaluations, 1, None);
+        Ok((channel, prover))
+    }
+
+    /// Builds a prover for a specific data, along with a channel that should be used for commitment.
+    pub fn commit(
+        &self,
+        data: &[u8],
+        num_queries: usize,
+    ) -> Result<(Commitment<H>, FridaProver<E, H>), FridaError> {
+        let (channel, prover) = self.prepare_prover_state(data, num_queries)?;
+
         let commitment = self.build_commitment(&prover, channel)?;
         Ok((commitment, prover))
     }
@@ -432,10 +459,15 @@ where
             _ => unimplemented!("folding factor {} is not supported", folding_factor),
         };
 
-        Ok(self.build_layers(channel, second_layer, poly_count, Some(FridaLayer {
-            tree: evaluation_tree,
-            evaluations,
-        })))
+        Ok(self.build_layers(
+            channel,
+            second_layer,
+            poly_count,
+            Some(FridaLayer {
+                tree: evaluation_tree,
+                evaluations,
+            }),
+        ))
     }
 
     fn build_layers(
@@ -467,9 +499,12 @@ where
             let (new_evaluations, frida_layer) = match self.options.folding_factor() {
                 2 => self.build_layer::<2>(channel, &evaluations),
                 4 => self.build_layer::<4>(channel, &evaluations),
-                8 =>  self.build_layer::<8>(channel, &evaluations),
+                8 => self.build_layer::<8>(channel, &evaluations),
                 16 => self.build_layer::<16>(channel, &evaluations),
-                _ => unimplemented!("folding factor {} is not supported", self.options.folding_factor()),
+                _ => unimplemented!(
+                    "folding factor {} is not supported",
+                    self.options.folding_factor()
+                ),
             };
             layers.push(frida_layer);
             evaluations = new_evaluations;
@@ -489,15 +524,12 @@ where
     /// This method returns a commitment containing only the Merkle roots and metadata,
     /// and a stateful `FridaProver` instance which can be used generate many
     /// proofs for different query sets.
-    pub fn commit_to_data(
+    pub fn calculate_commitment(
         &self,
         data: &[u8],
     ) -> Result<(ProverCommitment<H>, FridaProver<E, H>), FridaError> {
-        let (evaluations, domain_size) = self.prepare_prover_state(data)?;
-
         // We use a dummy num_queries here because we are not generating a proof yet.
-        let mut channel = Channel::<E, H>::new(domain_size, 1);
-        let prover = self.build_layers(&mut channel, evaluations, 1, None);
+        let (channel, prover) = self.prepare_prover_state(data, 1)?;
 
         let commitment = ProverCommitment {
             roots: channel.commitments,
@@ -509,13 +541,21 @@ where
     }
 
     #[cfg(test)]
-    pub fn test_build_layers(&self, channel: &mut Channel<E, H>, evaluations: Vec<E>) -> FridaProver<E, H> {
+    pub fn test_build_layers(
+        &self,
+        channel: &mut Channel<E, H>,
+        evaluations: Vec<E>,
+    ) -> FridaProver<E, H> {
         self.build_layers(channel, evaluations, 1, None)
     }
 
     /// Builds a single FRI layer by first committing to the `evaluations`, then drawing a random
     /// alpha from the channel and use it to perform degree-respecting projection.
-    fn build_layer<const N: usize>(&self, channel: &mut Channel<E, H>, evaluations: &[E]) -> (Vec<E>, FridaLayer<E, H>) {
+    fn build_layer<const N: usize>(
+        &self,
+        channel: &mut Channel<E, H>,
+        evaluations: &[E],
+    ) -> (Vec<E>, FridaLayer<E, H>) {
         // commit to the evaluations at the current layer; we do this by first transposing the
         // evaluations into a matrix of N columns, and then building a Merkle tree from the
         // rows of this matrix; we do this so that we could de-commit to N values with a single
@@ -530,21 +570,25 @@ where
         // draw a pseudo-random coefficient from the channel, and use it in degree-respecting
         // projection to reduce the degree of evaluations by N
         let alpha = channel.draw_fri_alpha();
-        let evaluations = folding::apply_drp(&transposed_evaluations, self.options.domain_offset(), alpha);
-        (evaluations, FridaLayer {
-            tree: evaluation_tree,
-            evaluations: flatten_vector_elements(transposed_evaluations),
-        })
+        let evaluations =
+            folding::apply_drp(&transposed_evaluations, self.options.domain_offset(), alpha);
+        (
+            evaluations,
+            FridaLayer {
+                tree: evaluation_tree,
+                evaluations: flatten_vector_elements(transposed_evaluations),
+            },
+        )
     }
 
     /// Creates remainder polynomial in coefficient form from a vector of `evaluations` over a domain.
-    fn build_remainder(&self, channel: &mut Channel<E, H>, evaluations: &mut [E]) -> FridaRemainder<E> {
+    fn build_remainder(
+        &self,
+        channel: &mut Channel<E, H>,
+        evaluations: &mut [E],
+    ) -> FridaRemainder<E> {
         let inv_twiddles = fft::get_inv_twiddles(evaluations.len());
-        fft::interpolate_poly_with_offset(
-            evaluations,
-            &inv_twiddles,
-            self.options.domain_offset(),
-        );
+        fft::interpolate_poly_with_offset(evaluations, &inv_twiddles, self.options.domain_offset());
         let remainder_poly_size = evaluations.len() / self.options.blowup_factor();
         let remainder_poly = evaluations[..remainder_poly_size].to_vec();
         let commitment = <H as ElementHasher>::hash_elements(&remainder_poly);
@@ -552,6 +596,53 @@ where
 
         FridaRemainder(remainder_poly)
     }
+}
+
+pub fn batch_data_to_evaluations<E>(
+    data_list: &[Vec<u8>],
+    poly_count: usize,
+    domain_size: usize,
+    blowup_factor: usize,
+    bucket_count: usize,
+    bucket_size: usize,
+) -> Result<Vec<E>, FridaError>
+where
+    E: FieldElement,
+{
+    let mut evaluations = unsafe { uninit_vector(poly_count * domain_size) };
+    for (i, data) in data_list.iter().enumerate() {
+        build_evaluations_from_data::<E>(data, domain_size, blowup_factor)?
+            .into_iter()
+            .enumerate()
+            .for_each(|(j, e)| {
+                let bucket = j % bucket_count;
+                let position = i + poly_count * (j / bucket_count);
+                evaluations[bucket * bucket_size + position] = e;
+            });
+    }
+
+    Ok(evaluations)
+}
+
+pub fn get_evaluations_from_positions<E: FieldElement>(
+    all_evaluations: &[E],
+    positions: &[usize],
+    poly_count: usize,
+    domain_size: usize,
+    folding_factor: usize,
+) -> Vec<E> {
+    let mut evaluations = vec![];
+    for position in positions.iter() {
+        let bucket = position % (domain_size / folding_factor);
+        let start_index = bucket * (poly_count * folding_factor)
+            + (position / (domain_size / folding_factor)) * poly_count;
+        all_evaluations[start_index..start_index + poly_count]
+            .iter()
+            .for_each(|e| {
+                evaluations.push(*e);
+            });
+    }
+    evaluations
 }
 
 #[cfg(test)]
@@ -571,10 +662,8 @@ mod tests {
     #[test]
     fn test_commit() {
         let options = FriOptions::new(2, 2, 0);
-        let prover_builder: FridaProverBuilder<
-            BaseElement,
-            Blake3_256<BaseElement>,
-        > = FridaProverBuilder::new(options.clone());
+        let prover_builder: FridaProverBuilder<BaseElement, Blake3_256<BaseElement>> =
+            FridaProverBuilder::new(options.clone());
 
         let domain_error = prover_builder
             .commit(&[0; frida_const::MAX_DOMAIN_SIZE * 15 / 2 + 1], 1)
@@ -584,19 +673,21 @@ mod tests {
             domain_error
         );
 
-        let num_qeuries_error_zero = prover_builder.commit(&rand_vector::<u8>(10), 0).unwrap_err();
+        let num_qeuries_error_zero = prover_builder
+            .commit(&rand_vector::<u8>(10), 0)
+            .unwrap_err();
         assert_eq!(FridaError::BadNumQueries(0), num_qeuries_error_zero);
 
-        let num_qeuries_error_bigger_than_domain =
-            prover_builder.commit(&rand_vector::<u8>(200), 32).unwrap_err();
+        let num_qeuries_error_bigger_than_domain = prover_builder
+            .commit(&rand_vector::<u8>(200), 32)
+            .unwrap_err();
         assert_eq!(
             FridaError::BadNumQueries(32),
             num_qeuries_error_bigger_than_domain
         );
 
         // Make sure minimum domain size is correctly enforced
-        let (commitment, _prover) =
-            prover_builder.commit(&rand_vector::<u8>(1), 1).unwrap();
+        let (commitment, _prover) = prover_builder.commit(&rand_vector::<u8>(1), 1).unwrap();
         assert_eq!(
             frida_const::MIN_DOMAIN_SIZE.ilog2() as usize,
             commitment.roots.len()
@@ -605,8 +696,7 @@ mod tests {
         let data = rand_vector::<u8>(200);
         let num_queries: usize = 31;
         let domain_size: usize = 32;
-        let (commitment, _prover) =
-            prover_builder.commit(&data, num_queries).unwrap();
+        let (commitment, _prover) = prover_builder.commit(&data, num_queries).unwrap();
 
         let evaluations = build_evaluations_from_data(&data, 32, 2).unwrap();
         let prover = FridaProverBuilder::new(options.clone());
@@ -634,21 +724,15 @@ mod tests {
     #[test]
     fn test_open() {
         let options = FriOptions::new(2, 2, 0);
-        let prover_builder: FridaProverBuilder<
-            BaseElement,
-            Blake3_256<BaseElement>,
-        > = FridaProverBuilder::new(options.clone());
+        let prover_builder: FridaProverBuilder<BaseElement, Blake3_256<BaseElement>> =
+            FridaProverBuilder::new(options.clone());
 
         let data = rand_vector::<u8>(200);
-        let (commitment, _prover) =
-            prover_builder.commit(&data, 31).unwrap();
+        let (commitment, _prover) = prover_builder.commit(&data, 31).unwrap();
 
-        let opening_prover: FridaProverBuilder<
-            BaseElement,
-            Blake3_256<BaseElement>,
-        > = FridaProverBuilder::new(options.clone());
-        let (_commitment, prover) =
-            opening_prover.commit(&data, 1).unwrap();
+        let opening_prover: FridaProverBuilder<BaseElement, Blake3_256<BaseElement>> =
+            FridaProverBuilder::new(options.clone());
+        let (_commitment, prover) = opening_prover.commit(&data, 1).unwrap();
 
         // Replicating query positions just to make sure open is generating proper proofs since we can just compare it with the query phase proofs
         let mut channel = FridaProverChannel::<
@@ -684,19 +768,13 @@ mod tests {
         let blowup_factor = 2;
         let folding_factor = 2;
         let options = FriOptions::new(blowup_factor, folding_factor, 0);
-        let prover_builder: FridaProverBuilder<
-            BaseElement,
-            Blake3_256<BaseElement>,
-        > = FridaProverBuilder::new(options.clone());
-        let (commitment, prover) =
-            prover_builder.commit_batch(&data, 1).unwrap();
+        let prover_builder: FridaProverBuilder<BaseElement, Blake3_256<BaseElement>> =
+            FridaProverBuilder::new(options.clone());
+        let (commitment, prover) = prover_builder.commit_batch(&data, 1).unwrap();
 
-        let opening_prover: FridaProverBuilder<
-            BaseElement,
-            Blake3_256<BaseElement>,
-        > = FridaProverBuilder::new(options.clone());
-        let (_commitment, opening_prover) =
-            opening_prover.commit_batch(&data, 1).unwrap();
+        let opening_prover: FridaProverBuilder<BaseElement, Blake3_256<BaseElement>> =
+            FridaProverBuilder::new(options.clone());
+        let (_commitment, opening_prover) = opening_prover.commit_batch(&data, 1).unwrap();
 
         // Replicating query positions just to make sure open is generating proper proofs since we can just compare it with the query phase proofs
         let mut channel = FridaProverChannel::<
@@ -763,10 +841,7 @@ fn query_layer<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>, cons
     // are stored in transposed form, a position refers to N evaluations which are committed
     // in a single leaf
     let evaluations: &[[E; N]] = group_slice_elements(&layer.evaluations);
-    let queried_values: Vec<[E; N]> = positions
-        .iter()
-        .map(|&pos| evaluations[pos])
-        .collect();
+    let queried_values: Vec<[E; N]> = positions.iter().map(|&pos| evaluations[pos]).collect();
 
     FridaProofLayer::new(queried_values, proof)
 }
@@ -806,7 +881,7 @@ mod distributed_api_tests {
         frida_verifier::das::FridaDasVerifier,
         winterfell::{f128::BaseElement, Blake3_256, FriOptions},
     };
-    use winter_rand_utils::rand_vector;
+    use winter_rand_utils::{rand_value, rand_vector};
 
     type Blake3 = Blake3_256<BaseElement>;
 
@@ -818,26 +893,37 @@ mod distributed_api_tests {
     ) -> Vec<Vec<usize>> {
         let s = query_positions.len();
         let n = n_validators;
-        if n == 0 { return vec![]; }
+        if n == 0 {
+            return vec![];
+        }
         if n <= s {
             let span_length = s.saturating_sub(h) + 1;
-            (1..=n).map(|i| {
-                let offset = (i - 1) % s;
-                (0..span_length).map(|j| query_positions[(offset + j) % s]).collect()
-            }).collect()
+            (1..=n)
+                .map(|i| {
+                    let offset = (i - 1) % s;
+                    (0..span_length)
+                        .map(|j| query_positions[(offset + j) % s])
+                        .collect()
+                })
+                .collect()
         } else {
             let n_prime = (n / s) * s;
-            if n_prime == 0 { return vec![Vec::new(); n]; }
+            if n_prime == 0 {
+                return vec![Vec::new(); n];
+            }
             let replication_factor = n_prime / s;
-            let h_prime = (h.saturating_sub(n - n_prime) + replication_factor - 1) / replication_factor;
+            let h_prime =
+                (h.saturating_sub(n - n_prime) + replication_factor - 1) / replication_factor;
             let base_subsets = compute_position_assignments(s, query_positions, h_prime);
-            (1..=n).map(|i| {
-                if i <= n_prime {
-                    base_subsets[(i - 1) % s].clone()
-                } else {
-                    Vec::new()
-                }
-            }).collect()
+            (1..=n)
+                .map(|i| {
+                    if i <= n_prime {
+                        base_subsets[(i - 1) % s].clone()
+                    } else {
+                        Vec::new()
+                    }
+                })
+                .collect()
         }
     }
 
@@ -852,9 +938,8 @@ mod distributed_api_tests {
 
         // 2. COMMIT: The producer creates the commitment and the stateful prover.
         let (prover_commitment, prover) = prover_builder
-            .commit_to_data(&data)
+            .calculate_commitment(&data)
             .expect("Commitment generation failed");
-
 
         // 3. DISTRIBUTE: The producer (or anyone) determines the query sets for each validator.
         let f = (n_validators - 1) / 3;
@@ -875,14 +960,118 @@ mod distributed_api_tests {
             .collect();
 
         // 5. VERIFY: Each validator independently verifies their assigned proof.
-        let all_evaluations =
-            build_evaluations_from_data::<BaseElement>(&data, prover_commitment.domain_size, options.blowup_factor())
-                .unwrap();
+        let all_evaluations = build_evaluations_from_data::<BaseElement>(
+            &data,
+            prover_commitment.domain_size,
+            options.blowup_factor(),
+        )
+        .unwrap();
 
         for i in 0..n_validators {
             if let Some(proof) = &validator_proofs[i] {
                 let positions = &validator_positions[i];
-                let evaluations: Vec<BaseElement> = positions.iter().map(|&p| all_evaluations[p]).collect();
+                let evaluations: Vec<BaseElement> =
+                    positions.iter().map(|&p| all_evaluations[p]).collect();
+
+                // A. Validator initializes a verifier from the public commitment.
+                let verifier = FridaDasVerifier::<BaseElement, Blake3, Blake3>::from_commitment(
+                    &prover_commitment,
+                    options.clone(),
+                )
+                .expect("Verifier initialization failed");
+
+                // B. Validator verifies their specific proof against the global context.
+                let verification_result = verifier.verify(proof, &evaluations, positions);
+
+                assert!(
+                    verification_result.is_ok(),
+                    "Verification failed for validator {} with error: {:?}",
+                    i,
+                    verification_result.err()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_distributed_proof_workflow_batch() {
+        let poly_count = 10;
+        let mut data_list = vec![];
+        for _ in 0..poly_count {
+            data_list.push(rand_vector::<u8>(usize::min(
+                rand_value::<u64>() as usize,
+                128,
+            )));
+        }
+
+        let options = FriOptions::new(2, 2, 1);
+        let n_validators = 10;
+        let total_queries = 32;
+        let prover_builder = FridaProverBuilder::<BaseElement, Blake3>::new(options.clone());
+
+        // 2. COMMIT: The producer creates the commitment and the stateful prover.
+        let (prover_commitment, prover) = prover_builder
+            .calculate_commitment_batch(&data_list)
+            .expect("Commitment generation failed");
+
+        // 3. DISTRIBUTE: The producer (or anyone) determines the query sets for each validator.
+        let f = (n_validators - 1) / 3;
+        let h = f + 1;
+        let base_positions: Vec<usize> = (0..total_queries).collect();
+        let validator_positions = compute_position_assignments(n_validators, &base_positions, h);
+
+        // 4. PROVE: The producer generates a specific, small proof for each validator.
+        let validator_proofs: Vec<_> = validator_positions
+            .iter()
+            .map(|positions| {
+                if positions.is_empty() {
+                    None
+                } else {
+                    Some(prover.open(positions))
+                }
+            })
+            .collect();
+
+        // 5. VERIFY: Each validator independently verifies their assigned proof.
+        let blowup_factor = options.blowup_factor();
+
+        let max_data_len = encoded_data_element_count::<BaseElement>(
+            data_list
+                .iter()
+                .map(|data| data.len())
+                .max()
+                .unwrap_or_default(),
+        );
+
+        let domain_size = usize::max(
+            (max_data_len * blowup_factor).next_power_of_two(),
+            frida_const::MIN_DOMAIN_SIZE,
+        );
+
+        let bucket_count = domain_size / options.folding_factor();
+        let bucket_size = poly_count * options.folding_factor();
+
+        let all_evaluations = batch_data_to_evaluations::<BaseElement>(
+            &data_list,
+            poly_count,
+            domain_size,
+            blowup_factor,
+            bucket_count,
+            bucket_size,
+        )
+        .unwrap();
+
+        for i in 0..n_validators {
+            if let Some(proof) = &validator_proofs[i] {
+                let positions = &validator_positions[i];
+
+                let evaluations = get_evaluations_from_positions(
+                    &all_evaluations,
+                    positions,
+                    poly_count,
+                    domain_size,
+                    options.folding_factor(),
+                );
 
                 // A. Validator initializes a verifier from the public commitment.
                 let verifier = FridaDasVerifier::<BaseElement, Blake3, Blake3>::from_commitment(

@@ -7,7 +7,7 @@ use std::{
 use frida_poc::{
     frida_prover::{
         bench::{COMMIT_TIME, ERASURE_TIME},
-        Commitment, FridaProverBuilder,
+        get_evaluations_from_positions, Commitment, FridaProverBuilder,
     },
     frida_verifier::das::FridaDasVerifier,
 };
@@ -192,6 +192,7 @@ fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(batc
         .collect::<Vec<_>>();
     let num_queries = vec![8, 16, 32];
 
+    // (blowup_factor, folding_factor, remainder_max_degree)
     let prover_options = vec![
         (2, 2, 0),
         (2, 2, 256),
@@ -207,8 +208,9 @@ fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(batc
 
     let mut results = vec![];
 
-    for opt in prover_options {
-        let prover_builder = prepare_prover_builder::<E, H>(opt.0, opt.1, opt.2);
+    for (blowup_factor, folding_factor, remainder_max_degree) in prover_options {
+        let prover_builder =
+            prepare_prover_builder::<E, H>(blowup_factor, folding_factor, remainder_max_degree);
 
         for data in datas.iter() {
             for num_query in num_queries.iter() {
@@ -238,17 +240,13 @@ fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(batc
                         .map(|v| (v as usize) % com.domain_size)
                         .collect::<Vec<_>>();
 
-                    let mut evaluations = vec![];
-                    for position in positions.iter() {
-                        let bucket = position % (com.domain_size / opt.1);
-                        let start_index = bucket * (batch_size * opt.1)
-                            + (position / (com.domain_size / opt.1)) * batch_size;
-                        prover.get_first_layer_evalutaions()[start_index..start_index + batch_size]
-                            .iter()
-                            .for_each(|e| {
-                                evaluations.push(*e);
-                            });
-                    }
+                    let evaluations = get_evaluations_from_positions(
+                        &prover.get_first_layer_evalutaions(),
+                        &positions,
+                        batch_size,
+                        com.domain_size,
+                        folding_factor,
+                    );
 
                     let mut timer = Instant::now();
                     let proof_0 = prover.open(&positions[0..1]);
@@ -266,7 +264,12 @@ fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(batc
                     prove_time.2 += timer.elapsed();
 
                     timer = Instant::now();
-                    let verifier = prepare_verifier::<E, H>(opt.0, opt.1, opt.2, com);
+                    let verifier = prepare_verifier::<E, H>(
+                        blowup_factor,
+                        folding_factor,
+                        remainder_max_degree,
+                        com,
+                    );
                     verify_time.0 += timer.elapsed();
 
                     timer = Instant::now();
@@ -291,7 +294,7 @@ fn run_batched<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(batc
                 }
                 results.push(format!(
                     "{:?}, {}, {}Kb, {:?}, {:?}, ({:?}, {:?}, {:?}), ({:?}, {:?}, {:?}, {:?}), {}, ({}, {}, {})",
-                    opt,
+                    (blowup_factor, folding_factor, remainder_max_degree),
                     num_query,
                     data[0].len() / 1024 * batch_size,
                     unsafe { ERASURE_TIME.unwrap() / RUNS },
