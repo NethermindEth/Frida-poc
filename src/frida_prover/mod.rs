@@ -269,16 +269,17 @@ where
     pub fn calculate_commitment_batch(
         &self,
         data_list: &[Vec<u8>],
-    ) -> Result<(ProverCommitment<H>, FridaProver<E, H>), FridaError> {
-        let (channel, prover) = self.prepare_prover_state_batch(data_list, 1)?;
+        num_queries: usize,
+    ) -> Result<(ProverCommitment<H>, FridaProver<E, H>, Channel<E, H>), FridaError> {
+        let (channel, prover) = self.prepare_prover_state_batch(data_list, num_queries)?;
 
         let commitment = ProverCommitment {
-            roots: channel.commitments,
+            roots: channel.commitments.clone(),
             domain_size: prover.domain_size,
             poly_count: prover.poly_count,
         };
 
-        Ok((commitment, prover))
+        Ok((commitment, prover, channel))
     }
 
     fn prepare_prover_state_batch(
@@ -524,17 +525,18 @@ where
     pub fn calculate_commitment(
         &self,
         data: &[u8],
-    ) -> Result<(ProverCommitment<H>, FridaProver<E, H>), FridaError> {
+        num_queries: usize,
+    ) -> Result<(ProverCommitment<H>, FridaProver<E, H>, Channel<E, H>), FridaError> {
         // We use a dummy num_queries here because we are not generating a proof yet.
-        let (channel, prover) = self.prepare_prover_state(data, 1)?;
+        let (channel, prover) = self.prepare_prover_state(data, num_queries)?;
 
         let commitment = ProverCommitment {
-            roots: channel.commitments,
+            roots: channel.commitments.clone(),
             domain_size: prover.domain_size,
             poly_count: prover.poly_count,
         };
 
-        Ok((commitment, prover))
+        Ok((commitment, prover, channel))
     }
 
     #[cfg(test)]
@@ -633,11 +635,11 @@ pub fn get_evaluations_from_positions<E: FieldElement>(
     let mut evaluations = vec![];
     let bucket_count = domain_size / folding_factor;
     let bucket_size = poly_count * folding_factor;
-    
+
     for position in positions.iter() {
         let bucket = position % bucket_count;
         let offset = poly_count * (position / bucket_count);
-        
+
         for i in 0..poly_count {
             let index = bucket * bucket_size + i + offset;
             evaluations.push(all_evaluations[index]);
@@ -938,14 +940,14 @@ mod distributed_api_tests {
         let prover_builder = FridaProverBuilder::<BaseElement, Blake3>::new(options.clone());
 
         // 2. COMMIT: The producer creates the commitment and the stateful prover.
-        let (prover_commitment, prover) = prover_builder
-            .calculate_commitment(&data)
+        let (prover_commitment, prover, mut channel) = prover_builder
+            .calculate_commitment(&data, total_queries)
             .expect("Commitment generation failed");
 
         // 3. DISTRIBUTE: The producer (or anyone) determines the query sets for each validator.
         let f = (n_validators - 1) / 3;
         let h = f + 1;
-        let base_positions: Vec<usize> = (0..total_queries).collect();
+        let base_positions: Vec<usize> = channel.draw_query_positions();
         let validator_positions = compute_position_assignments(n_validators, &base_positions, h);
 
         // 4. PROVE: The producer generates a specific, small proof for each validator.
@@ -1007,18 +1009,18 @@ mod distributed_api_tests {
 
         let options = FriOptions::new(2, 2, 1);
         let n_validators = 10;
-        let total_queries = 32;
+        let total_queries = 30;
         let prover_builder = FridaProverBuilder::<BaseElement, Blake3>::new(options.clone());
 
         // 2. COMMIT: The producer creates the commitment and the stateful prover.
-        let (prover_commitment, prover) = prover_builder
-            .calculate_commitment_batch(&data_list)
+        let (prover_commitment, prover, mut channel) = prover_builder
+            .calculate_commitment_batch(&data_list, total_queries)
             .expect("Commitment generation failed");
 
         // 3. DISTRIBUTE: The producer (or anyone) determines the query sets for each validator.
         let f = (n_validators - 1) / 3;
         let h = f + 1;
-        let base_positions: Vec<usize> = (0..total_queries).collect();
+        let base_positions: Vec<usize> = channel.draw_query_positions();
         let validator_positions = compute_position_assignments(n_validators, &base_positions, h);
 
         // 4. PROVE: The producer generates a specific, small proof for each validator.
