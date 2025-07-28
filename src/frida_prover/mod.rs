@@ -24,6 +24,8 @@ use crate::{
     frida_prover::proof::{FridaProofBatchLayer, FridaProofLayer},
 };
 
+// Channel is only exposed to tests
+#[cfg(any(test, feature = "cli"))]
 pub mod channel;
 
 #[cfg(not(any(test, feature = "cli")))]
@@ -268,8 +270,8 @@ where
         &self,
         data_list: &[Vec<u8>],
         num_queries: usize,
-    ) -> Result<(ProverCommitment<H>, FridaProver<E, H>, Channel<E, H>), FridaError> {
-        let (channel, prover) = self.prepare_prover_state_batch(data_list, num_queries)?;
+    ) -> Result<(ProverCommitment<H>, FridaProver<E, H>, Vec<usize>), FridaError> {
+        let (mut channel, prover) = self.prepare_prover_state_batch(data_list, num_queries)?;
 
         let commitment = ProverCommitment {
             roots: channel.commitments.clone(),
@@ -277,7 +279,9 @@ where
             poly_count: prover.poly_count,
         };
 
-        Ok((commitment, prover, channel))
+        let base_positions: Vec<usize> = channel.draw_query_positions();
+
+        Ok((commitment, prover, base_positions))
     }
 
     fn prepare_prover_state_batch(
@@ -524,9 +528,9 @@ where
         &self,
         data: &[u8],
         num_queries: usize,
-    ) -> Result<(ProverCommitment<H>, FridaProver<E, H>, Channel<E, H>), FridaError> {
+    ) -> Result<(ProverCommitment<H>, FridaProver<E, H>, Vec<usize>), FridaError> {
         // We use a dummy num_queries here because we are not generating a proof yet.
-        let (channel, prover) = self.prepare_prover_state(data, num_queries)?;
+        let (mut channel, prover) = self.prepare_prover_state(data, num_queries)?;
 
         let commitment = ProverCommitment {
             roots: channel.commitments.clone(),
@@ -534,7 +538,9 @@ where
             poly_count: prover.poly_count,
         };
 
-        Ok((commitment, prover, channel))
+        let base_positions: Vec<usize> = channel.draw_query_positions();
+
+        Ok((commitment, prover, base_positions))
     }
 
     #[cfg(test)]
@@ -938,14 +944,13 @@ mod distributed_api_tests {
         let prover_builder = FridaProverBuilder::<BaseElement, Blake3>::new(options.clone());
 
         // 2. COMMIT: The producer creates the commitment and the stateful prover.
-        let (prover_commitment, prover, mut channel) = prover_builder
+        let (prover_commitment, prover, base_positions) = prover_builder
             .calculate_commitment(&data, total_queries)
             .expect("Commitment generation failed");
 
         // 3. DISTRIBUTE: The producer (or anyone) determines the query sets for each validator.
         let f = (n_validators - 1) / 3;
         let h = f + 1;
-        let base_positions: Vec<usize> = channel.draw_query_positions();
         let validator_positions = compute_position_assignments(n_validators, &base_positions, h);
 
         // 4. PROVE: The producer generates a specific, small proof for each validator.
@@ -1011,14 +1016,13 @@ mod distributed_api_tests {
         let prover_builder = FridaProverBuilder::<BaseElement, Blake3>::new(options.clone());
 
         // 2. COMMIT: The producer creates the commitment and the stateful prover.
-        let (prover_commitment, prover, mut channel) = prover_builder
+        let (prover_commitment, prover, base_positions) = prover_builder
             .calculate_commitment_batch(&data_list, total_queries)
             .expect("Commitment generation failed");
 
         // 3. DISTRIBUTE: The producer (or anyone) determines the query sets for each validator.
         let f = (n_validators - 1) / 3;
         let h = f + 1;
-        let base_positions: Vec<usize> = channel.draw_query_positions();
         let validator_positions = compute_position_assignments(n_validators, &base_positions, h);
 
         // 4. PROVE: The producer generates a specific, small proof for each validator.
