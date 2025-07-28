@@ -633,9 +633,9 @@ pub fn get_evaluations_from_positions<E: FieldElement>(
     let mut evaluations = vec![];
     for position in positions.iter() {
         let bucket = position % (domain_size / folding_factor);
-        let start_index = bucket * (poly_count * folding_factor)
-            + (position / (domain_size / folding_factor)) * poly_count;
-        all_evaluations[start_index..start_index + poly_count]
+        let start_index = (position / (domain_size / folding_factor)) * poly_count;
+        all_evaluations[bucket * poly_count * folding_factor + start_index
+            ..bucket * poly_count * folding_factor + start_index + poly_count]
             .iter()
             .for_each(|e| {
                 evaluations.push(*e);
