@@ -24,8 +24,6 @@ use crate::{
     frida_prover::proof::{FridaProofBatchLayer, FridaProofLayer},
 };
 
-// Channel is only exposed to tests
-#[cfg(any(test, feature = "cli"))]
 pub mod channel;
 
 #[cfg(not(any(test, feature = "cli")))]
