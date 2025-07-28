@@ -316,8 +316,6 @@ where
         );
 
         let folding_factor = self.options.folding_factor();
-        let bucket_count = domain_size / folding_factor;
-        let bucket_size = poly_count * folding_factor;
 
         if domain_size > frida_const::MAX_DOMAIN_SIZE {
             return Err(FridaError::DomainSizeTooBig(domain_size));
@@ -335,8 +333,7 @@ where
             poly_count,
             domain_size,
             blowup_factor,
-            bucket_count,
-            bucket_size,
+            folding_factor,
         )?;
 
         #[cfg(feature = "bench")]
@@ -603,12 +600,14 @@ pub fn batch_data_to_evaluations<E>(
     poly_count: usize,
     domain_size: usize,
     blowup_factor: usize,
-    bucket_count: usize,
-    bucket_size: usize,
+    folding_factor: usize,
 ) -> Result<Vec<E>, FridaError>
 where
     E: FieldElement,
 {
+    let bucket_count = domain_size / folding_factor;
+    let bucket_size = poly_count * folding_factor;
+
     let mut evaluations = unsafe { uninit_vector(poly_count * domain_size) };
     for (i, data) in data_list.iter().enumerate() {
         build_evaluations_from_data::<E>(data, domain_size, blowup_factor)?
@@ -1048,16 +1047,12 @@ mod distributed_api_tests {
             frida_const::MIN_DOMAIN_SIZE,
         );
 
-        let bucket_count = domain_size / options.folding_factor();
-        let bucket_size = poly_count * options.folding_factor();
-
         let all_evaluations = batch_data_to_evaluations::<BaseElement>(
             &data_list,
             poly_count,
             domain_size,
             blowup_factor,
-            bucket_count,
-            bucket_size,
+            options.folding_factor(),
         )
         .unwrap();
 
