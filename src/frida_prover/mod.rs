@@ -631,15 +631,17 @@ pub fn get_evaluations_from_positions<E: FieldElement>(
     folding_factor: usize,
 ) -> Vec<E> {
     let mut evaluations = vec![];
+    let bucket_count = domain_size / folding_factor;
+    let bucket_size = poly_count * folding_factor;
+    
     for position in positions.iter() {
-        let bucket = position % (domain_size / folding_factor);
-        let start_index = (position / (domain_size / folding_factor)) * poly_count;
-        all_evaluations[bucket * poly_count * folding_factor + start_index
-            ..bucket * poly_count * folding_factor + start_index + poly_count]
-            .iter()
-            .for_each(|e| {
-                evaluations.push(*e);
-            });
+        let bucket = position % bucket_count;
+        let offset = poly_count * (position / bucket_count);
+        
+        for i in 0..poly_count {
+            let index = bucket * bucket_size + i + offset;
+            evaluations.push(all_evaluations[index]);
+        }
     }
     evaluations
 }
