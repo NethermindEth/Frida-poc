@@ -19,6 +19,8 @@ pub enum FridaError {
     UnsupportedFoldingFactor(usize),
     SinglePolyBatch,
     ProofPolyCountMismatch,
+    /// Occurs when the blowup factor is less than or equal to 1.
+    InvalidBlowupFactor,
 }
 
 impl fmt::Display for FridaError {
@@ -60,6 +62,9 @@ impl fmt::Display for FridaError {
                 write!(f, "Proof's polynomial count does not match")
             }
             FridaError::SinglePolyBatch => write!(f, "Batch has only 1 polynomial"),
+            FridaError::InvalidBlowupFactor => {
+                write!(f, "Blowup factor must be greater than 1 for query calculation.")
+            }
         }
     }
 }

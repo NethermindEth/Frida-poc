@@ -7,6 +7,7 @@ pub mod frida_prover;
 pub mod frida_random;
 pub mod frida_verifier;
 pub mod utils;
+pub mod frida_queries;
 pub mod winterfell;
 
 #[cfg(test)]
