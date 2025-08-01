@@ -65,23 +65,24 @@ pub fn calculate_num_queries(
 /// Calculates the security loss incurred from using a folding factor greater than 2.
 fn security_loss_due_to_folding(degree: usize, folding_factor: usize, max_remainder_degree: usize) -> f64 {
     if folding_factor <= 2 {
-        0.0
-    } else {
-        let phi = folding_factor as f64;
-        let log2_phi = phi.log2();
-
-        // The degree of the remainder is max_remainder_degree, so it has max_remainder_degree + 1 coefficients.
-        let remainder_poly_coeffs = (max_remainder_degree + 1) as f64;
-        
-        // If the degree is already smaller than the remainder, there's no folding loss.
-        if (degree as f64) < remainder_poly_coeffs {
-            return 0.0;
-        }
-
-        let inner_log = ((degree as f64) / remainder_poly_coeffs).log2();
-        
-        log2_phi * (inner_log / log2_phi).ceil()
+        return 0.0;
     }
+
+    // The number of coefficients is degree + 1.
+    let poly_coeffs = (degree + 1) as f64;
+    let remainder_poly_coeffs = (max_remainder_degree + 1) as f64;
+    
+    // If the polynomial is already smaller than the target remainder, no folding occurs.
+    if poly_coeffs <= remainder_poly_coeffs {
+        return 0.0;
+    }
+
+    let phi = folding_factor as f64;
+    let log2_phi = phi.log2();
+
+    let inner_log = (poly_coeffs / remainder_poly_coeffs).log2();
+    
+    log2_phi * (inner_log / log2_phi).ceil()
 }
 
 
@@ -97,9 +98,10 @@ mod tests {
     fn test_basic_calculation() {
         let options = FriOptions::new(8, 4, 63);
         let queries = calculate_num_queries(1024 * 32, &options, 1, 128).unwrap();
-        // Expected: Domain size for 32KB data -> 32768. Degree = 32768/8 - 1 = 4095.
-        // loss = log2(4) * ceil(log2(4095/64)/log2(4)) = 2 * ceil(log2(63.98)/2) = 2 * ceil(5.99/2) = 2*3 = 6
-        // queries = ceil(128/log2(8) + 6 + 0) = ceil(42.66 + 6) = 49
+        // For 32KB data, domain_size is correctly calculated as 32768.
+        // Degree = 32768/8 - 1 = 4095. Coeffs = 4096. Remainder coeffs = 64.
+        // loss = log2(4) * ceil(log2(4096/64)/log2(4)) = 2 * ceil(log2(64)/2) = 2 * ceil(6/2) = 2*3 = 6
+        // queries = ceil(128/log2(8) + 6 + 0) = ceil(42.66 + 6) = ceil(48.66) = 49
         assert_eq!(queries, 49);
     }
 
@@ -109,11 +111,10 @@ mod tests {
         // With a blowup factor of 2, the security per query is log2(2) = 1 bit.
         let options = FriOptions::new(2, 2, 0);
         let queries = calculate_num_queries(1024 * 64, &options, 1, 128).unwrap();
-
         // Expected: ceil(128/log2(2) + 0 + 0) = ceil(128/1) = 128
         assert_eq!(queries, 128);
 
-        // With batching
+        // Test with batching
         let queries_batched = calculate_num_queries(1024 * 64, &options, 32, 128).unwrap();
         // Expected: ceil(128/1 + 0 + log2(32)) = ceil(128 + 5) = 133
         assert_eq!(queries_batched, 133);
@@ -154,21 +155,21 @@ mod tests {
         // For these parameters, domain_size is 32, so queries should be 31.
         assert_eq!(queries, 31);
     }
-
+    
     #[test]
     fn test_invalid_blowup_factor() {
         let options = FriOptions::new(1, 4, 7); // Invalid blowup factor
         let result = calculate_num_queries(100, &options, 1, 128);
         assert_eq!(result, Err(FridaError::InvalidBlowupFactor));
     }
-
+    
     /// Test with zero security, which should result in a small number of queries from folding loss.
     #[test]
     fn test_zero_lambda() {
         let options = FriOptions::new(8, 4, 3);
         let queries = calculate_num_queries(256, &options, 1, 0).unwrap();
-        // Expected: Domain size = 256. Degree = 256/8 - 1 = 31.
-        // loss = 2 * ceil(log2(31/4)/2) = 2 * ceil(log2(7.75)/2) = 2 * ceil(2.95/2) = 2*2 = 4
+        // Expected: Domain size = 256. Degree = 256/8 - 1 = 31. Coeffs = 32. Remainder Coeffs = 4.
+        // loss = 2 * ceil(log2(32/4)/2) = 2 * ceil(log2(8)/2) = 2 * ceil(3/2) = 2*2 = 4
         // queries = ceil(0 + 4 + 0) = 4
         assert_eq!(queries, 4);
     }
