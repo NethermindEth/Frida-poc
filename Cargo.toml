@@ -16,6 +16,11 @@ path = "bench/fri/main.rs"
 required-features = ["bench"]
 
 [[bin]]
+name = "defrida-bench"
+path = "bench/defrida/main.rs"
+required-features = ["bench"]
+
+[[bin]]
 name = "cli"
 path = "src/main.rs"
 required-features = ["cli"]
