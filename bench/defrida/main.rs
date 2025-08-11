@@ -51,8 +51,8 @@ enum Commands {
         num_validators: usize,
         #[arg(long)]
         num_queries: usize,
-        #[arg(long, default_value = "false")]
-        batch: bool,
+        #[arg(long, default_value = "1")]
+        batch_size: usize,
         #[arg(long, default_value = "bench/defrida/results_custom.csv")]
         output: String,
     },
@@ -504,19 +504,17 @@ fn run_custom_benchmark(
     data_size: usize,
     num_validators: usize,
     num_queries: usize,
-    batch: bool,
+    batch_size: usize,
     output_path: &str,
 ) {
     let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
     let mut results = Vec::new();
 
     println!("Running custom benchmark...");
-    println!("Parameters: blowup={}, folding={}, remainder={}, data={}KB, validators={}, queries={}, batch={}",
-        blowup_factor, folding_factor, max_remainder_degree, data_size / 1024, num_validators, num_queries, batch);
+    println!("Parameters: blowup={}, folding={}, remainder={}, data={}KB, validators={}, queries={}, batch_size={}",
+        blowup_factor, folding_factor, max_remainder_degree, data_size / 1024, num_validators, num_queries, batch_size);
 
-    if batch {
-        let batch_size = 4; // Default batch size for custom runs
-        
+    if batch_size > 1 {
         let result_f64 = benchmark_batched::<f64::BaseElement, Blake3_256<f64::BaseElement>>(
             options.clone(),
             data_size,
@@ -574,7 +572,7 @@ fn main() {
             data_size,
             num_validators,
             num_queries,
-            batch,
+            batch_size,
             output,
         } => {
             run_custom_benchmark(
@@ -584,7 +582,7 @@ fn main() {
                 data_size,
                 num_validators,
                 num_queries,
-                batch,
+                batch_size,
                 &output,
             );
         }
