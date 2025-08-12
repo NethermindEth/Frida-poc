@@ -3,7 +3,7 @@ use winter_utils::Serializable;
 
 use crate::utils::test_utils::*;
 
-use super::FridaProverBuilder;
+use crate::prover::FridaProverBuilder;
 
 // TEST TRAIT IMPLEMENTATION
 // ================================================================================================

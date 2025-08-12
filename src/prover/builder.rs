@@ -1,4 +1,46 @@
+use core::marker::PhantomData;
+#[cfg(feature = "bench")]
+use std::time::Instant;
 
+use winter_crypto::{ElementHasher, Hasher, MerkleTree};
+use winter_fri::folding;
+use winter_fri::utils::hash_values;
+use winter_fri::{FriOptions, ProverChannel};
+use winter_math::{fft, FieldElement};
+#[cfg(feature = "concurrent")]
+use winter_utils::iterators::*;
+use winter_utils::{
+    flatten_vector_elements, group_slice_elements, iter_mut, transpose_slice, uninit_vector,
+    ByteReader, Deserializable, DeserializationError, Serializable,
+};
+
+use super::{
+    batch_data_to_evaluations,
+    channel::FridaProverChannel,
+    proof::{FridaProof, FridaProofBatchLayer, FridaProofLayer},
+    Commitment, FridaLayer, FridaProver, FridaRemainder, ProverCommitment,
+};
+
+use crate::{
+    constants,
+    core::data::{build_evaluations_from_data, encoded_data_element_count},
+    error::FridaError,
+};
+
+#[cfg(feature = "bench")]
+use super::bench;
+
+type Channel<E, H> = FridaProverChannel<E, H, H>;
+
+pub struct FridaProverBuilder<E, H>
+where
+    E: FieldElement,
+    H: ElementHasher<BaseField = E::BaseField>,
+{
+    pub options: FriOptions,
+    _phantom_field_element: PhantomData<E>,
+    _phantom_hasher: PhantomData<H>,
+}
 
 impl<E, H> FridaProverBuilder<E, H>
 where
@@ -303,16 +345,7 @@ where
         ))
     }
 
-    
 
-    // #[cfg(test)]
-    // pub fn test_build_layers(
-    //     &self,
-    //     channel: &mut Channel<E, H>,
-    //     evaluations: Vec<E>,
-    // ) -> FridaProver<E, H> {
-    //     self.build_layers(channel, evaluations, 1, None)
-    // }
 
     /// Builds a single FRI layer by first committing to the `evaluations`, then drawing a random
     /// alpha from the channel and use it to perform degree-respecting projection.
@@ -361,4 +394,40 @@ where
 
         FridaRemainder(remainder_poly)
     }
+
+    #[cfg(test)]
+    pub fn test_build_layers(
+        &self,
+        channel: &mut Channel<E, H>,
+        evaluations: Vec<E>,
+    ) -> FridaProver<E, H> {
+        self.build_layers(channel, evaluations, 1, None)
+    }
+}
+
+fn apply_drp_batched<E: FieldElement, const N: usize>(
+    evaluations: &[E],
+    poly_count: usize,
+    options: &FriOptions,
+    xi: Vec<E>,
+    alpha: E,
+) -> Vec<E> {
+    let domain_size = evaluations.len() / poly_count;
+    let bucket_count = domain_size / options.folding_factor();
+    let bucket_size = poly_count * N;
+
+    let mut final_eval: Vec<[E; N]> = vec![[E::default(); N]; bucket_count];
+    iter_mut!(final_eval, 1024).enumerate().for_each(|(i, b)| {
+        iter_mut!(b, 1024).enumerate().for_each(|(j, f)| {
+            let start = i * bucket_size + poly_count * j;
+            evaluations[start..start + poly_count]
+                .iter()
+                .enumerate()
+                .for_each(|(j, e)| {
+                    *f += *e * xi[j];
+                });
+        });
+    });
+
+    folding::apply_drp(&final_eval, options.domain_offset(), alpha)
 }

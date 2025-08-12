@@ -1,4 +1,18 @@
-mod distributed_api_tests {
+use super::*;
+use crate::{
+    core::data::{
+        build_evaluations_from_data, encoded_data_element_count,
+    },
+    prover::{builder::FridaProverBuilder, Commitment, ProverCommitment, batch_data_to_evaluations, get_evaluations_from_positions},
+    frida_verifier::das::FridaDasVerifier,
+    winterfell::{f128::BaseElement, Blake3_256, FriOptions},
+    *,
+};
+use winter_rand_utils::{rand_value, rand_vector};
+
+type Blake3 = Blake3_256<BaseElement>;
+
+mod distributed_tests {
     use super::*;
     use crate::{
         core::data::build_evaluations_from_data,
@@ -62,7 +76,7 @@ mod distributed_api_tests {
 
         // 2. COMMIT: The producer creates the commitment and the stateful prover.
         let (prover_commitment, prover, base_positions) = prover_builder
-            .calculate_commitment(&data, total_queries)
+            .commitment(&data, total_queries)
             .expect("Commitment generation failed");
 
         // 3. DISTRIBUTE: The producer (or anyone) determines the query sets for each validator.
@@ -134,7 +148,7 @@ mod distributed_api_tests {
 
         // 2. COMMIT: The producer creates the commitment and the stateful prover.
         let (prover_commitment, prover, base_positions) = prover_builder
-            .calculate_commitment_batch(&data_list, total_queries)
+            .commitment_batch(&data_list, total_queries)
             .expect("Commitment generation failed");
 
         // 3. DISTRIBUTE: The producer (or anyone) determines the query sets for each validator.

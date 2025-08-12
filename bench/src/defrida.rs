@@ -6,9 +6,9 @@ use winter_rand_utils::{rand_value, rand_vector};
 
 use frida_poc::{
     core::data::{build_evaluations_from_data, encoded_data_element_count},
-    frida_prover::{batch_data_to_evaluations, get_evaluations_from_positions, FridaProverBuilder},
+    prover::{batch_data_to_evaluations, get_evaluations_from_positions, builder::FridaProverBuilder},
     frida_verifier::das::FridaDasVerifier,
-    frida_const,
+    constants,
 };
 
 use crate::common::{
@@ -126,7 +126,7 @@ where
 
         let start = Instant::now();
         let (prover_commitment, prover, base_positions) = prover_builder
-            .calculate_commitment(&data, num_queries)
+            .commitment(&data, num_queries)
             .expect("Commitment generation failed");
         total_commitment_time += start.elapsed();
 
@@ -228,7 +228,7 @@ where
 
         let start = Instant::now();
         let (prover_commitment, prover, base_positions) = prover_builder
-            .calculate_commitment_batch(&data_list, num_queries)
+            .commitment_batch(&data_list, num_queries)
             .expect("Batch commitment generation failed");
         total_commitment_time += start.elapsed();
 
@@ -255,7 +255,7 @@ where
         );
         let domain_size = usize::max(
             (max_data_len * blowup_factor).next_power_of_two(),
-            frida_const::MIN_DOMAIN_SIZE,
+            constants::MIN_DOMAIN_SIZE,
         );
 
         let all_evaluations = batch_data_to_evaluations::<E>(

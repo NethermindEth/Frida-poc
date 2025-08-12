@@ -2,4 +2,4 @@
 mod base_tests;
 
 #[cfg(test)] 
-mod distributed_api_tests;
+mod distributed_tests;

@@ -54,7 +54,7 @@ fn test_drawn_alpha() {
             128,
         )));
     }
-    let (commitment, prover) = prover_builder.commit_batch(&data, 32).unwrap();
+    let (commitment, prover) = prover_builder.commit_and_prove_batch(&data, 32).unwrap();
     let mut channel = test_build_prover_channel(commitment.domain_size, &options);
     for layer_root in commitment.roots.iter() {
         channel.commit_fri_layer(*layer_root);
@@ -102,7 +102,7 @@ fn test_drawn_alpha_batch() {
             128,
         )));
     }
-    let (commitment, prover) = prover_builder.commit_batch(&data, 32).unwrap();
+    let (commitment, prover) = prover_builder.commit_and_prove_batch(&data, 32).unwrap();
     let mut channel = test_build_prover_channel(commitment.domain_size, &options);
     for layer_root in commitment.roots.iter() {
         channel.commit_fri_layer(*layer_root);
@@ -181,7 +181,7 @@ fn test_verify_batch() {
     let options = FriOptions::new(blowup_factor, folding_factor, 0);
     let prover_builder = TestFridaProverBuilder::new(options.clone());
 
-    let (commitment, prover) = prover_builder.commit_batch(&data, 4).unwrap();
+    let (commitment, prover) = prover_builder.commit_and_prove_batch(&data, 4).unwrap();
     let proof = commitment.proof.clone();
     let domain_size = commitment.domain_size;
 
@@ -207,7 +207,7 @@ fn test_batching_only_batch_layer() {
     let options = FriOptions::new(blowup_factor, folding_factor, 0);
     let prover_builder = TestFridaProverBuilder::new(options.clone());
 
-    let (commitment, prover) = prover_builder.commit_batch(&data, 4).unwrap();
+    let (commitment, prover) = prover_builder.commit_and_prove_batch(&data, 4).unwrap();
     let proof = commitment.proof.clone();
     let domain_size = commitment.domain_size;
 

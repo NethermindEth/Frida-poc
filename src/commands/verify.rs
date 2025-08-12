@@ -42,7 +42,7 @@ mod tests {
     use super::*;
     use crate::{
         commands::{commit, generate_data, open},
-        prover::FridaProverBuilder,
+        prover::builder::FridaProverBuilder,
         utils::test_utils::CleanupFiles,
     };
     use winter_crypto::hashers::Blake3_256;

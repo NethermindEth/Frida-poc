@@ -81,7 +81,7 @@ mod tests {
 
             let data: Vec<_> = (0..20).collect();
             let (commitment, prover) =
-                prover_builder.commit(&data, 3).unwrap();
+                prover_builder.commit_and_prove(&data, 3).unwrap();
 
             let (verifier, _coin) = TestFridaDasVerifier::new(commitment, options.clone()).unwrap();
 
@@ -118,7 +118,7 @@ mod tests {
         let encoded_element_count =
             encoded_data_element_count::<BaseElement>(data.len()).next_power_of_two();
         let (commitment, prover) =
-            prover_builder.commit(&data, 31).unwrap();
+            prover_builder.commit_and_prove(&data, 31).unwrap();
 
         let (verifier, _coin) = TestFridaDasVerifier::new(commitment, options.clone()).unwrap();
 

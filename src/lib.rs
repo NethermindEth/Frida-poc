@@ -16,7 +16,7 @@ mod tests {
 
     use crate::{
         error::FridaError,
-        prover::{proof::FridaProof, Commitment, FridaProverBuilder},
+        prover::{proof::FridaProof, Commitment, builder::FridaProverBuilder},
         utils::test_utils::{*, Blake3},
     };
 
