@@ -4,7 +4,7 @@ use crate::{
         build_evaluations_from_data, encoded_data_element_count,
     },
     prover::{builder::FridaProverBuilder, Commitment, ProverCommitment, batch_data_to_evaluations, get_evaluations_from_positions},
-    frida_verifier::das::FridaDasVerifier,
+    verifier::das::FridaDasVerifier,
     winterfell::{f128::BaseElement, Blake3_256, FriOptions},
     *,
 };
@@ -16,7 +16,7 @@ mod distributed_tests {
     use super::*;
     use crate::{
         core::data::build_evaluations_from_data,
-        frida_verifier::das::FridaDasVerifier,
+        verifier::das::FridaDasVerifier,
         winterfell::{f128::BaseElement, Blake3_256, FriOptions},
     };
     use winter_rand_utils::{rand_value, rand_vector};

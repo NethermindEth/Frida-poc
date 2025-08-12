@@ -7,7 +7,7 @@ use winter_rand_utils::{rand_value, rand_vector};
 use frida_poc::{
     core::data::{build_evaluations_from_data, encoded_data_element_count},
     prover::{batch_data_to_evaluations, get_evaluations_from_positions, builder::FridaProverBuilder},
-    frida_verifier::das::FridaDasVerifier,
+    verifier::das::FridaDasVerifier,
     constants,
 };
 

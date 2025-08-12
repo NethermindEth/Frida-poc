@@ -14,7 +14,7 @@ use crate::{
     error::FridaError,
     prover::{proof::FridaProof, Commitment},
     core::random::FridaRandom,
-    frida_verifier::get_query_values,
+    verifier::get_query_values,
 };
 use super::{eval_horner, get_batch_query_values};
 use super::channel::FridaVerifierChannel;

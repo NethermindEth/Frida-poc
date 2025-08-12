@@ -9,7 +9,7 @@ use frida_poc::{
         bench::{COMMIT_TIME, ERASURE_TIME},
         get_evaluations_from_positions, Commitment, builder::FridaProverBuilder,
     },
-    frida_verifier::das::FridaDasVerifier,
+    verifier::das::FridaDasVerifier,
 };
 
 use crate::common::{

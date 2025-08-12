@@ -5,7 +5,7 @@ use winter_math::{fft, FieldElement};
 
 use crate::prover::channel::FridaProverChannel;
 use crate::prover::builder::FridaProverBuilder;
-use crate::frida_verifier::das::FridaDasVerifier;
+use crate::verifier::das::FridaDasVerifier;
 
 use serde::Deserialize;
 use std::{
