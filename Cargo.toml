@@ -1,7 +1,10 @@
 [package]
 name = "frida-poc"
 version = "0.1.0"
-edition = "2021"
+edition = "2025"
+repository = "https://github.com/NethermindEth/frida-hotstuff"
+license = "Apache-2.0"
+publish = false
 
 [[bin]]
 name = "frida-bench"

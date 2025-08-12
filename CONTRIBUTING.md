@@ -23,18 +23,6 @@ Install a pre-push git hook:
 git config core.hooksPath .githooks
 ```
 
-## Running the Rust Documentation Locally
-After cloning the repository, follow the instructions below to run the documentation locally:
-
-```sh
-cargo doc
-```
-
-Docs for `TODO(template) template_crate`:
-
-```sh
-RUSTDOCFLAGS="--html-in-header katex-header.html" cargo doc --no-deps -p template_crate --open
-```
 
 ## Performance
 When contributing, besides correctness, it is also important to ensure good performance and reproducibility of the results.
@@ -53,11 +41,6 @@ To carry out this optimization cycle, we recommend the following profiling tools
 * [Samply](https://crates.io/crates/samply): Generates a detailed graphic of the different operations and their time in the application. We recommend it over [FlameGraph](https://crates.io/crates/flamegraph) as it allows for filtering, and the webserver viewer provides a better experience than the `.svg` your get from Flamegraph. 
 * [Dhat](https://crates.io/crates/dhat): Measures memory allocations within the application.
 
-### Hyperfine
-Once [installed](https://github.com/sharkdp/hyperfine?tab=readme-ov-file#installation), we can simply run:
-```sh
-hyperfine 'TODO(template) update with your binary e.g. ./target/release/...' 
-```
 ### Samply
 Run
 ```sh
