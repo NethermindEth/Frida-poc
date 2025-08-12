@@ -60,16 +60,13 @@ fn fri_trait_check(
     };
 
     let mut frida_channel = test_build_prover_channel(trace_length, &options);
-    let frida_proof =  {
+    let frida_proof = {
         let frida_prover = FridaProverBuilder::new(options);
         let prover = frida_prover.test_build_layers(&mut frida_channel, evaluations);
         prover.open(&positions)
     };
 
-    assert_eq!(
-        channel.commitments,
-        frida_channel.commitments
-    );
+    assert_eq!(channel.commitments, frida_channel.commitments);
 
     // Skipping 1 byte because frida_proof has batch layer information encoded
     assert_eq!(fri_proof.to_bytes(), frida_proof.to_bytes()[1..]);

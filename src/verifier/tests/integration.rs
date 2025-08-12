@@ -1,9 +1,7 @@
 use crate::{
     core::data::{build_evaluations_from_data, encoded_data_element_count},
     prover::{builder::FridaProverBuilder, Commitment},
-    utils::test_utils::{
-        TestFridaDasVerifier, TestFridaProverBuilder,
-    },
+    utils::test_utils::{TestFridaDasVerifier, TestFridaProverBuilder},
     verifier::das::FridaDasVerifier,
 };
 use winter_fri::FriOptions;
@@ -24,7 +22,8 @@ fn test_frida_das_verify_short() {
         let data: Vec<_> = (0..20).collect();
         let (commitment, prover) = prover_builder.commit_and_prove(&data, 3).unwrap();
 
-        let (verifier, _coin) = TestFridaDasVerifier::new(commitment.into(), options.clone()).unwrap();
+        let (verifier, _coin) =
+            TestFridaDasVerifier::new(commitment.into(), options.clone()).unwrap();
 
         // query for a position
         let open_position = [1];

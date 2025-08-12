@@ -223,7 +223,7 @@ where
         FridaProof::new(batch_layer, layers, remainder, 1)
     }
 
-    pub fn get_first_layer_evalutaions(&self) -> &[E] {
+    pub fn get_first_layer_evaluations(&self) -> &[E] {
         &self.layers[0].evaluations
     }
 }

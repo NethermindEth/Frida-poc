@@ -1,9 +1,10 @@
 use super::*;
 use crate::{
-    core::data::{
-        build_evaluations_from_data, encoded_data_element_count,
+    core::data::{build_evaluations_from_data, encoded_data_element_count},
+    prover::{
+        batch_data_to_evaluations, builder::FridaProverBuilder, get_evaluations_from_positions,
+        Commitment, ProverCommitment,
     },
-    prover::{builder::FridaProverBuilder, Commitment, ProverCommitment, batch_data_to_evaluations, get_evaluations_from_positions},
     verifier::das::FridaDasVerifier,
     winterfell::{f128::BaseElement, Blake3_256, FriOptions},
     *,

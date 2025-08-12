@@ -1,6 +1,5 @@
 use crate::{
-    commands::open::read_and_deserialize_proof, prover::Commitment,
-    verifier::das::FridaDasVerifier,
+    commands::open::read_and_deserialize_proof, prover::Commitment, verifier::das::FridaDasVerifier,
 };
 use std::{error::Error, fs, path::Path};
 use winter_crypto::hashers::Blake3_256;

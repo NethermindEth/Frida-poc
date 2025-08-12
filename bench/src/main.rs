@@ -110,62 +110,67 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Frida { subcommand } => {
-            match subcommand {
-                BenchmarkSubcommand::Full { output } => {
-                    frida::run_full_benchmark(&output);
-                }
-                BenchmarkSubcommand::Custom {
+        Commands::Frida { subcommand } => match subcommand {
+            BenchmarkSubcommand::Full { output } => {
+                frida::run_full_benchmark(&output);
+            }
+            BenchmarkSubcommand::Custom {
+                blowup_factor,
+                folding_factor,
+                max_remainder_degree,
+                data_size,
+                batch_size,
+                num_queries,
+                output,
+            } => {
+                frida::run_custom_benchmark(
                     blowup_factor,
                     folding_factor,
                     max_remainder_degree,
                     data_size,
                     batch_size,
                     num_queries,
-                    output,
-                } => {
-                    frida::run_custom_benchmark(
-                        blowup_factor,
-                        folding_factor,
-                        max_remainder_degree,
-                        data_size,
-                        batch_size,
-                        num_queries,
-                        &output,
-                    );
-                }
+                    &output,
+                );
             }
-        }
-        Commands::SingleFrida { subcommand } => {
-            match subcommand {
-                SingleFridaSubcommand::Full { output } => {
-                    single_frida::run_full_benchmark(&output);
-                }
-                SingleFridaSubcommand::Custom {
+        },
+        Commands::SingleFrida { subcommand } => match subcommand {
+            SingleFridaSubcommand::Full { output } => {
+                single_frida::run_full_benchmark(&output);
+            }
+            SingleFridaSubcommand::Custom {
+                blowup_factor,
+                folding_factor,
+                max_remainder_degree,
+                data_size,
+                batch_size,
+                output,
+            } => {
+                single_frida::run_custom_benchmark(
                     blowup_factor,
                     folding_factor,
                     max_remainder_degree,
                     data_size,
                     batch_size,
-                    output,
-                } => {
-                    single_frida::run_custom_benchmark(
-                        blowup_factor,
-                        folding_factor,
-                        max_remainder_degree,
-                        data_size,
-                        batch_size,
-                        &output,
-                    );
-                }
+                    &output,
+                );
             }
-        }
-        Commands::Defrida { subcommand } => {
-            match subcommand {
-                DefridaSubcommand::Full { output } => {
-                    defrida::run_full_benchmark(&output);
-                }
-                DefridaSubcommand::Custom {
+        },
+        Commands::Defrida { subcommand } => match subcommand {
+            DefridaSubcommand::Full { output } => {
+                defrida::run_full_benchmark(&output);
+            }
+            DefridaSubcommand::Custom {
+                blowup_factor,
+                folding_factor,
+                max_remainder_degree,
+                data_size,
+                num_validators,
+                num_queries,
+                batch_size,
+                output,
+            } => {
+                defrida::run_custom_benchmark(
                     blowup_factor,
                     folding_factor,
                     max_remainder_degree,
@@ -173,20 +178,9 @@ fn main() {
                     num_validators,
                     num_queries,
                     batch_size,
-                    output,
-                } => {
-                    defrida::run_custom_benchmark(
-                        blowup_factor,
-                        folding_factor,
-                        max_remainder_degree,
-                        data_size,
-                        num_validators,
-                        num_queries,
-                        batch_size,
-                        &output,
-                    );
-                }
+                    &output,
+                );
             }
-        }
+        },
     }
 }

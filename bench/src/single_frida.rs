@@ -5,14 +5,10 @@ use winter_math::FieldElement;
 use winter_rand_utils::rand_vector;
 
 use frida_poc::{
-    core::data::encoded_data_element_count,
-    prover::builder::FridaProverBuilder,
-    constants,
+    constants, core::data::encoded_data_element_count, prover::builder::FridaProverBuilder,
 };
 
-use crate::common::{
-    self, field_names, Blake3_F128, Blake3_F64, F128Element, F64Element, RUNS
-};
+use crate::common::{self, field_names, Blake3_F128, Blake3_F64, F128Element, F64Element, RUNS};
 
 #[derive(Debug)]
 struct SingleFridaBenchmarkResult {
@@ -77,7 +73,7 @@ where
             .expect("Commitment calculation failed");
 
         let drawn_position = vec![base_positions[0]];
-        
+
         let start = Instant::now();
         let proof = prover.open(&drawn_position);
         total_proof_time += start.elapsed();
@@ -86,7 +82,8 @@ where
 
     let avg_proof_time_ms = total_proof_time.as_secs_f64() * 1000.0 / RUNS as f64;
     let avg_proof_size_bytes = total_proof_size / RUNS;
-    let total_proof_size_estimate_mb = (domain_size * avg_proof_size_bytes) as f64 / (1024.0 * 1024.0);
+    let total_proof_size_estimate_mb =
+        (domain_size * avg_proof_size_bytes) as f64 / (1024.0 * 1024.0);
 
     SingleFridaBenchmarkResult {
         field_type: field_name.to_string(),
@@ -134,7 +131,7 @@ where
             .expect("Batch commitment calculation failed");
 
         let drawn_position = vec![base_positions[0]];
-        
+
         let start = Instant::now();
         let proof = prover.open(&drawn_position);
         total_proof_time += start.elapsed();
@@ -143,7 +140,8 @@ where
 
     let avg_proof_time_ms = total_proof_time.as_secs_f64() * 1000.0 / RUNS as f64;
     let avg_proof_size_bytes = total_proof_size / RUNS;
-    let total_proof_size_estimate_mb = (domain_size * avg_proof_size_bytes) as f64 / (1024.0 * 1024.0);
+    let total_proof_size_estimate_mb =
+        (domain_size * avg_proof_size_bytes) as f64 / (1024.0 * 1024.0);
 
     SingleFridaBenchmarkResult {
         field_type: field_name.to_string(),
@@ -193,11 +191,14 @@ pub fn run_full_benchmark(output_path: &str) {
 
     for &(blowup_factor, folding_factor, max_remainder_degree) in &fri_options {
         let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
-        
+
         for &data_size in &data_sizes {
             for &batch_size in &batch_sizes {
                 if completed % 50 == 0 {
-                    println!("Progress: {}/{} configurations completed", completed, total_configs);
+                    println!(
+                        "Progress: {}/{} configurations completed",
+                        completed, total_configs
+                    );
                 }
 
                 if batch_size == 1 {
@@ -251,9 +252,17 @@ pub fn run_full_benchmark(output_path: &str) {
         }
     }
 
-    common::save_results_with_header(&results, output_path, &SingleFridaBenchmarkResult::csv_header(), |r| r.to_csv())
-        .expect("Failed to save results");
-    println!("Single Frida benchmark completed with {} successful results", results.len());
+    common::save_results_with_header(
+        &results,
+        output_path,
+        &SingleFridaBenchmarkResult::csv_header(),
+        |r| r.to_csv(),
+    )
+    .expect("Failed to save results");
+    println!(
+        "Single Frida benchmark completed with {} successful results",
+        results.len()
+    );
 }
 
 pub fn run_custom_benchmark(
@@ -268,12 +277,18 @@ pub fn run_custom_benchmark(
     let mut results = Vec::new();
 
     println!("Running custom Single Frida benchmark...");
-    println!("Parameters: blowup={}, folding={}, remainder={}, data={}KB, batch_size={}",
-        blowup_factor, folding_factor, max_remainder_degree, data_size / 1024, batch_size);
+    println!(
+        "Parameters: blowup={}, folding={}, remainder={}, data={}KB, batch_size={}",
+        blowup_factor,
+        folding_factor,
+        max_remainder_degree,
+        data_size / 1024,
+        batch_size
+    );
 
     if batch_size > 1 {
         println!("Running batched benchmarks...");
-        
+
         let result_f64 = benchmark_batched::<F64Element, Blake3_F64>(
             options.clone(),
             data_size,
@@ -291,7 +306,7 @@ pub fn run_custom_benchmark(
         results.push(result_f128);
     } else {
         println!("Running non-batched benchmarks...");
-        
+
         let result_f64 = benchmark_non_batched::<F64Element, Blake3_F64>(
             options.clone(),
             data_size,
@@ -307,14 +322,20 @@ pub fn run_custom_benchmark(
         results.push(result_f128);
     }
 
-    common::save_results_with_header(&results, output_path, &SingleFridaBenchmarkResult::csv_header(), |r| r.to_csv())
-        .expect("Failed to save results");
-    
+    common::save_results_with_header(
+        &results,
+        output_path,
+        &SingleFridaBenchmarkResult::csv_header(),
+        |r| r.to_csv(),
+    )
+    .expect("Failed to save results");
+
     println!("Custom Single Frida benchmark completed successfully");
-    
+
     println!("\nResults Summary:");
     for result in &results {
-        println!("  {}: Single proof = {} bytes, {:.3} ms | Total estimate = {:.2} MB", 
+        println!(
+            "  {}: Single proof = {} bytes, {:.3} ms | Total estimate = {:.2} MB",
             result.field_type,
             result.single_proof_size_bytes,
             result.single_proof_time_ms,

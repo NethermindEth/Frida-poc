@@ -63,7 +63,10 @@ impl fmt::Display for FridaError {
             }
             FridaError::SinglePolyBatch => write!(f, "Batch has only 1 polynomial"),
             FridaError::InvalidBlowupFactor => {
-                write!(f, "Blowup factor must be greater than 1 for query calculation.")
+                write!(
+                    f,
+                    "Blowup factor must be greater than 1 for query calculation."
+                )
             }
         }
     }

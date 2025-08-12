@@ -1,0 +1,9 @@
+# CODEOWNERS
+# This file defines code ownership for this repository.
+# Code owners are automatically requested for review when someone opens a pull request.
+# These owners will be requested for review on ALL pull requests
+# Uncomment and customize the line below:
+
+* @NethermindEth/zk-engineering
+* @chee-chyuan
+* @dkgoutham

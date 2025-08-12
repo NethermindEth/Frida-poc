@@ -223,7 +223,6 @@ where
         Ok((channel, prover))
     }
 
-
     /// Commits to the evaluated data, consuming the channel constructed along with this prover.
     pub fn build_commitment(
         &self,
@@ -344,8 +343,6 @@ where
             }),
         ))
     }
-
-
 
     /// Builds a single FRI layer by first committing to the `evaluations`, then drawing a random
     /// alpha from the channel and use it to perform degree-respecting projection.

@@ -1,5 +1,5 @@
 use crate::{
-    prover::{Commitment, builder::FridaProverBuilder},
+    prover::{builder::FridaProverBuilder, Commitment},
     utils::test_utils::{read_file_to_vec, write_to_file},
 };
 use std::path::Path;
@@ -21,12 +21,11 @@ pub fn run(
     let data = read_file_to_vec(data_path)?;
 
     // Create commitment from data
-    let (commitment, _) =
-        prover_builder
-            .commit_and_prove(&data, num_queries)
-            .map_err(|e| -> Box<dyn std::error::Error> {
-                format!("Prover commit error: {}", e).into()
-            })?;
+    let (commitment, _) = prover_builder
+        .commit_and_prove(&data, num_queries)
+        .map_err(|e| -> Box<dyn std::error::Error> {
+            format!("Prover commit error: {}", e).into()
+        })?;
 
     // Write commitment to file
     let commitment_bytes = commitment.to_bytes();

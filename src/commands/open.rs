@@ -1,6 +1,6 @@
 use crate::{
     core::data::{build_evaluations_from_data, encoded_data_element_count},
-    prover::{proof::FridaProof, builder::FridaProverBuilder},
+    prover::{builder::FridaProverBuilder, proof::FridaProof},
     utils::test_utils::{read_file_to_vec, write_to_file},
 };
 use std::path::Path;

@@ -5,7 +5,6 @@ use crate::{
     winterfell::{f128::BaseElement, FriOptions},
 };
 
-
 /// Calculates the required number of FRI queries (`σ`) for a given security level.
 ///
 /// # Parameters
@@ -38,15 +37,18 @@ pub fn calculate_num_queries(
     let degree = (domain_size / blowup_factor) - 1;
 
     // Calculate the security loss due to folding, if any.
-    let security_loss =
-        security_loss_due_to_folding(degree, options.folding_factor(), options.remainder_max_degree());
+    let security_loss = security_loss_due_to_folding(
+        degree,
+        options.folding_factor(),
+        options.remainder_max_degree(),
+    );
 
     // Main formula calculation
     let log2_blowup = (blowup_factor as f64).log2();
     let log2_batch_size = if batch_size > 0 {
         (batch_size as f64).log2()
     } else {
-        0.0 
+        0.0
     };
 
     let num_queries_float =
@@ -61,7 +63,11 @@ pub fn calculate_num_queries(
 }
 
 /// Calculates the security loss incurred from using a folding factor greater than 2.
-fn security_loss_due_to_folding(degree: usize, folding_factor: usize, max_remainder_degree: usize) -> f64 {
+fn security_loss_due_to_folding(
+    degree: usize,
+    folding_factor: usize,
+    max_remainder_degree: usize,
+) -> f64 {
     if folding_factor <= 2 {
         return 0.0;
     }
@@ -69,7 +75,7 @@ fn security_loss_due_to_folding(degree: usize, folding_factor: usize, max_remain
     // The number of coefficients is degree + 1.
     let poly_coeffs = (degree + 1) as f64;
     let remainder_poly_coeffs = (max_remainder_degree + 1) as f64;
-    
+
     // If the polynomial is already smaller than the target remainder, no folding occurs.
     if poly_coeffs <= remainder_poly_coeffs {
         return 0.0;
@@ -79,17 +85,15 @@ fn security_loss_due_to_folding(degree: usize, folding_factor: usize, max_remain
     let log2_phi = phi.log2();
 
     let inner_log = (poly_coeffs / remainder_poly_coeffs).log2();
-    
+
     log2_phi * (inner_log / log2_phi).ceil()
 }
-
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::data::encoded_data_element_count;
     use crate::constants;
+    use crate::core::data::encoded_data_element_count;
     use crate::winterfell::f128::BaseElement;
 
     #[test]
@@ -105,12 +109,10 @@ mod tests {
 
     #[test]
     fn test_common_case_blowup_2_folding_2() {
-
         let options = FriOptions::new(2, 2, 0);
         let queries = calculate_num_queries(1024 * 64, &options, 1, 128).unwrap();
         // Expected: ceil(128/log2(2) + 0 + 0) = ceil(128/1) = 128
         assert_eq!(queries, 128);
-
 
         let queries_batched = calculate_num_queries(1024 * 64, &options, 32, 128).unwrap();
         // Expected: ceil(128/1 + 0 + log2(32)) = ceil(128 + 5) = 133
@@ -135,7 +137,6 @@ mod tests {
 
     #[test]
     fn test_query_capping() {
-
         let data_size = 10;
         let options = FriOptions::new(16, 4, 3);
         // Use a very high security parameter to force a large number of queries.
@@ -146,20 +147,20 @@ mod tests {
             encoded_element_count.next_power_of_two() * options.blowup_factor(),
             constants::MIN_DOMAIN_SIZE,
         );
-        
+
         // The result must be capped at domain_size - 1.
         assert_eq!(queries, domain_size - 1);
         // For these parameters, domain_size is 32, so queries should be 31.
         assert_eq!(queries, 31);
     }
-    
+
     #[test]
     fn test_invalid_blowup_factor() {
         let options = FriOptions::new(1, 4, 7); // Invalid blowup factor
         let result = calculate_num_queries(100, &options, 1, 128);
         assert_eq!(result, Err(FridaError::InvalidBlowupFactor));
     }
-    
+
     #[test]
     fn test_zero_lambda() {
         let options = FriOptions::new(8, 4, 3);

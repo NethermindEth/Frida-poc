@@ -1,23 +1,23 @@
 use std::marker::PhantomData;
 use std::mem;
 use winter_crypto::{Digest, ElementHasher};
-use winter_fri::{folding::fold_positions, FriOptions, VerifierError};
 use winter_fri::utils::map_positions_to_indexes;
 use winter_fri::VerifierChannel;
-use winter_math::{FieldElement, polynom, StarkField};
+use winter_fri::{folding::fold_positions, FriOptions, VerifierError};
+use winter_math::{polynom, FieldElement, StarkField};
 use winter_utils::{group_slice_elements, iter_mut};
 
 #[cfg(feature = "concurrent")]
 use winter_utils::iterators::*;
 
+use super::channel::FridaVerifierChannel;
+use super::{eval_horner, get_batch_query_values};
 use crate::{
+    core::random::FridaRandom,
     error::FridaError,
     prover::{proof::FridaProof, Commitment},
-    core::random::FridaRandom,
     verifier::get_query_values,
 };
-use super::{eval_horner, get_batch_query_values};
-use super::channel::FridaVerifierChannel;
 
 pub struct FridaDasVerifier<E, HHst, HRandom>
 where
@@ -62,8 +62,12 @@ where
         let num_partitions = das_commitment.proof.num_partitions();
         let max_poly_degree = domain_size / options.blowup_factor() - 1;
 
-        let (drawn, public_coin) =
-            Self::draw_randomly(&das_commitment, max_poly_degree, options.folding_factor(), domain_size)?;
+        let (drawn, public_coin) = Self::draw_randomly(
+            &das_commitment,
+            max_poly_degree,
+            options.folding_factor(),
+            domain_size,
+        )?;
 
         // read layer commitments from the channel and use them to build a list of alphas
         let poly_count = das_commitment.poly_count;
@@ -275,8 +279,7 @@ where
         let num_fri_layers = self.options.num_fri_layers(original_domain_size);
         for depth in 0..num_fri_layers {
             // determine which evaluations were queried in the folded layer
-            let mut folded_positions =
-                fold_positions(&positions, domain_size, folding_factor);
+            let mut folded_positions = fold_positions(&positions, domain_size, folding_factor);
             // determine where these evaluations are in the commitment Merkle tree
             let position_indexes = map_positions_to_indexes(
                 &folded_positions,
@@ -416,9 +419,7 @@ where
 
             // make sure the degree can be reduced by the folding factor at all layers
             // but the remainder layer
-            if depth != alpha_commitments.len() - 1
-                && max_degree_plus_1 % folding_factor != 0
-            {
+            if depth != alpha_commitments.len() - 1 && max_degree_plus_1 % folding_factor != 0 {
                 return Err(FridaError::DegreeTruncation(
                     max_degree_plus_1 - 1,
                     folding_factor,
@@ -430,11 +431,14 @@ where
 
         let positions =
             public_coin.draw_query_positions(das_commitment.num_queries, domain_size)?;
-        Ok((RandomlyDrawn {
-            xi,
-            layer_alphas,
-            positions,
-        }, public_coin))
+        Ok((
+            RandomlyDrawn {
+                xi,
+                layer_alphas,
+                positions,
+            },
+            public_coin,
+        ))
     }
 
     #[cfg(test)]
