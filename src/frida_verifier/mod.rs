@@ -65,7 +65,7 @@ mod tests {
     use winter_math::fields::f128::BaseElement;
     use winter_rand_utils::rand_vector;
 
-    use crate::frida_data::{build_evaluations_from_data, encoded_data_element_count};
+    use crate::core::data::{build_evaluations_from_data, encoded_data_element_count};
     use crate::utils::test_utils::*;
 
     #[test]

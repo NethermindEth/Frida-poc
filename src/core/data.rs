@@ -1,4 +1,4 @@
-use crate::frida_error::FridaError;
+use crate::error::FridaError;
 use core::mem;
 use winter_math::{fft, polynom, FieldElement, StarkField};
 

@@ -2,8 +2,8 @@ use winter_crypto::{Digest, ElementHasher};
 use winter_fri::ProverChannel;
 use winter_math::FieldElement;
 
-use crate::{frida_const, frida_error::FridaError};
-use crate::frida_random::FridaRandom;
+use crate::{constants, error::FridaError};
+use crate::core::random::FridaRandom;
 
 #[derive(Debug)]
 pub struct FridaProverChannel<E, HHst, HRandom>
@@ -32,7 +32,7 @@ where
     /// * `num_queries` is zero.
     pub fn new(domain_size: usize, num_queries: usize) -> Self {
         assert!(
-            domain_size >= frida_const::MIN_DOMAIN_SIZE,
+            domain_size >= constants::MIN_DOMAIN_SIZE,
             "domain size must be at least 8, but was {domain_size}"
         );
         assert!(

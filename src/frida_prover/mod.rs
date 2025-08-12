@@ -18,9 +18,9 @@ use channel::FridaProverChannel;
 use proof::FridaProof;
 
 use crate::{
-    frida_const,
-    frida_data::{build_evaluations_from_data, encoded_data_element_count},
-    frida_error::FridaError,
+    constants,
+    core::data::{build_evaluations_from_data, encoded_data_element_count},
+    error::FridaError,
     frida_prover::proof::{FridaProofBatchLayer, FridaProofLayer},
 };
 
@@ -315,12 +315,12 @@ where
 
         let domain_size = usize::max(
             (max_data_len * blowup_factor).next_power_of_two(),
-            frida_const::MIN_DOMAIN_SIZE,
+            constants::MIN_DOMAIN_SIZE,
         );
 
         let folding_factor = self.options.folding_factor();
 
-        if domain_size > frida_const::MAX_DOMAIN_SIZE {
+        if domain_size > constants::MAX_DOMAIN_SIZE {
             return Err(FridaError::DomainSizeTooBig(domain_size));
         }
         if num_queries >= domain_size {
@@ -367,10 +367,10 @@ where
 
         let domain_size = usize::max(
             encoded_element_count.next_power_of_two() * blowup_factor,
-            frida_const::MIN_DOMAIN_SIZE,
+            constants::MIN_DOMAIN_SIZE,
         );
 
-        if domain_size > frida_const::MAX_DOMAIN_SIZE {
+        if domain_size > constants::MAX_DOMAIN_SIZE {
             return Err(FridaError::DomainSizeTooBig(domain_size));
         }
 
@@ -673,10 +673,10 @@ mod tests {
             FridaProverBuilder::new(options.clone());
 
         let domain_error = prover_builder
-            .commit(&[0; frida_const::MAX_DOMAIN_SIZE * 15 / 2 + 1], 1)
+            .commit(&[0; constants::MAX_DOMAIN_SIZE * 15 / 2 + 1], 1)
             .unwrap_err();
         assert_eq!(
-            FridaError::DomainSizeTooBig(frida_const::MAX_DOMAIN_SIZE * 2),
+            FridaError::DomainSizeTooBig(constants::MAX_DOMAIN_SIZE * 2),
             domain_error
         );
 
@@ -696,7 +696,7 @@ mod tests {
         // Make sure minimum domain size is correctly enforced
         let (commitment, _prover) = prover_builder.commit(&rand_vector::<u8>(1), 1).unwrap();
         assert_eq!(
-            frida_const::MIN_DOMAIN_SIZE.ilog2() as usize,
+            constants::MIN_DOMAIN_SIZE.ilog2() as usize,
             commitment.roots.len()
         );
 
@@ -884,7 +884,7 @@ fn apply_drp_batched<E: FieldElement, const N: usize>(
 mod distributed_api_tests {
     use super::*;
     use crate::{
-        frida_data::build_evaluations_from_data,
+        core::data::build_evaluations_from_data,
         frida_verifier::das::FridaDasVerifier,
         winterfell::{f128::BaseElement, Blake3_256, FriOptions},
     };
@@ -1050,7 +1050,7 @@ mod distributed_api_tests {
 
         let domain_size = usize::max(
             (max_data_len * blowup_factor).next_power_of_two(),
-            frida_const::MIN_DOMAIN_SIZE,
+            constants::MIN_DOMAIN_SIZE,
         );
 
         let all_evaluations = batch_data_to_evaluations::<BaseElement>(

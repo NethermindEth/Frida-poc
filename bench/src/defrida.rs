@@ -5,7 +5,7 @@ use winter_math::FieldElement;
 use winter_rand_utils::{rand_value, rand_vector};
 
 use frida_poc::{
-    frida_data::{build_evaluations_from_data, encoded_data_element_count},
+    core::data::{build_evaluations_from_data, encoded_data_element_count},
     frida_prover::{batch_data_to_evaluations, get_evaluations_from_positions, FridaProverBuilder},
     frida_verifier::das::FridaDasVerifier,
     frida_const,

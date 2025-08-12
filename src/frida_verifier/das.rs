@@ -11,9 +11,9 @@ use winter_utils::{group_slice_elements, iter_mut};
 use winter_utils::iterators::*;
 
 use crate::{
-    frida_error::FridaError,
+    error::FridaError,
     frida_prover::{proof::FridaProof, Commitment},
-    frida_random::FridaRandom,
+    core::random::FridaRandom,
     frida_verifier::get_query_values,
 };
 use super::{eval_horner, get_batch_query_values};

@@ -1,5 +1,5 @@
 use crate::{
-    frida_data::{build_evaluations_from_data, encoded_data_element_count},
+    core::data::{build_evaluations_from_data, encoded_data_element_count},
     frida_prover::{proof::FridaProof, FridaProverBuilder},
     utils::test_utils::{read_file_to_vec, write_to_file},
 };

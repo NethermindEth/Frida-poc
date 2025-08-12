@@ -1,21 +1,21 @@
 #[cfg(any(test, feature = "cli"))]
 pub mod commands;
-pub mod frida_const;
-pub mod frida_data;
-pub mod frida_error;
+pub mod constants;
+pub mod core;
+pub mod error;
 pub mod frida_prover;
-pub mod frida_random;
 pub mod frida_verifier;
 pub mod utils;
-pub mod frida_queries;
 pub mod winterfell;
+
+pub use error::FridaError;
 
 #[cfg(test)]
 mod tests {
     use crate::winterfell::{Hasher, FriOptions, f128, rand_array};
 
     use crate::{
-        frida_error::FridaError,
+        error::FridaError,
         frida_prover::{proof::FridaProof, Commitment, FridaProverBuilder},
         utils::test_utils::{*, Blake3},
     };
