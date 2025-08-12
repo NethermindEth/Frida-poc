@@ -353,44 +353,77 @@ pub fn run_full_benchmark(output_path: &str) {
 }
 
 pub fn run_custom_benchmark(
-    blowup_factor: usize,
-    folding_factor: usize,
-    max_remainder_degree: usize,
-    data_size: usize,
-    batch_size: usize,
-    num_queries: usize,
+    blowup_factors: Vec<usize>,
+    folding_factors: Vec<usize>,
+    max_remainder_degrees: Vec<usize>,
+    data_sizes: Vec<usize>,
+    batch_sizes: Vec<usize>,
+    num_queries: Vec<usize>,
     output_path: &str,
 ) {
-    let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
     let mut results = Vec::new();
+    let total_configs = blowup_factors.len() * folding_factors.len() * max_remainder_degrees.len() * data_sizes.len() * batch_sizes.len() * num_queries.len();
+    let mut completed = 0;
 
     println!("Running custom Frida benchmark...");
-    println!("Parameters: blowup={}, folding={}, remainder={}, data={}KB, batch={}, queries={}",
-        blowup_factor, folding_factor, max_remainder_degree, data_size / 1024, batch_size, num_queries);
+    println!("Total configurations: {}", total_configs);
 
-    if batch_size > 1 {
-        let result_f64 = benchmark_batched::<F64Element, Blake3_F64>(
-            options.clone(), data_size, batch_size, num_queries, field_names::F64
-        );
-        results.push(result_f64);
+    for &blowup_factor in &blowup_factors {
+        for &folding_factor in &folding_factors {
+            for &max_remainder_degree in &max_remainder_degrees {
+                for &data_size in &data_sizes {
+                    for &batch_size in &batch_sizes {
+                        for &num_queries in &num_queries {
+                            if completed % 50 == 0 {
+                                println!("Progress: {}/{} configurations completed", completed, total_configs);
+                            }
 
-        let result_f128 = benchmark_batched::<F128Element, Blake3_F128>(
-            options.clone(), data_size, batch_size, num_queries, field_names::F128
-        );
-        results.push(result_f128);
-    } else {
-        let result_f64 = benchmark_non_batched::<F64Element, Blake3_F64>(
-            options.clone(), data_size, num_queries, field_names::F64
-        );
-        results.push(result_f64);
+                            let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
+                            if batch_size > 1 {
+                                let result_f64 = benchmark_batched::<F64Element, Blake3_F64>(
+                                    options.clone(),
+                                    data_size,
+                                    batch_size,
+                                    num_queries,
+                                    field_names::F64,
+                                );
+                                results.push(result_f64);
 
-        let result_f128 = benchmark_non_batched::<F128Element, Blake3_F128>(
-            options.clone(), data_size, num_queries, field_names::F128
-        );
-        results.push(result_f128);
+                                let result_f128 = benchmark_batched::<F128Element, Blake3_F128>(
+                                    options.clone(),
+                                    data_size,
+                                    batch_size,
+                                    num_queries,
+                                    field_names::F128,
+                                );
+                                results.push(result_f128);
+                            } else {
+                                let result_f64 = benchmark_non_batched::<F64Element, Blake3_F64>(
+                                    options.clone(),
+                                    data_size,
+                                    num_queries,
+                                    field_names::F64,
+                                );
+                                results.push(result_f64);
+
+                                let result_f128 = benchmark_non_batched::<F128Element, Blake3_F128>(
+                                    options.clone(),
+                                    data_size,
+                                    num_queries,
+                                    field_names::F128,
+                                );
+                                results.push(result_f128);
+                            }
+                            completed += 1;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     common::save_results_with_header(&results, output_path, &FridaBenchmarkResult::csv_header(), |r| r.to_csv())
         .expect("Failed to save results");
-    println!("Custom Frida benchmark completed successfully");
+    
+    println!("Custom Frida benchmark completed with {} successful results", results.len());
 }

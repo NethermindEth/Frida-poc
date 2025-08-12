@@ -41,18 +41,18 @@ enum BenchmarkSubcommand {
         output: String,
     },
     Custom {
-        #[arg(long)]
-        blowup_factor: usize,
-        #[arg(long)]
-        folding_factor: usize,
-        #[arg(long)]
-        max_remainder_degree: usize,
-        #[arg(long)]
-        data_size: usize,
-        #[arg(long, default_value = "1")]
-        batch_size: usize,
-        #[arg(long, default_value = "32")]
-        num_queries: usize,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
+        blowup_factor: Vec<usize>,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
+        folding_factor: Vec<usize>,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
+        max_remainder_degree: Vec<usize>,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
+        data_size: Vec<usize>,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize), default_value = "1")]
+        batch_size: Vec<usize>,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize), default_value = "32")]
+        num_queries: Vec<usize>,
         #[arg(long, default_value = "bench/results/frida_custom.csv")]
         output: String,
     },
@@ -65,16 +65,16 @@ enum SingleFridaSubcommand {
         output: String,
     },
     Custom {
-        #[arg(long)]
-        blowup_factor: usize,
-        #[arg(long)]
-        folding_factor: usize,
-        #[arg(long)]
-        max_remainder_degree: usize,
-        #[arg(long)]
-        data_size: usize,
-        #[arg(long, default_value = "1")]
-        batch_size: usize,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
+        blowup_factor: Vec<usize>,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
+        folding_factor: Vec<usize>,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
+        max_remainder_degree: Vec<usize>,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
+        data_size: Vec<usize>,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize), default_value = "1")]
+        batch_size: Vec<usize>,
         #[arg(long, default_value = "bench/results/single_frida_custom.csv")]
         output: String,
     },
@@ -87,20 +87,20 @@ enum DefridaSubcommand {
         output: String,
     },
     Custom {
-        #[arg(long)]
-        blowup_factor: usize,
-        #[arg(long)]
-        folding_factor: usize,
-        #[arg(long)]
-        max_remainder_degree: usize,
-        #[arg(long)]
-        data_size: usize,
-        #[arg(long)]
-        num_validators: usize,
-        #[arg(long)]
-        num_queries: usize,
-        #[arg(long, default_value = "1")]
-        batch_size: usize,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
+        blowup_factor: Vec<usize>,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
+        folding_factor: Vec<usize>,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
+        max_remainder_degree: Vec<usize>,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
+        data_size: Vec<usize>,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
+        num_validators: Vec<usize>,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize), default_value = "32")]
+        num_queries: Vec<usize>,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize), default_value = "1")]
+        batch_size: Vec<usize>,
         #[arg(long, default_value = "bench/results/defrida_custom.csv")]
         output: String,
     },
