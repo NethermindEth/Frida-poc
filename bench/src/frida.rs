@@ -5,11 +5,11 @@ use winter_math::FieldElement;
 use winter_rand_utils::rand_vector;
 
 use frida_poc::{
-    frida_prover::{
+    prover::{
         bench::{COMMIT_TIME, ERASURE_TIME},
-        get_evaluations_from_positions, Commitment, FridaProverBuilder,
+        get_evaluations_from_positions, Commitment, builder::FridaProverBuilder,
     },
-    frida_verifier::das::FridaDasVerifier,
+    verifier::das::FridaDasVerifier,
 };
 
 use crate::common::{
@@ -90,7 +90,7 @@ where
         let data = rand_vector::<u8>(data_size);
         let prover_builder = FridaProverBuilder::<E, H>::new(options.clone());
 
-        let (com, prover) = prover_builder.commit(&data, num_queries).unwrap();
+        let (com, prover) = prover_builder.commit_and_prove(&data, num_queries).unwrap();
         
         unsafe {
             total_erasure_time += ERASURE_TIME.unwrap_or_default();
@@ -203,7 +203,7 @@ where
         }
 
         let prover_builder = FridaProverBuilder::<E, H>::new(options.clone());
-        let (com, prover) = prover_builder.commit_batch(&data_list, num_queries).unwrap();
+        let (com, prover) = prover_builder.commit_and_prove_batch(&data_list, num_queries).unwrap();
 
         unsafe {
             total_erasure_time += ERASURE_TIME.unwrap_or_default();

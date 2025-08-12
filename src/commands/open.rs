@@ -1,6 +1,6 @@
 use crate::{
-    frida_data::{build_evaluations_from_data, encoded_data_element_count},
-    frida_prover::{proof::FridaProof, FridaProverBuilder},
+    core::data::{build_evaluations_from_data, encoded_data_element_count},
+    prover::{proof::FridaProof, builder::FridaProverBuilder},
     utils::test_utils::{read_file_to_vec, write_to_file},
 };
 use std::path::Path;
@@ -27,7 +27,7 @@ pub fn run(
 
     // Create proof
     let options = prover_builder.options.clone();
-    let (_, prover) = prover_builder.commit(&data, 1).unwrap();
+    let (_, prover) = prover_builder.commit_and_prove(&data, 1).unwrap();
     let proof = prover.open(positions);
 
     let domain_size = (encoded_element_count - 1).next_power_of_two() * options.blowup_factor();

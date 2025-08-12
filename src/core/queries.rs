@@ -1,9 +1,7 @@
-// Calculates the number of FRI queries required to achieve a desired security level.
-
 use crate::{
-    frida_const,
-    frida_data::encoded_data_element_count,
-    frida_error::FridaError,
+    constants,
+    core::data::encoded_data_element_count,
+    error::FridaError,
     winterfell::{f128::BaseElement, FriOptions},
 };
 
@@ -33,7 +31,7 @@ pub fn calculate_num_queries(
     let encoded_element_count = encoded_data_element_count::<BaseElement>(data_size);
     let domain_size = usize::max(
         encoded_element_count.next_power_of_two() * blowup_factor,
-        frida_const::MIN_DOMAIN_SIZE,
+        constants::MIN_DOMAIN_SIZE,
     );
 
     // The degree of the polynomial.
@@ -90,8 +88,8 @@ fn security_loss_due_to_folding(degree: usize, folding_factor: usize, max_remain
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::frida_data::encoded_data_element_count;
-    use crate::frida_const;
+    use crate::core::data::encoded_data_element_count;
+    use crate::constants;
     use crate::winterfell::f128::BaseElement;
 
     #[test]
@@ -107,14 +105,13 @@ mod tests {
 
     #[test]
     fn test_common_case_blowup_2_folding_2() {
-        // With a folding factor of 2, security loss is 0.
-        // With a blowup factor of 2, the security per query is log2(2) = 1 bit.
+
         let options = FriOptions::new(2, 2, 0);
         let queries = calculate_num_queries(1024 * 64, &options, 1, 128).unwrap();
         // Expected: ceil(128/log2(2) + 0 + 0) = ceil(128/1) = 128
         assert_eq!(queries, 128);
 
-        // Test with batching
+
         let queries_batched = calculate_num_queries(1024 * 64, &options, 32, 128).unwrap();
         // Expected: ceil(128/1 + 0 + log2(32)) = ceil(128 + 5) = 133
         assert_eq!(queries_batched, 133);
@@ -138,7 +135,7 @@ mod tests {
 
     #[test]
     fn test_query_capping() {
-        // Use a small data size, resulting in a small domain.
+
         let data_size = 10;
         let options = FriOptions::new(16, 4, 3);
         // Use a very high security parameter to force a large number of queries.
@@ -147,7 +144,7 @@ mod tests {
         let encoded_element_count = encoded_data_element_count::<BaseElement>(data_size);
         let domain_size = usize::max(
             encoded_element_count.next_power_of_two() * options.blowup_factor(),
-            frida_const::MIN_DOMAIN_SIZE,
+            constants::MIN_DOMAIN_SIZE,
         );
         
         // The result must be capped at domain_size - 1.
@@ -163,7 +160,6 @@ mod tests {
         assert_eq!(result, Err(FridaError::InvalidBlowupFactor));
     }
     
-    /// Test with zero security, which should result in a small number of queries from folding loss.
     #[test]
     fn test_zero_lambda() {
         let options = FriOptions::new(8, 4, 3);

@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::{frida_const, frida_error::FridaError};
+use crate::{constants, error::FridaError};
 use winter_crypto::{Digest, ElementHasher};
 use winter_math::FieldElement;
 
@@ -58,7 +58,7 @@ impl<
         domain_size: usize,
     ) -> Result<Vec<usize>, FridaError> {
         assert!(
-            domain_size >= frida_const::MIN_DOMAIN_SIZE,
+            domain_size >= constants::MIN_DOMAIN_SIZE,
             "domain size must be at least 8, but was {domain_size}"
         );
         assert!(

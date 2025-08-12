@@ -5,9 +5,9 @@ use winter_math::FieldElement;
 use winter_rand_utils::rand_vector;
 
 use frida_poc::{
-    frida_data::encoded_data_element_count,
-    frida_prover::FridaProverBuilder,
-    frida_const,
+    core::data::encoded_data_element_count,
+    prover::builder::FridaProverBuilder,
+    constants,
 };
 
 use crate::common::{
@@ -65,7 +65,7 @@ where
     let encoded_element_count = encoded_data_element_count::<E>(data_size);
     let domain_size = usize::max(
         encoded_element_count.next_power_of_two() * options.blowup_factor(),
-        frida_const::MIN_DOMAIN_SIZE,
+        constants::MIN_DOMAIN_SIZE,
     );
 
     for _ in 0..RUNS {
@@ -73,7 +73,7 @@ where
         let prover_builder = FridaProverBuilder::<E, H>::new(options.clone());
 
         let (_, prover, base_positions) = prover_builder
-            .calculate_commitment(&data, 1)
+            .commitment(&data, 1)
             .expect("Commitment calculation failed");
 
         let drawn_position = vec![base_positions[0]];
@@ -118,7 +118,7 @@ where
     let max_data_len = encoded_data_element_count::<E>(data_size);
     let domain_size = usize::max(
         (max_data_len * options.blowup_factor()).next_power_of_two(),
-        frida_const::MIN_DOMAIN_SIZE,
+        constants::MIN_DOMAIN_SIZE,
     );
 
     for _ in 0..RUNS {
@@ -130,7 +130,7 @@ where
         let prover_builder = FridaProverBuilder::<E, H>::new(options.clone());
 
         let (_, prover, base_positions) = prover_builder
-            .calculate_commitment_batch(&data_list, 1)
+            .commitment_batch(&data_list, 1)
             .expect("Batch commitment calculation failed");
 
         let drawn_position = vec![base_positions[0]];
