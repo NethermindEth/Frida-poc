@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use frida_poc::{commands, frida_prover::FridaProverBuilder};
+use frida_poc::{commands, prover::FridaProverBuilder};
 use std::{
     fs,
     io::{self, Write},

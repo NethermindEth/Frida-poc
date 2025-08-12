@@ -3,8 +3,8 @@ use winter_fri::FriOptions;
 use winter_math::fields::f128;
 use winter_math::{fft, FieldElement};
 
-use crate::frida_prover::channel::FridaProverChannel;
-use crate::frida_prover::FridaProverBuilder;
+use crate::prover::channel::FridaProverChannel;
+use crate::prover::FridaProverBuilder;
 use crate::frida_verifier::das::FridaDasVerifier;
 
 use serde::Deserialize;

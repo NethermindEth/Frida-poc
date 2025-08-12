@@ -2,7 +2,7 @@ use winter_crypto::{BatchMerkleProof, ElementHasher, Hasher, MerkleTree};
 use winter_fri::{VerifierChannel, VerifierError};
 use winter_math::FieldElement;
 
-use crate::{error::FridaError, frida_prover::proof::FridaProof};
+use crate::{error::FridaError, prover::proof::FridaProof};
 
 pub struct FridaVerifierChannel<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>> {
     layer_commitments: Vec<H::Digest>,

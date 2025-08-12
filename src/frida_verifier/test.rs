@@ -1,5 +1,5 @@
-use crate::frida_prover::proof::FridaProof;
-use crate::frida_prover::Commitment;
+use crate::prover::proof::FridaProof;
+use crate::prover::Commitment;
 use crate::utils::test_utils::*;
 use winter_fri::folding::fold_positions;
 use winter_fri::{FriOptions, ProverChannel};

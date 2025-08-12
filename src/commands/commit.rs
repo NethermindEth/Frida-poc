@@ -1,5 +1,5 @@
 use crate::{
-    frida_prover::{Commitment, FridaProverBuilder},
+    prover::{Commitment, FridaProverBuilder},
     utils::test_utils::{read_file_to_vec, write_to_file},
 };
 use std::path::Path;

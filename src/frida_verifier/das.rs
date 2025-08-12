@@ -12,7 +12,7 @@ use winter_utils::iterators::*;
 
 use crate::{
     error::FridaError,
-    frida_prover::{proof::FridaProof, Commitment},
+    prover::{proof::FridaProof, Commitment},
     core::random::FridaRandom,
     frida_verifier::get_query_values,
 };
@@ -156,7 +156,7 @@ where
 
     /// Creates a new verifier instance from `ProverCommitment`.
     pub fn from_commitment(
-        commitment: &crate::frida_prover::ProverCommitment<HRandom>,
+        commitment: &crate::prover::ProverCommitment<HRandom>,
         options: FriOptions,
     ) -> Result<Self, FridaError> {
         let domain_size = commitment.domain_size;

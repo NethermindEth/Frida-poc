@@ -1,5 +1,5 @@
 use crate::{
-    commands::open::read_and_deserialize_proof, frida_prover::Commitment,
+    commands::open::read_and_deserialize_proof, prover::Commitment,
     frida_verifier::das::FridaDasVerifier,
 };
 use std::{error::Error, fs, path::Path};
@@ -42,7 +42,7 @@ mod tests {
     use super::*;
     use crate::{
         commands::{commit, generate_data, open},
-        frida_prover::FridaProverBuilder,
+        prover::FridaProverBuilder,
         utils::test_utils::CleanupFiles,
     };
     use winter_crypto::hashers::Blake3_256;

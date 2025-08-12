@@ -3,7 +3,7 @@ pub mod commands;
 pub mod constants;
 pub mod core;
 pub mod error;
-pub mod frida_prover;
+pub mod prover;
 pub mod frida_verifier;
 pub mod utils;
 pub mod winterfell;
@@ -16,7 +16,7 @@ mod tests {
 
     use crate::{
         error::FridaError,
-        frida_prover::{proof::FridaProof, Commitment, FridaProverBuilder},
+        prover::{proof::FridaProof, Commitment, FridaProverBuilder},
         utils::test_utils::{*, Blake3},
     };
 
