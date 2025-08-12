@@ -11,8 +11,8 @@ bench = []
 cli = []
 
 [[bin]]
-name = "benchmark"
-path = "bench/fri/main.rs"
+name = "frida-bench"
+path = "bench/src/main.rs"
 required-features = ["bench"]
 
 [[bin]]
