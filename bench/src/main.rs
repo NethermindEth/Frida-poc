@@ -170,7 +170,7 @@ fn main() {
                 batch_size,
                 output,
             } => {
-                defrida::run_custom_benchmark(
+                let config = defrida::CustomDefridaBenchmarkConfig {
                     blowup_factor,
                     folding_factor,
                     max_remainder_degree,
@@ -178,8 +178,9 @@ fn main() {
                     num_validators,
                     num_queries,
                     batch_size,
-                    &output,
-                );
+                    output_path: &output,
+                };
+                defrida::run_custom_benchmark(config);
             }
         },
     }

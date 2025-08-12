@@ -11,6 +11,8 @@ use winter_utils::{Deserializable, Serializable};
 type Blake3 = Blake3_256<BaseElement>;
 type FridaProverBuilderType = FridaProverBuilder<BaseElement, Blake3>;
 
+type OpenResult = Result<(Vec<usize>, Vec<BaseElement>, FridaProof), Box<dyn std::error::Error>>;
+
 pub fn run(
     prover_builder: &mut FridaProverBuilderType,
     positions: &[usize],
@@ -18,7 +20,7 @@ pub fn run(
     evaluations_path: &Path,
     data_path: &Path,
     proof_path: &Path,
-) -> Result<(Vec<usize>, Vec<BaseElement>, FridaProof), Box<dyn std::error::Error>> {
+) -> OpenResult {
     // Read data from file
     let data = read_file_to_vec(data_path)?;
 
@@ -33,7 +35,7 @@ pub fn run(
     let domain_size = (encoded_element_count - 1).next_power_of_two() * options.blowup_factor();
     let evaluations = build_evaluations_from_data(&data, domain_size, options.blowup_factor())
         .map_err(|e| -> Box<dyn std::error::Error> {
-            format!("Failed to build evaluations: {}", e).into()
+            format!("Failed to build evaluations: {e}").into()
         })?;
 
     let queried_evaluations: Vec<BaseElement> = positions.iter().map(|&p| evaluations[p]).collect();
@@ -50,25 +52,25 @@ pub fn read_and_deserialize_proof(
     positions_path: &Path,
     evaluations_path: &Path,
     proof_path: &Path,
-) -> Result<(Vec<usize>, Vec<BaseElement>, FridaProof), Box<dyn std::error::Error>> {
+) -> OpenResult {
     // Read and deserialize positions
     let positions_bytes = read_file_to_vec(positions_path)?;
     let positions = Vec::<usize>::read_from_bytes(&positions_bytes).map_err(
-        |e| -> Box<dyn std::error::Error> { format!("Deserialization error: {}", e).into() },
+        |e| -> Box<dyn std::error::Error> { format!("Deserialization error: {e}").into() },
     )?;
 
     // Read and deserialize evaluations
     let queried_evaluations_bytes = read_file_to_vec(evaluations_path)?;
     let queried_evaluations = Vec::<BaseElement>::read_from_bytes(&queried_evaluations_bytes)
         .map_err(|e| -> Box<dyn std::error::Error> {
-            format!("Deserialization error: {}", e).into()
+            format!("Deserialization error: {e}").into()
         })?;
 
     // Read and deserialize proof
     let proof_bytes = read_file_to_vec(proof_path)?;
     let proof =
         FridaProof::read_from_bytes(&proof_bytes).map_err(|e| -> Box<dyn std::error::Error> {
-            format!("Deserialization error: {}", e).into()
+            format!("Deserialization error: {e}").into()
         })?;
 
     Ok((positions, queried_evaluations, proof))

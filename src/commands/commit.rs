@@ -24,7 +24,7 @@ pub fn run(
     let (commitment, _) = prover_builder
         .commit_and_prove(&data, num_queries)
         .map_err(|e| -> Box<dyn std::error::Error> {
-            format!("Prover commit error: {}", e).into()
+            format!("Prover commit error: {e}").into()
         })?;
 
     // Write commitment to file
@@ -44,7 +44,7 @@ pub fn read_commitment_from_file(
 ) -> Result<Commitment<Blake3>, Box<dyn std::error::Error>> {
     let commitment_bytes = read_file_to_vec(file_path)?;
     let commitment = Commitment::<Blake3>::read_from_bytes(&commitment_bytes).map_err(
-        |e| -> Box<dyn std::error::Error> { format!("Deserialization error: {}", e).into() },
+        |e| -> Box<dyn std::error::Error> { format!("Deserialization error: {e}").into() },
     )?;
     Ok(commitment)
 }

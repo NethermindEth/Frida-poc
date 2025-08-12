@@ -1,5 +1,5 @@
 use std::time::{Duration, Instant};
-use winter_crypto::{hashers::Blake3_256, ElementHasher};
+use winter_crypto::ElementHasher;
 use winter_fri::FriOptions;
 use winter_math::FieldElement;
 use winter_rand_utils::rand_vector;
@@ -8,7 +8,7 @@ use frida_poc::{
     constants, core::data::encoded_data_element_count, prover::builder::FridaProverBuilder,
 };
 
-use crate::common::{self, field_names, Blake3_F128, Blake3_F64, F128Element, F64Element, RUNS};
+use crate::common::{self, field_names, Blake3F128, Blake3F64, F128Element, F64Element, RUNS};
 
 #[derive(Debug)]
 struct SingleFridaBenchmarkResult {
@@ -185,7 +185,7 @@ pub fn run_full_benchmark(output_path: &str) {
 
     println!("Running full Single Frida benchmark suite...");
     let total_configs = fri_options.len() * data_sizes.len() * batch_sizes.len() * 2;
-    println!("Total configurations: {}", total_configs);
+    println!("Total configurations: {total_configs}");
 
     let mut completed = 0;
 
@@ -195,15 +195,12 @@ pub fn run_full_benchmark(output_path: &str) {
         for &data_size in &data_sizes {
             for &batch_size in &batch_sizes {
                 if completed % 50 == 0 {
-                    println!(
-                        "Progress: {}/{} configurations completed",
-                        completed, total_configs
-                    );
+                    println!("Progress: {completed}/{total_configs} configurations completed");
                 }
 
                 if batch_size == 1 {
                     if let Ok(result) = std::panic::catch_unwind(|| {
-                        benchmark_non_batched::<F64Element, Blake3_F64>(
+                        benchmark_non_batched::<F64Element, Blake3F64>(
                             options.clone(),
                             data_size,
                             field_names::F64,
@@ -214,7 +211,7 @@ pub fn run_full_benchmark(output_path: &str) {
                     completed += 1;
 
                     if let Ok(result) = std::panic::catch_unwind(|| {
-                        benchmark_non_batched::<F128Element, Blake3_F128>(
+                        benchmark_non_batched::<F128Element, Blake3F128>(
                             options.clone(),
                             data_size,
                             field_names::F128,
@@ -225,7 +222,7 @@ pub fn run_full_benchmark(output_path: &str) {
                     completed += 1;
                 } else {
                     if let Ok(result) = std::panic::catch_unwind(|| {
-                        benchmark_batched::<F64Element, Blake3_F64>(
+                        benchmark_batched::<F64Element, Blake3F64>(
                             options.clone(),
                             data_size,
                             batch_size,
@@ -237,7 +234,7 @@ pub fn run_full_benchmark(output_path: &str) {
                     completed += 1;
 
                     if let Ok(result) = std::panic::catch_unwind(|| {
-                        benchmark_batched::<F128Element, Blake3_F128>(
+                        benchmark_batched::<F128Element, Blake3F128>(
                             options.clone(),
                             data_size,
                             batch_size,
@@ -289,7 +286,7 @@ pub fn run_custom_benchmark(
     if batch_size > 1 {
         println!("Running batched benchmarks...");
 
-        let result_f64 = benchmark_batched::<F64Element, Blake3_F64>(
+        let result_f64 = benchmark_batched::<F64Element, Blake3F64>(
             options.clone(),
             data_size,
             batch_size,
@@ -297,7 +294,7 @@ pub fn run_custom_benchmark(
         );
         results.push(result_f64);
 
-        let result_f128 = benchmark_batched::<F128Element, Blake3_F128>(
+        let result_f128 = benchmark_batched::<F128Element, Blake3F128>(
             options.clone(),
             data_size,
             batch_size,
@@ -307,14 +304,14 @@ pub fn run_custom_benchmark(
     } else {
         println!("Running non-batched benchmarks...");
 
-        let result_f64 = benchmark_non_batched::<F64Element, Blake3_F64>(
+        let result_f64 = benchmark_non_batched::<F64Element, Blake3F64>(
             options.clone(),
             data_size,
             field_names::F64,
         );
         results.push(result_f64);
 
-        let result_f128 = benchmark_non_batched::<F128Element, Blake3_F128>(
+        let result_f128 = benchmark_non_batched::<F128Element, Blake3F128>(
             options.clone(),
             data_size,
             field_names::F128,

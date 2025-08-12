@@ -25,7 +25,7 @@ pub fn run_cli() {
 
     loop {
         if let Err(e) = handle_iteration(&mut prover_builder) {
-            eprintln!("Error: {}", e);
+            eprintln!("Error: {e}");
         }
     }
 }
@@ -44,8 +44,7 @@ fn handle_iteration(
             max_remainder_degree,
         } => {
             println!(
-                "Initializing prover with FRI options: blowup={}, folding={}, max_degree={}",
-                blowup_factor, folding_factor, max_remainder_degree
+                "Initializing prover with FRI options: blowup={blowup_factor}, folding={folding_factor}, max_degree={max_remainder_degree}"
             );
 
             // Check if the data file exists before initializing

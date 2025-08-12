@@ -1,5 +1,4 @@
 use std::{fs, io::Write, path::Path};
-use winter_fri::FriOptions;
 use winter_math::{
     fields::{f128, f64},
     FieldElement,
@@ -63,13 +62,13 @@ where
     ensure_output_dir(output_path)?;
 
     let mut file = fs::File::create(output_path)?;
-    writeln!(file, "{}", header)?;
+    writeln!(file, "{header}")?;
 
     for result in results {
         writeln!(file, "{}", to_csv(result))?;
     }
 
-    println!("Results saved to: {}", output_path);
+    println!("Results saved to: {output_path}");
     println!("Total results: {}", results.len());
     Ok(())
 }
@@ -81,5 +80,5 @@ pub mod field_names {
 
 pub type F64Element = f64::BaseElement;
 pub type F128Element = f128::BaseElement;
-pub type Blake3_F64 = winter_crypto::hashers::Blake3_256<F64Element>;
-pub type Blake3_F128 = winter_crypto::hashers::Blake3_256<F128Element>;
+pub type Blake3F64 = winter_crypto::hashers::Blake3_256<F64Element>;
+pub type Blake3F128 = winter_crypto::hashers::Blake3_256<F128Element>;

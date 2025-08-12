@@ -44,6 +44,9 @@ struct RandomlyDrawn<E: FieldElement> {
     positions: Vec<usize>,
 }
 
+type DrawResult<E, HHst, HRandom> =
+    Result<(RandomlyDrawn<E>, FridaRandom<E, HHst, HRandom>), FridaError>;
+
 impl<E, HHst, HRandom> FridaDasVerifier<E, HHst, HRandom>
 where
     E: FieldElement,
@@ -147,7 +150,7 @@ where
         positions: &[usize],
     ) -> Result<(), FridaError> {
         let mut verifier_channel = FridaVerifierChannel::<E, HRandom>::new(
-            &proof,
+            proof,
             self.layer_commitments.clone(),
             self.domain_size,
             self.options.folding_factor(),
@@ -397,7 +400,7 @@ where
         max_poly_degree: usize,
         folding_factor: usize,
         domain_size: usize,
-    ) -> Result<(RandomlyDrawn<E>, FridaRandom<E, HHst, HRandom>), FridaError> {
+    ) -> DrawResult<E, HHst, HRandom> {
         let mut public_coin = FridaRandom::<E, HHst, HRandom>::new();
 
         let poly_count = das_commitment.poly_count;

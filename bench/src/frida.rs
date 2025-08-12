@@ -1,5 +1,5 @@
 use std::time::{Duration, Instant};
-use winter_crypto::{hashers::Blake3_256, ElementHasher};
+use winter_crypto::ElementHasher;
 use winter_fri::FriOptions;
 use winter_math::FieldElement;
 use winter_rand_utils::rand_vector;
@@ -15,7 +15,7 @@ use frida_poc::{
 
 use crate::common::{
     self, field_names, get_standard_batch_sizes, get_standard_data_sizes, get_standard_fri_options,
-    get_standard_num_queries, Blake3_F128, Blake3_F64, F128Element, F64Element, RUNS,
+    get_standard_num_queries, Blake3F128, Blake3F64, F128Element, F64Element, RUNS,
 };
 
 #[derive(Debug)]
@@ -240,7 +240,7 @@ where
             .collect::<Vec<_>>();
 
         let evaluations = get_evaluations_from_positions(
-            &prover.get_first_layer_evaluations(),
+            prover.get_first_layer_evaluations(),
             &positions,
             batch_size,
             com.domain_size,
@@ -340,7 +340,7 @@ pub fn run_full_benchmark(output_path: &str) {
             for &num_queries in &num_queries_list {
                 // Non-batched (batch_size = 1)
                 if let Ok(result) = std::panic::catch_unwind(|| {
-                    benchmark_non_batched::<F64Element, Blake3_F64>(
+                    benchmark_non_batched::<F64Element, Blake3F64>(
                         options.clone(),
                         data_size_f64,
                         num_queries,
@@ -351,7 +351,7 @@ pub fn run_full_benchmark(output_path: &str) {
                 }
 
                 if let Ok(result) = std::panic::catch_unwind(|| {
-                    benchmark_non_batched::<F128Element, Blake3_F128>(
+                    benchmark_non_batched::<F128Element, Blake3F128>(
                         options.clone(),
                         data_size_f128,
                         num_queries,
@@ -364,7 +364,7 @@ pub fn run_full_benchmark(output_path: &str) {
                 // Batched
                 for &batch_size in &batch_sizes {
                     if let Ok(result) = std::panic::catch_unwind(|| {
-                        benchmark_batched::<F64Element, Blake3_F64>(
+                        benchmark_batched::<F64Element, Blake3F64>(
                             options.clone(),
                             data_size_f64,
                             batch_size,
@@ -376,7 +376,7 @@ pub fn run_full_benchmark(output_path: &str) {
                     }
 
                     if let Ok(result) = std::panic::catch_unwind(|| {
-                        benchmark_batched::<F128Element, Blake3_F128>(
+                        benchmark_batched::<F128Element, Blake3F128>(
                             options.clone(),
                             data_size_f128,
                             batch_size,
@@ -428,7 +428,7 @@ pub fn run_custom_benchmark(
     );
 
     if batch_size > 1 {
-        let result_f64 = benchmark_batched::<F64Element, Blake3_F64>(
+        let result_f64 = benchmark_batched::<F64Element, Blake3F64>(
             options.clone(),
             data_size,
             batch_size,
@@ -437,7 +437,7 @@ pub fn run_custom_benchmark(
         );
         results.push(result_f64);
 
-        let result_f128 = benchmark_batched::<F128Element, Blake3_F128>(
+        let result_f128 = benchmark_batched::<F128Element, Blake3F128>(
             options.clone(),
             data_size,
             batch_size,
@@ -446,7 +446,7 @@ pub fn run_custom_benchmark(
         );
         results.push(result_f128);
     } else {
-        let result_f64 = benchmark_non_batched::<F64Element, Blake3_F64>(
+        let result_f64 = benchmark_non_batched::<F64Element, Blake3F64>(
             options.clone(),
             data_size,
             num_queries,
@@ -454,7 +454,7 @@ pub fn run_custom_benchmark(
         );
         results.push(result_f64);
 
-        let result_f128 = benchmark_non_batched::<F128Element, Blake3_F128>(
+        let result_f128 = benchmark_non_batched::<F128Element, Blake3F128>(
             options.clone(),
             data_size,
             num_queries,

@@ -27,7 +27,7 @@ impl fmt::Display for FridaError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             FridaError::DeserializationError(e) => {
-                write!(f, "Deserialization error occurred: {}", e)
+                write!(f, "Deserialization error occurred: {e}")
             }
             FridaError::XYCoordinateLengthMismatch() => write!(f, "XY coordinate length mismatch"),
             FridaError::NotEnoughDataPoints() => write!(f, "Not enough data points"),
@@ -38,25 +38,22 @@ impl fmt::Display for FridaError {
             FridaError::DrawError() => write!(f, "Draw error"),
             FridaError::FailedToDrawEnoughQueryPoints(required, drawn) => write!(
                 f,
-                "Failed to draw enough query points: required {}, drawn {}",
-                required, drawn
+                "Failed to draw enough query points: required {required}, drawn {drawn}"
             ),
             FridaError::FailedToDrawEnoughXi(required, drawn) => write!(
                 f,
-                "Failed to draw enough Xi: required {}, drawn {}",
-                required, drawn
+                "Failed to draw enough Xi: required {required}, drawn {drawn}"
             ),
-            FridaError::DomainSizeTooBig(size) => write!(f, "Domain size too big: {}", size),
-            FridaError::BadNumQueries(num) => write!(f, "Bad number of queries: {}", num),
+            FridaError::DomainSizeTooBig(size) => write!(f, "Domain size too big: {size}"),
+            FridaError::BadNumQueries(num) => write!(f, "Bad number of queries: {num}"),
             FridaError::InvalidDASCommitment => write!(f, "Invalid DAS commitment"),
             FridaError::FailToVerify => write!(f, "Failed to verify"),
             FridaError::DegreeTruncation(layer, degree, factor) => write!(
                 f,
-                "Degree truncation error at layer {}: degree {}, factor {}",
-                layer, degree, factor
+                "Degree truncation error at layer {layer}: degree {degree}, factor {factor}"
             ),
             FridaError::UnsupportedFoldingFactor(factor) => {
-                write!(f, "Unsupported folding factor: {}", factor)
+                write!(f, "Unsupported folding factor: {factor}")
             }
             FridaError::ProofPolyCountMismatch => {
                 write!(f, "Proof's polynomial count does not match")

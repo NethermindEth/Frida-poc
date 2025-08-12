@@ -2,23 +2,18 @@ use core::marker::PhantomData;
 #[cfg(feature = "bench")]
 use std::time::Instant;
 
-use winter_crypto::{ElementHasher, Hasher, MerkleTree};
+use winter_crypto::{ElementHasher, MerkleTree};
 use winter_fri::folding;
 use winter_fri::utils::hash_values;
 use winter_fri::{FriOptions, ProverChannel};
 use winter_math::{fft, FieldElement};
 #[cfg(feature = "concurrent")]
 use winter_utils::iterators::*;
-use winter_utils::{
-    flatten_vector_elements, group_slice_elements, iter_mut, transpose_slice, uninit_vector,
-    ByteReader, Deserializable, DeserializationError, Serializable,
-};
+use winter_utils::{flatten_vector_elements, iter_mut, transpose_slice, uninit_vector};
 
 use super::{
-    batch_data_to_evaluations,
-    channel::FridaProverChannel,
-    proof::{FridaProof, FridaProofBatchLayer, FridaProofLayer},
-    Commitment, FridaLayer, FridaProver, FridaRemainder, ProverCommitment,
+    batch_data_to_evaluations, channel::FridaProverChannel, Commitment, FridaLayer, FridaProver,
+    FridaRemainder, ProverCommitment,
 };
 
 use crate::{
@@ -31,6 +26,9 @@ use crate::{
 use super::bench;
 
 type Channel<E, H> = FridaProverChannel<E, H, H>;
+type CommitmentResult<H, E> =
+    Result<(ProverCommitment<H>, FridaProver<E, H>, Vec<usize>), FridaError>;
+type ProverStateResult<E, H> = Result<(Channel<E, H>, FridaProver<E, H>), FridaError>;
 
 pub struct FridaProverBuilder<E, H>
 where
@@ -82,11 +80,7 @@ where
     /// This method returns a commitment containing only the Merkle roots and metadata,
     /// and a stateful `FridaProver` instance which can be used generate many
     /// proofs for different query sets.
-    pub fn commitment(
-        &self,
-        data: &[u8],
-        num_queries: usize,
-    ) -> Result<(ProverCommitment<H>, FridaProver<E, H>, Vec<usize>), FridaError> {
+    pub fn commitment(&self, data: &[u8], num_queries: usize) -> CommitmentResult<H, E> {
         // We use a dummy num_queries here because we are not generating a proof yet.
         let (mut channel, prover) = self.prepare_prover_state(data, num_queries)?;
 
@@ -105,7 +99,7 @@ where
         &self,
         data_list: &[Vec<u8>],
         num_queries: usize,
-    ) -> Result<(ProverCommitment<H>, FridaProver<E, H>, Vec<usize>), FridaError> {
+    ) -> CommitmentResult<H, E> {
         let (mut channel, prover) = self.prepare_prover_state_batch(data_list, num_queries)?;
 
         let commitment = ProverCommitment {
@@ -120,11 +114,7 @@ where
     }
 
     /// It calculates the domain size and generates the initial evaluations.
-    fn prepare_prover_state(
-        &self,
-        data: &[u8],
-        num_queries: usize,
-    ) -> Result<(Channel<E, H>, FridaProver<E, H>), FridaError> {
+    fn prepare_prover_state(&self, data: &[u8], num_queries: usize) -> ProverStateResult<E, H> {
         if num_queries == 0 {
             return Err(FridaError::BadNumQueries(num_queries));
         }
@@ -159,7 +149,7 @@ where
         &self,
         data_list: &[Vec<u8>],
         num_queries: usize,
-    ) -> Result<(Channel<E, H>, FridaProver<E, H>), FridaError> {
+    ) -> ProverStateResult<E, H> {
         #[cfg(feature = "bench")]
         unsafe {
             bench::TIMER = Some(Instant::now());
