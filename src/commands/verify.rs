@@ -1,6 +1,5 @@
 use crate::{
-    commands::open::read_and_deserialize_proof, prover::Commitment,
-    verifier::das::FridaDasVerifier,
+    commands::open::read_and_deserialize_proof, prover::Commitment, verifier::das::FridaDasVerifier,
 };
 use std::{error::Error, fs, path::Path};
 use winter_crypto::hashers::Blake3_256;
@@ -21,18 +20,18 @@ pub fn run(
     // Read and deserialize
     let commitment_bytes = fs::read(commitment_path)?;
     let commitment = Commitment::<Blake3_256<BaseElement>>::read_from_bytes(&commitment_bytes)
-        .map_err(|e| format!("Deserialization error: {}", e))?;
+        .map_err(|e| format!("Deserialization error: {e}"))?;
 
     let (positions, evaluations, proof) =
         read_and_deserialize_proof(positions_path, evaluations_path, proof_path)?;
 
     let (verifier, _) = FriVerifierType::new(commitment, fri_options.clone())
-        .map_err(|e| format!("Verifier initialization error: {}", e))?;
+        .map_err(|e| format!("Verifier initialization error: {e}"))?;
 
     // Verify the proof
     verifier
         .verify(&proof, &evaluations, &positions)
-        .map_err(|e| format!("Verification error: {}", e))?;
+        .map_err(|e| format!("Verification error: {e}"))?;
 
     Ok(())
 }

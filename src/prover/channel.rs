@@ -2,8 +2,8 @@ use winter_crypto::{Digest, ElementHasher};
 use winter_fri::ProverChannel;
 use winter_math::FieldElement;
 
-use crate::{constants, error::FridaError};
 use crate::core::random::FridaRandom;
+use crate::{constants, error::FridaError};
 
 #[derive(Debug)]
 pub struct FridaProverChannel<E, HHst, HRandom>
@@ -91,7 +91,6 @@ where
     }
 
     fn draw_fri_alpha(&mut self) -> E {
-        let alpha = self.public_coin.draw().expect("failed to draw FRI alpha");
-        alpha
+        self.public_coin.draw().expect("failed to draw FRI alpha")
     }
 }

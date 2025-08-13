@@ -1,6 +1,8 @@
 use std::{fs, io::Write, path::Path};
-use winter_fri::FriOptions;
-use winter_math::{fields::{f128, f64}, FieldElement};
+use winter_math::{
+    fields::{f128, f64},
+    FieldElement,
+};
 
 pub const RUNS: usize = 10;
 
@@ -31,7 +33,6 @@ pub fn get_standard_num_queries() -> Vec<usize> {
     vec![8, 16, 32]
 }
 
-
 pub fn get_standard_batch_sizes() -> Vec<usize> {
     vec![2, 4, 8, 16]
 }
@@ -50,24 +51,24 @@ pub fn ensure_output_dir(output_path: &str) -> std::io::Result<()> {
 
 /// Saves results with CSV header to file
 pub fn save_results_with_header<T>(
-    results: &[T], 
-    output_path: &str, 
-    header: &str, 
-    to_csv: fn(&T) -> String
-) -> std::io::Result<()> 
-where 
-    T: std::fmt::Debug 
+    results: &[T],
+    output_path: &str,
+    header: &str,
+    to_csv: fn(&T) -> String,
+) -> std::io::Result<()>
+where
+    T: std::fmt::Debug,
 {
     ensure_output_dir(output_path)?;
-    
+
     let mut file = fs::File::create(output_path)?;
-    writeln!(file, "{}", header)?;
-    
+    writeln!(file, "{header}")?;
+
     for result in results {
         writeln!(file, "{}", to_csv(result))?;
     }
-    
-    println!("Results saved to: {}", output_path);
+
+    println!("Results saved to: {output_path}");
     println!("Total results: {}", results.len());
     Ok(())
 }
@@ -79,5 +80,5 @@ pub mod field_names {
 
 pub type F64Element = f64::BaseElement;
 pub type F128Element = f128::BaseElement;
-pub type Blake3_F64 = winter_crypto::hashers::Blake3_256<F64Element>;
-pub type Blake3_F128 = winter_crypto::hashers::Blake3_256<F128Element>;
+pub type Blake3F64 = winter_crypto::hashers::Blake3_256<F64Element>;
+pub type Blake3F128 = winter_crypto::hashers::Blake3_256<F128Element>;

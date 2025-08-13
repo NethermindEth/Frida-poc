@@ -5,7 +5,7 @@ use winter_math::{fft, polynom, FieldElement, StarkField};
 pub fn encoded_data_element_count<E: FieldElement>(data_size: usize) -> usize {
     let element_size = E::ELEMENT_BYTES - 1;
     // element_size - 1 is to force a round up
-    (mem::size_of::<u64>() + data_size + element_size - 1) / element_size
+    (mem::size_of::<u64>() + data_size).div_ceil(element_size)
 }
 
 fn encode_data<E: FieldElement>(data: &[u8], domain_size: usize, blowup_factor: usize) -> Vec<u8> {
@@ -21,8 +21,8 @@ fn encode_data<E: FieldElement>(data: &[u8], domain_size: usize, blowup_factor: 
 
     let data_size_bytes = (data_size as u64).to_be_bytes();
     let mut index = 0;
-    for i in 0..8 {
-        encoded_data[index] = data_size_bytes[i];
+    for byte in data_size_bytes {
+        encoded_data[index] = byte;
         index += 1;
     }
 
@@ -139,7 +139,7 @@ fn extract_and_decode_data<E: FieldElement>(
         .flat_map(|e| &e.as_bytes()[..element_size])
         .skip(8)
         .take(data_len)
-        .map(|e| *e)
+        .copied()
         .collect::<Vec<u8>>();
     Ok(decoded)
 }
@@ -154,18 +154,10 @@ pub fn recover_data_from_evaluations<E: FieldElement>(
     if evaluations.len() != domain_size {
         let evaluations =
             reconstruct_evaluations(evaluations, positions, domain_size, blowup_factor)?;
-        return Ok(extract_and_decode_data(
-            &evaluations,
-            domain_size,
-            blowup_factor,
-        )?);
+        return extract_and_decode_data(&evaluations, domain_size, blowup_factor);
     }
 
-    Ok(extract_and_decode_data(
-        evaluations,
-        domain_size,
-        blowup_factor,
-    )?)
+    extract_and_decode_data(evaluations, domain_size, blowup_factor)
 }
 
 #[cfg(test)]
@@ -206,8 +198,8 @@ mod tests {
         assert_eq!(
             FridaError::XYCoordinateLengthMismatch(),
             recover_data_from_evaluations(
-                &vec![BaseElement::default(); 10],
-                &vec![0; 2],
+                &[BaseElement::default(); 10],
+                &[0; 2],
                 domain_size,
                 blowup_factor,
             )
@@ -222,8 +214,8 @@ mod tests {
         assert_eq!(
             FridaError::NotEnoughDataPoints(),
             recover_data_from_evaluations(
-                &vec![BaseElement::default(); 1],
-                &vec![0; 1],
+                &[BaseElement::default(); 1],
+                &[0; 1],
                 domain_size,
                 blowup_factor,
             )
@@ -357,7 +349,7 @@ mod tests {
         for i in 0..10 {
             let size = 10usize.pow(i) - 1;
             assert_eq!(
-                (8 + size + element_size - 1) / element_size,
+                (8 + size).div_ceil(element_size),
                 encoded_data_element_count::<BaseElement>(size)
             );
         }

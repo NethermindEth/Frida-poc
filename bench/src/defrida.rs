@@ -2,18 +2,20 @@ use std::time::{Duration, Instant};
 use winter_crypto::ElementHasher;
 use winter_fri::FriOptions;
 use winter_math::FieldElement;
-use winter_rand_utils::{rand_value, rand_vector};
+use winter_rand_utils::rand_vector;
 
 use frida_poc::{
-    core::data::{build_evaluations_from_data, encoded_data_element_count},
-    prover::{batch_data_to_evaluations, get_evaluations_from_positions, builder::FridaProverBuilder},
-    verifier::das::FridaDasVerifier,
     constants,
+    core::data::{build_evaluations_from_data, encoded_data_element_count},
+    prover::{
+        batch_data_to_evaluations, builder::FridaProverBuilder, get_evaluations_from_positions,
+    },
+    verifier::das::FridaDasVerifier,
 };
 
 use crate::common::{
     self, field_names, get_standard_data_sizes, get_standard_fri_options,
-    get_standard_validator_counts, Blake3_F128, Blake3_F64, F128Element, F64Element, RUNS
+    get_standard_validator_counts, Blake3F128, Blake3F64, F128Element, F64Element, RUNS,
 };
 
 #[derive(Debug)]
@@ -86,8 +88,7 @@ fn compute_position_assignments(
             return vec![Vec::new(); n];
         }
         let replication_factor = n_prime / s;
-        let h_prime =
-            (h.saturating_sub(n - n_prime) + replication_factor - 1) / replication_factor;
+        let h_prime = h.saturating_sub(n - n_prime).div_ceil(replication_factor);
         let base_subsets = compute_position_assignments(s, query_positions, h_prime);
         (1..=n)
             .map(|i| {
@@ -155,11 +156,9 @@ where
         .unwrap();
 
         let setup_start = Instant::now();
-        let verifier = FridaDasVerifier::<E, H, H>::from_commitment(
-            &prover_commitment,
-            options.clone(),
-        )
-        .expect("Verifier initialization failed");
+        let verifier =
+            FridaDasVerifier::<E, H, H>::from_commitment(&prover_commitment, options.clone())
+                .expect("Verifier initialization failed");
         total_verification_setup_time += setup_start.elapsed();
 
         if let Some(positions) = validator_positions.iter().find(|p| !p.is_empty()) {
@@ -193,7 +192,8 @@ where
         } else {
             0
         },
-        verification_setup_time_ms: total_verification_setup_time.as_secs_f64() * 1000.0 / RUNS as f64,
+        verification_setup_time_ms: total_verification_setup_time.as_secs_f64() * 1000.0
+            / RUNS as f64,
         avg_verification_time_ms: total_verification_time.as_secs_f64() * 1000.0 / RUNS as f64,
     }
 }
@@ -251,7 +251,11 @@ where
 
         let blowup_factor = options.blowup_factor();
         let max_data_len = encoded_data_element_count::<E>(
-            data_list.iter().map(|data| data.len()).max().unwrap_or_default(),
+            data_list
+                .iter()
+                .map(|data| data.len())
+                .max()
+                .unwrap_or_default(),
         );
         let domain_size = usize::max(
             (max_data_len * blowup_factor).next_power_of_two(),
@@ -268,11 +272,9 @@ where
         .unwrap();
 
         let setup_start = Instant::now();
-        let verifier = FridaDasVerifier::<E, H, H>::from_commitment(
-            &prover_commitment,
-            options.clone(),
-        )
-        .expect("Verifier initialization failed");
+        let verifier =
+            FridaDasVerifier::<E, H, H>::from_commitment(&prover_commitment, options.clone())
+                .expect("Verifier initialization failed");
         total_verification_setup_time += setup_start.elapsed();
 
         if let Some(positions) = validator_positions.iter().find(|p| !p.is_empty()) {
@@ -312,7 +314,8 @@ where
         } else {
             0
         },
-        verification_setup_time_ms: total_verification_setup_time.as_secs_f64() * 1000.0 / RUNS as f64,
+        verification_setup_time_ms: total_verification_setup_time.as_secs_f64() * 1000.0
+            / RUNS as f64,
         avg_verification_time_ms: total_verification_time.as_secs_f64() * 1000.0 / RUNS as f64,
     }
 }
@@ -328,19 +331,26 @@ pub fn run_full_benchmark(output_path: &str) {
     let mut results = Vec::new();
 
     println!("Running full deFRIDA benchmark suite...");
-    println!("Total configurations: {}", 
-        fri_options.len() * data_sizes_f64.len() * validator_counts.len() * batch_sizes.len() * query_range.len() * 2);
+    println!(
+        "Total configurations: {}",
+        fri_options.len()
+            * data_sizes_f64.len()
+            * validator_counts.len()
+            * batch_sizes.len()
+            * query_range.len()
+            * 2
+    );
 
     for &(blowup_factor, folding_factor, max_remainder_degree) in &fri_options {
         let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
-        
+
         for (&data_size_f64, &data_size_f128) in data_sizes_f64.iter().zip(data_sizes_f128.iter()) {
             for &num_validators in &validator_counts {
                 for &num_queries in &query_range {
                     for &batch_size in &batch_sizes {
                         if batch_size == 1 {
                             if let Ok(result) = std::panic::catch_unwind(|| {
-                                benchmark_non_batched::<F64Element, Blake3_F64>(
+                                benchmark_non_batched::<F64Element, Blake3F64>(
                                     options.clone(),
                                     data_size_f64,
                                     num_validators,
@@ -352,7 +362,7 @@ pub fn run_full_benchmark(output_path: &str) {
                             }
 
                             if let Ok(result) = std::panic::catch_unwind(|| {
-                                benchmark_non_batched::<F128Element, Blake3_F128>(
+                                benchmark_non_batched::<F128Element, Blake3F128>(
                                     options.clone(),
                                     data_size_f128,
                                     num_validators,
@@ -364,7 +374,7 @@ pub fn run_full_benchmark(output_path: &str) {
                             }
                         } else {
                             if let Ok(result) = std::panic::catch_unwind(|| {
-                                benchmark_batched::<F64Element, Blake3_F64>(
+                                benchmark_batched::<F64Element, Blake3F64>(
                                     options.clone(),
                                     data_size_f64,
                                     batch_size,
@@ -377,7 +387,7 @@ pub fn run_full_benchmark(output_path: &str) {
                             }
 
                             if let Ok(result) = std::panic::catch_unwind(|| {
-                                benchmark_batched::<F128Element, Blake3_F128>(
+                                benchmark_batched::<F128Element, Blake3F128>(
                                     options.clone(),
                                     data_size_f128,
                                     batch_size,
@@ -395,69 +405,96 @@ pub fn run_full_benchmark(output_path: &str) {
         }
     }
 
-    common::save_results_with_header(&results, output_path, &DefridaBenchmarkResult::csv_header(), |r| r.to_csv())
-        .expect("Failed to save results");
-    println!("deFRIDA benchmark completed with {} successful results", results.len());
+    common::save_results_with_header(
+        &results,
+        output_path,
+        &DefridaBenchmarkResult::csv_header(),
+        |r| r.to_csv(),
+    )
+    .expect("Failed to save results");
+    println!(
+        "deFRIDA benchmark completed with {} successful results",
+        results.len()
+    );
 }
 
-pub fn run_custom_benchmark(
-    blowup_factor: usize,
-    folding_factor: usize,
-    max_remainder_degree: usize,
-    data_size: usize,
-    num_validators: usize,
-    num_queries: usize,
-    batch_size: usize,
-    output_path: &str,
-) {
-    let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
+pub struct CustomDefridaBenchmarkConfig<'a> {
+    pub blowup_factor: usize,
+    pub folding_factor: usize,
+    pub max_remainder_degree: usize,
+    pub data_size: usize,
+    pub num_validators: usize,
+    pub num_queries: usize,
+    pub batch_size: usize,
+    pub output_path: &'a str,
+}
+
+pub fn run_custom_benchmark(config: CustomDefridaBenchmarkConfig) {
+    let options = FriOptions::new(
+        config.blowup_factor,
+        config.folding_factor,
+        config.max_remainder_degree,
+    );
     let mut results = Vec::new();
 
     println!("Running custom deFRIDA benchmark...");
-    println!("Parameters: blowup={}, folding={}, remainder={}, data={}KB, validators={}, queries={}, batch_size={}",
-        blowup_factor, folding_factor, max_remainder_degree, data_size / 1024, num_validators, num_queries, batch_size);
+    println!(
+        "Parameters: blowup={}, folding={}, remainder={}, data={}KB, validators={}, queries={}, batch_size={}",
+        config.blowup_factor,
+        config.folding_factor,
+        config.max_remainder_degree,
+        config.data_size / 1024,
+        config.num_validators,
+        config.num_queries,
+        config.batch_size
+    );
 
-    if batch_size > 1 {
-        let result_f64 = benchmark_batched::<F64Element, Blake3_F64>(
+    if config.batch_size > 1 {
+        let result_f64 = benchmark_batched::<F64Element, Blake3F64>(
             options.clone(),
-            data_size,
-            batch_size,
-            num_validators,
-            num_queries,
+            config.data_size,
+            config.batch_size,
+            config.num_validators,
+            config.num_queries,
             field_names::F64,
         );
         results.push(result_f64);
 
-        let result_f128 = benchmark_batched::<F128Element, Blake3_F128>(
+        let result_f128 = benchmark_batched::<F128Element, Blake3F128>(
             options.clone(),
-            data_size,
-            batch_size,
-            num_validators,
-            num_queries,
+            config.data_size,
+            config.batch_size,
+            config.num_validators,
+            config.num_queries,
             field_names::F128,
         );
         results.push(result_f128);
     } else {
-        let result_f64 = benchmark_non_batched::<F64Element, Blake3_F64>(
+        let result_f64 = benchmark_non_batched::<F64Element, Blake3F64>(
             options.clone(),
-            data_size,
-            num_validators,
-            num_queries,
+            config.data_size,
+            config.num_validators,
+            config.num_queries,
             field_names::F64,
         );
         results.push(result_f64);
 
-        let result_f128 = benchmark_non_batched::<F128Element, Blake3_F128>(
+        let result_f128 = benchmark_non_batched::<F128Element, Blake3F128>(
             options.clone(),
-            data_size,
-            num_validators,
-            num_queries,
+            config.data_size,
+            config.num_validators,
+            config.num_queries,
             field_names::F128,
         );
         results.push(result_f128);
     }
 
-    common::save_results_with_header(&results, output_path, &DefridaBenchmarkResult::csv_header(), |r| r.to_csv())
-        .expect("Failed to save results");
+    common::save_results_with_header(
+        &results,
+        config.output_path,
+        &DefridaBenchmarkResult::csv_header(),
+        |r| r.to_csv(),
+    )
+    .expect("Failed to save results");
     println!("Custom deFRIDA benchmark completed successfully");
 }

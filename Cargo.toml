@@ -2,13 +2,9 @@
 name = "frida-poc"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[features]
-concurrent = ["winter-crypto/concurrent", "winter-fri/concurrent", "winter-math/concurrent", "winter-utils/concurrent"]
-bench = []
-cli = []
+repository = "https://github.com/NethermindEth/frida-hotstuff"
+license = "Apache-2.0"
+publish = false
 
 [[bin]]
 name = "frida-bench"
@@ -19,6 +15,18 @@ required-features = ["bench"]
 name = "cli"
 path = "src/main.rs"
 required-features = ["cli"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+concurrent = [
+    "winter-crypto/concurrent",
+    "winter-fri/concurrent",
+    "winter-math/concurrent",
+    "winter-utils/concurrent",
+]
+bench = []
+cli = []
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }

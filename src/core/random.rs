@@ -16,11 +16,22 @@ pub struct FridaRandom<E: FieldElement, HashHst: ElementHasher, HashRandom: Elem
 }
 
 impl<
-    E: FieldElement,
-    HashHst: ElementHasher<BaseField = E::BaseField>,
-    HashRandom: ElementHasher<BaseField = E::BaseField>,
-> FridaRandom<E, HashHst, HashRandom> {
+        E: FieldElement,
+        HashHst: ElementHasher<BaseField = E::BaseField>,
+        HashRandom: ElementHasher<BaseField = E::BaseField>,
+    > Default for FridaRandom<E, HashHst, HashRandom>
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
+impl<
+        E: FieldElement,
+        HashHst: ElementHasher<BaseField = E::BaseField>,
+        HashRandom: ElementHasher<BaseField = E::BaseField>,
+    > FridaRandom<E, HashHst, HashRandom>
+{
     /// Create a fresh public coin with a predefined seed.
     pub fn new() -> Self {
         Self::from_hst(&[123])

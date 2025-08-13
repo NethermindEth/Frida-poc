@@ -139,10 +139,12 @@ See `bench/README.md` for detailed information about the benchmark suite.
 
 ## Contributing
 
-This is a research prototype. Contributions, bug reports, and feedback are welcome! Please ensure any contributions maintain the educational clarity and well-documented structure of the existing codebase.
+This is a research prototype. Contributions, bug reports, and feedback are welcome! See [Contributing](./CONTRIBUTING.md)
 
 ## License
+The crates in this repository are licensed under the following licence.
 
+* Apache 2.0 license ([LICENSE](./LICENSE)) is applied to all commits
 
 
 ## Acknowledgments
