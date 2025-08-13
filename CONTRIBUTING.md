@@ -55,11 +55,6 @@ debug = true
 Into your `Cargo.toml` to add debug symbols in profiling mode.
 Otherwise, reading the output will be impossible.
 
-Then, we can run:
-```sh
-samply record 'TODO(template) update with your binary e.g. ./target/release/...'
-```
-This command will open a browser page that contains a graphic representation of where the time is being spent in our application. 
 
 ### Dhat
 We can add Dhat as a dependency:
