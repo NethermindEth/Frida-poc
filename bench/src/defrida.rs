@@ -400,6 +400,55 @@ pub fn run_full_benchmark(output_path: &str) {
     println!("deFRIDA benchmark completed with {} successful results", results.len());
 }
 
+fn run_single_benchmark<E: FieldElement, H: ElementHasher<BaseField = E>>(
+    options: FriOptions,
+    data_size: usize,
+    batch_size: usize,
+    num_validators: usize,
+    num_queries: usize,
+    field_size: usize,
+) -> DefridaBenchmarkResult {
+    match field_size {
+        64 => if batch_size > 1 {
+            benchmark_batched::<F64Element, Blake3_F64>(
+                options.clone(),
+                data_size,
+                batch_size,
+                num_validators,
+                num_queries,
+                field_names::F64,
+            )
+        } else {
+            benchmark_non_batched::<F64Element, Blake3_F64>(
+                options.clone(),
+                data_size,
+                num_validators,
+                num_queries,
+                field_names::F64,
+            )
+        },
+        128 => if batch_size > 1 {
+            benchmark_batched::<F128Element, Blake3_F128>(
+                options.clone(),
+                data_size,
+                batch_size,
+                num_validators,
+                num_queries,
+                field_names::F128,
+            )
+        } else {
+            benchmark_non_batched::<F128Element, Blake3_F128>(
+                options.clone(),
+                data_size,
+                num_validators,
+                num_queries,
+                field_names::F128,
+            )
+        },
+        _ => panic!("Invalid field size: {}. Must be 64 or 128", field_size),
+    }
+}
+
 pub fn run_custom_benchmark(
     blowup_factor: Vec<usize>,
     folding_factor: Vec<usize>,

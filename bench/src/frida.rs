@@ -352,6 +352,36 @@ pub fn run_full_benchmark(output_path: &str) {
     println!("Frida benchmark completed with {} successful results", results.len());
 }
 
+fn run_single_benchmark(
+    options: FriOptions,
+    data_size: usize,
+    batch_size: usize,
+    num_queries: usize,
+    field_size: usize,
+) -> FridaBenchmarkResult {
+    match field_size {
+        64 => if batch_size > 1 {
+            benchmark_batched::<F64Element, Blake3_F64>(
+                options, data_size, batch_size, num_queries, field_names::F64
+            )
+        } else {
+            benchmark_non_batched::<F64Element, Blake3_F64>(
+                options, data_size, num_queries, field_names::F64
+            )
+        },
+        128 => if batch_size > 1 {
+            benchmark_batched::<F128Element, Blake3_F128>(
+                options, data_size, batch_size, num_queries, field_names::F128
+            )
+        } else {
+            benchmark_non_batched::<F128Element, Blake3_F128>(
+                options, data_size, num_queries, field_names::F128
+            )
+        },
+        _ => panic!("Invalid field size: {}. Must be 64 or 128", field_size),
+    }
+}
+
 pub fn run_custom_benchmark(
     blowup_factors: Vec<usize>,
     folding_factors: Vec<usize>,
@@ -359,11 +389,16 @@ pub fn run_custom_benchmark(
     data_sizes: Vec<usize>,
     batch_sizes: Vec<usize>,
     num_queries: Vec<usize>,
+    field_size: Vec<usize>,
     output_path: &str,
 ) {
     let mut results = Vec::new();
-    let total_configs = blowup_factors.len() * folding_factors.len() * max_remainder_degrees.len() * data_sizes.len() * batch_sizes.len() * num_queries.len();
+    let total_configs = blowup_factors.len() * folding_factors.len() * max_remainder_degrees.len() * data_sizes.len() * batch_sizes.len() * num_queries.len() * field_size.len();
     let mut completed = 0;
+
+    // 1. Determine which benchmarks to run by checking the vector's contents.
+    let run_64 = field_size.contains(&64);
+    let run_128 = field_size.contains(&128);
 
     println!("Running custom Frida benchmark...");
     println!("Total configurations: {}", total_configs);
@@ -379,38 +414,23 @@ pub fn run_custom_benchmark(
                             }
 
                             let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
-                            if batch_size > 1 {
-                                let result_f64 = benchmark_batched::<F64Element, Blake3_F64>(
+                            if run_64 {
+                                let result_f64 = run_single_benchmark(
                                     options.clone(),
                                     data_size,
                                     batch_size,
                                     num_queries,
-                                    field_names::F64,
+                                    64,
                                 );
                                 results.push(result_f64);
-
-                                let result_f128 = benchmark_batched::<F128Element, Blake3_F128>(
+                            }
+                            if run_128 {
+                                let result_f128 = run_single_benchmark(
                                     options.clone(),
                                     data_size,
                                     batch_size,
                                     num_queries,
-                                    field_names::F128,
-                                );
-                                results.push(result_f128);
-                            } else {
-                                let result_f64 = benchmark_non_batched::<F64Element, Blake3_F64>(
-                                    options.clone(),
-                                    data_size,
-                                    num_queries,
-                                    field_names::F64,
-                                );
-                                results.push(result_f64);
-
-                                let result_f128 = benchmark_non_batched::<F128Element, Blake3_F128>(
-                                    options.clone(),
-                                    data_size,
-                                    num_queries,
-                                    field_names::F128,
+                                    128,
                                 );
                                 results.push(result_f128);
                             }

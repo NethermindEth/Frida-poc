@@ -53,6 +53,8 @@ enum BenchmarkSubcommand {
         batch_size: Vec<usize>,
         #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize), default_value = "32")]
         num_queries: Vec<usize>,
+        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize), default_value = "64,128")]
+        field_size: Vec<usize>,  // 64: only f64, 128: only f128
         #[arg(long, default_value = "bench/results/frida_custom.csv")]
         output: String,
     },
@@ -122,6 +124,7 @@ fn main() {
                     data_size,
                     batch_size,
                     num_queries,
+                    field_size,
                     output,
                 } => {
                     frida::run_custom_benchmark(
@@ -131,6 +134,7 @@ fn main() {
                         data_size,
                         batch_size,
                         num_queries,
+                        field_size,
                         &output,
                     );
                 }
