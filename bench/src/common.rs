@@ -1,3 +1,4 @@
+use clap::ValueEnum;
 use std::{fs, io::Write, path::Path};
 use winter_math::{
     fields::{f128, f64},
@@ -5,6 +6,37 @@ use winter_math::{
 };
 
 pub const RUNS: usize = 10;
+
+#[derive(ValueEnum, Clone, Debug, Copy)]
+pub enum FieldType {
+    F64,
+    F128,
+    Both,
+}
+
+// Parses a string of tuples like "(2,2,0),(4,4,2)" into a Vec of tuples.
+pub fn parse_fri_options(s: &str) -> Result<Vec<(usize, usize, usize)>, String> {
+    s.split(')')
+        .filter(|s| !s.trim().is_empty())
+        .map(|part| {
+            let trimmed = part.trim_start_matches(['(', ',']);
+            let nums: Vec<usize> = trimmed
+                .split(',')
+                .map(|num_str| num_str.trim().parse())
+                .collect::<Result<Vec<usize>, _>>()
+                .map_err(|e| format!("Failed to parse number: {e}"))?;
+
+            if nums.len() == 3 {
+                Ok((nums[0], nums[1], nums[2]))
+            } else {
+                Err(
+                    "Invalid tuple format for FRI options. Expected (blowup, folding, remainder)."
+                        .to_string(),
+                )
+            }
+        })
+        .collect()
+}
 
 pub fn get_standard_fri_options() -> Vec<(usize, usize, usize)> {
     vec![

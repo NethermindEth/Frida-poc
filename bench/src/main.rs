@@ -1,6 +1,7 @@
 #![cfg(feature = "bench")]
 
 use clap::{Parser, Subcommand};
+use common::{parse_fri_options, FieldType};
 
 mod common;
 mod defrida;
@@ -41,18 +42,16 @@ enum BenchmarkSubcommand {
         output: String,
     },
     Custom {
-        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
-        blowup_factor: Vec<usize>,
-        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
-        folding_factor: Vec<usize>,
-        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
-        max_remainder_degree: Vec<usize>,
-        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
+        #[arg(long, default_value = "(2,2,0)")]
+        fri_options: String,
+        #[arg(long, use_value_delimiter = true, default_value = "65536")]
         data_size: Vec<usize>,
-        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize), default_value = "1")]
+        #[arg(long, use_value_delimiter = true, default_value = "1")]
         batch_size: Vec<usize>,
-        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize), default_value = "32")]
+        #[arg(long, use_value_delimiter = true, default_value = "32")]
         num_queries: Vec<usize>,
+        #[arg(long, value_enum, default_value = "both")]
+        field: FieldType,
         #[arg(long, default_value = "bench/results/frida_custom.csv")]
         output: String,
     },
@@ -65,16 +64,14 @@ enum SingleFridaSubcommand {
         output: String,
     },
     Custom {
-        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
-        blowup_factor: Vec<usize>,
-        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
-        folding_factor: Vec<usize>,
-        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
-        max_remainder_degree: Vec<usize>,
-        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
+        #[arg(long, default_value = "(2,2,0)")]
+        fri_options: String,
+        #[arg(long, use_value_delimiter = true, default_value = "65536")]
         data_size: Vec<usize>,
-        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize), default_value = "1")]
+        #[arg(long, use_value_delimiter = true, default_value = "1")]
         batch_size: Vec<usize>,
+        #[arg(long, value_enum, default_value = "both")]
+        field: FieldType,
         #[arg(long, default_value = "bench/results/single_frida_custom.csv")]
         output: String,
     },
@@ -87,20 +84,18 @@ enum DefridaSubcommand {
         output: String,
     },
     Custom {
-        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
-        blowup_factor: Vec<usize>,
-        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
-        folding_factor: Vec<usize>,
-        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
-        max_remainder_degree: Vec<usize>,
-        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
+        #[arg(long, default_value = "(2,2,0)")]
+        fri_options: String,
+        #[arg(long, use_value_delimiter = true, default_value = "65536")]
         data_size: Vec<usize>,
-        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize))]
+        #[arg(long, use_value_delimiter = true, default_value = "16")]
         num_validators: Vec<usize>,
-        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize), default_value = "32")]
+        #[arg(long, use_value_delimiter = true, default_value = "64")]
         num_queries: Vec<usize>,
-        #[arg(long, value_delimiter = ',', value_parser = clap::value_parser!(usize), default_value = "1")]
+        #[arg(long, use_value_delimiter = true, default_value = "1")]
         batch_size: Vec<usize>,
+        #[arg(long, value_enum, default_value = "both")]
+        field: FieldType,
         #[arg(long, default_value = "bench/results/defrida_custom.csv")]
         output: String,
     },
@@ -115,23 +110,24 @@ fn main() {
                 frida::run_full_benchmark(&output);
             }
             BenchmarkSubcommand::Custom {
-                blowup_factor,
-                folding_factor,
-                max_remainder_degree,
+                fri_options,
                 data_size,
                 batch_size,
                 num_queries,
+                field,
                 output,
             } => {
-                frida::run_custom_benchmark(
-                    blowup_factor,
-                    folding_factor,
-                    max_remainder_degree,
-                    data_size,
-                    batch_size,
+                let parsed_fri_options =
+                    parse_fri_options(&fri_options).expect("Invalid format for --fri-options");
+                let config = frida::CustomFridaBenchmarkConfig {
+                    fri_options: parsed_fri_options,
+                    data_sizes: data_size,
+                    batch_sizes: batch_size,
                     num_queries,
-                    &output,
-                );
+                    field_type: field,
+                    output_path: &output,
+                };
+                frida::run_custom_benchmark(config);
             }
         },
         Commands::SingleFrida { subcommand } => match subcommand {
@@ -139,21 +135,22 @@ fn main() {
                 single_frida::run_full_benchmark(&output);
             }
             SingleFridaSubcommand::Custom {
-                blowup_factor,
-                folding_factor,
-                max_remainder_degree,
+                fri_options,
                 data_size,
                 batch_size,
+                field,
                 output,
             } => {
-                single_frida::run_custom_benchmark(
-                    blowup_factor,
-                    folding_factor,
-                    max_remainder_degree,
-                    data_size,
-                    batch_size,
-                    &output,
-                );
+                let parsed_fri_options =
+                    parse_fri_options(&fri_options).expect("Invalid format for --fri-options");
+                let config = single_frida::CustomSingleFridaBenchmarkConfig {
+                    fri_options: parsed_fri_options,
+                    data_sizes: data_size,
+                    batch_sizes: batch_size,
+                    field_type: field,
+                    output_path: &output,
+                };
+                single_frida::run_custom_benchmark(config);
             }
         },
         Commands::Defrida { subcommand } => match subcommand {
@@ -161,23 +158,23 @@ fn main() {
                 defrida::run_full_benchmark(&output);
             }
             DefridaSubcommand::Custom {
-                blowup_factor,
-                folding_factor,
-                max_remainder_degree,
+                fri_options,
                 data_size,
                 num_validators,
                 num_queries,
                 batch_size,
+                field,
                 output,
             } => {
+                let parsed_fri_options =
+                    parse_fri_options(&fri_options).expect("Invalid format for --fri-options");
                 let config = defrida::CustomDefridaBenchmarkConfig {
-                    blowup_factor,
-                    folding_factor,
-                    max_remainder_degree,
-                    data_size,
+                    fri_options: parsed_fri_options,
+                    data_sizes: data_size,
                     num_validators,
                     num_queries,
-                    batch_size,
+                    batch_sizes: batch_size,
+                    field_type: field,
                     output_path: &output,
                 };
                 defrida::run_custom_benchmark(config);

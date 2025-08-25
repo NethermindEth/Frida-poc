@@ -44,8 +44,8 @@ chmod +x benchmark.sh
 ./benchmark.sh defrida full
 
 # Run custom benchmarks
-./benchmark.sh frida custom --blowup-factor "2,4,8" --folding-factor "2,4,8" --max-remainder-degree "2,4,8" --data-size 65536 --batch-size "1,2,4"
-./benchmark.sh single-frida custom --blowup-factor 2 --folding-factor 2 --max-remainder-degree 256 --data-size 32768 --batch-size 4
+./benchmark.sh frida custom --blowup-factor "2,4,8" --folding-factor "2,4,8" --max-remainder-degree "2,4,8" --data-size 65536 --batch-size "1,2,4" --field “f64”
+./benchmark.sh single-frida custom --blowup-factor 2 --folding-factor 2 --max-remainder-degree 256 --data-size 32768 --batch-size 4 --field “f64,f128”
 ./benchmark.sh defrida custom --blowup-factor 2 --folding-factor 2 --max-remainder-degree 256 --data-size 32768 --num-validators 8 --num-queries 32 --batch-size 4
 ```
 

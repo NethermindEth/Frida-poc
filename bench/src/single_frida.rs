@@ -262,74 +262,97 @@ pub fn run_full_benchmark(output_path: &str) {
     );
 }
 
-pub fn run_custom_benchmark(
-    blowup_factors: Vec<usize>,
-    folding_factors: Vec<usize>,
-    max_remainder_degrees: Vec<usize>,
-    data_sizes: Vec<usize>,
-    batch_sizes: Vec<usize>,
-    output_path: &str,
-) {
+pub struct CustomSingleFridaBenchmarkConfig<'a> {
+    pub fri_options: Vec<(usize, usize, usize)>,
+    pub data_sizes: Vec<usize>,
+    pub batch_sizes: Vec<usize>,
+    pub field_type: crate::common::FieldType,
+    pub output_path: &'a str,
+}
+
+pub fn run_custom_benchmark(config: CustomSingleFridaBenchmarkConfig) {
     let mut results = Vec::new();
-    let total_configs = blowup_factors.len() * folding_factors.len() * max_remainder_degrees.len() * data_sizes.len() * batch_sizes.len();
-    let mut completed = 0;
-
     println!("Running custom Single Frida benchmark...");
-    println!("Total configurations: {}", total_configs);
 
-    for &blowup_factor in &blowup_factors {
-        for &folding_factor in &folding_factors {
-            for &max_remainder_degree in &max_remainder_degrees {
-                for &data_size in &data_sizes {
-                    for &batch_size in &batch_sizes {
-                        if completed % 50 == 0 {
-                            println!("Progress: {}/{} configurations completed", completed, total_configs);
-                        }
+    for &(blowup_factor, folding_factor, max_remainder_degree) in &config.fri_options {
+        for &data_size in &config.data_sizes {
+            for &batch_size in &config.batch_sizes {
+                let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
 
-                        let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
+                match config.field_type {
+                    crate::common::FieldType::F64 => {
                         if batch_size > 1 {
-                            let result_f64 = benchmark_batched::<F64Element, Blake3_F64>(
+                            results.push(benchmark_batched::<F64Element, Blake3F64>(
                                 options.clone(),
                                 data_size,
                                 batch_size,
                                 field_names::F64,
-                            );
-                            results.push(result_f64);
-
-                            let result_f128 = benchmark_batched::<F128Element, Blake3_F128>(
-                                options.clone(),
-                                data_size,
-                                batch_size,
-                                field_names::F128,
-                            );
-                            results.push(result_f128);
+                            ));
                         } else {
-                            let result_f64 = benchmark_non_batched::<F64Element, Blake3_F64>(
+                            results.push(benchmark_non_batched::<F64Element, Blake3F64>(
                                 options.clone(),
                                 data_size,
                                 field_names::F64,
-                            );
-                            results.push(result_f64);
-
-                            let result_f128 = benchmark_non_batched::<F128Element, Blake3_F128>(
+                            ));
+                        }
+                    }
+                    crate::common::FieldType::F128 => {
+                        if batch_size > 1 {
+                            results.push(benchmark_batched::<F128Element, Blake3F128>(
+                                options.clone(),
+                                data_size,
+                                batch_size,
+                                field_names::F128,
+                            ));
+                        } else {
+                            results.push(benchmark_non_batched::<F128Element, Blake3F128>(
                                 options.clone(),
                                 data_size,
                                 field_names::F128,
-                            );
-                            results.push(result_f128);
+                            ));
                         }
-                        completed += 1;
+                    }
+                    crate::common::FieldType::Both => {
+                        if batch_size > 1 {
+                            results.push(benchmark_batched::<F64Element, Blake3F64>(
+                                options.clone(),
+                                data_size,
+                                batch_size,
+                                field_names::F64,
+                            ));
+                            results.push(benchmark_batched::<F128Element, Blake3F128>(
+                                options.clone(),
+                                data_size,
+                                batch_size,
+                                field_names::F128,
+                            ));
+                        } else {
+                            results.push(benchmark_non_batched::<F64Element, Blake3F64>(
+                                options.clone(),
+                                data_size,
+                                field_names::F64,
+                            ));
+                            results.push(benchmark_non_batched::<F128Element, Blake3F128>(
+                                options.clone(),
+                                data_size,
+                                field_names::F128,
+                            ));
+                        }
                     }
                 }
             }
         }
     }
 
-    common::save_results_with_header(&results, output_path, &SingleFridaBenchmarkResult::csv_header(), |r| r.to_csv())
-        .expect("Failed to save results");
-    
-    println!("Custom Single Frida benchmark completed with {} successful results", results.len());
-    
+    common::save_results_with_header(
+        &results,
+        config.output_path,
+        &SingleFridaBenchmarkResult::csv_header(),
+        |r| r.to_csv(),
+    )
+    .expect("Failed to save results");
+
+    println!("Custom Single Frida benchmark completed successfully");
     println!("\nResults Summary:");
     for result in &results {
         println!(
