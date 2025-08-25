@@ -141,8 +141,7 @@ fn verify_batch(
     let poly_count = commitment.poly_count;
     let folding_factor = options.folding_factor();
 
-    let (verifier, coin) =
-        TestFridaDasVerifier::new(commitment, options.clone()).unwrap();
+    let (verifier, coin) = TestFridaDasVerifier::new(commitment, options.clone()).unwrap();
 
     let mut query_positions = coin.draw_query_positions(4, domain_size).unwrap();
     query_positions.dedup();
@@ -186,7 +185,7 @@ fn test_verify_batch() {
     let domain_size = commitment.domain_size;
 
     verify_batch(
-        prover.get_first_layer_evalutaions(),
+        prover.get_first_layer_evaluations(),
         proof,
         commitment,
         options,
@@ -212,7 +211,7 @@ fn test_batching_only_batch_layer() {
     let domain_size = commitment.domain_size;
 
     verify_batch(
-        prover.get_first_layer_evalutaions(),
+        prover.get_first_layer_evaluations(),
         proof,
         commitment,
         options,

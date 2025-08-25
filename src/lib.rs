@@ -17,8 +17,8 @@ pub mod constants;
 pub mod core;
 pub mod error;
 pub mod prover;
-pub mod verifier;
 pub mod utils;
+pub mod verifier;
 pub mod winterfell;
 
 pub use error::FridaError;

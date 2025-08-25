@@ -2,7 +2,7 @@ use crate::{
     error::FridaError,
     prover::{builder::FridaProverBuilder, proof::FridaProof, Commitment},
     utils::test_utils::*,
-    winterfell::{f128, rand_array, Hasher, FriOptions},
+    winterfell::{f128, rand_array, FriOptions, Hasher},
 };
 
 #[test]

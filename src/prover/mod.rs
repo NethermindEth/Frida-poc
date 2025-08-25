@@ -1,18 +1,12 @@
-use core::marker::PhantomData;
-#[cfg(feature = "bench")]
-use std::time::Instant;
-
 use winter_crypto::{ElementHasher, Hasher, MerkleTree};
 use winter_fri::folding;
-use winter_fri::utils::hash_values;
-use winter_fri::{FriOptions, ProverChannel};
-use winter_math::{fft, FieldElement};
-#[cfg(feature = "concurrent")]
-use winter_utils::iterators::*;
+use winter_math::FieldElement;
 use winter_utils::{
-    flatten_vector_elements, group_slice_elements, iter_mut, transpose_slice, uninit_vector,
-    ByteReader, Deserializable, DeserializationError, Serializable,
+    group_slice_elements, uninit_vector, ByteReader, Deserializable, DeserializationError,
+    Serializable,
 };
+// #[cfg(feature = "concurrent")]
+// use winter_utils::iterators::*;
 
 pub mod builder;
 pub mod channel;
@@ -22,14 +16,9 @@ pub mod proof;
 mod tests;
 
 use crate::{
-    constants,
-    core::data::{build_evaluations_from_data, encoded_data_element_count},
+    core::data::build_evaluations_from_data,
     error::FridaError,
-    prover::{
-        builder::FridaProverBuilder,
-        channel::FridaProverChannel,
-        proof::{FridaProof, FridaProofBatchLayer, FridaProofLayer},
-    },
+    prover::proof::{FridaProof, FridaProofBatchLayer, FridaProofLayer},
 };
 
 /// Prover configured to work with specific data.
@@ -223,7 +212,7 @@ where
         FridaProof::new(batch_layer, layers, remainder, 1)
     }
 
-    pub fn get_first_layer_evalutaions(&self) -> &[E] {
+    pub fn get_first_layer_evaluations(&self) -> &[E] {
         &self.layers[0].evaluations
     }
 }
