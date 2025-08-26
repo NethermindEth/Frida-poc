@@ -1,3 +1,4 @@
+use itertools::iproduct;
 use std::time::{Duration, Instant};
 use winter_crypto::ElementHasher;
 use winter_fri::FriOptions;
@@ -330,63 +331,64 @@ pub fn run_full_benchmark(output_path: &str) {
     let mut results = Vec::new();
 
     println!("Running full Frida benchmark suite...");
-    println!("Configurations: {} FRI options × {} data sizes × {} queries × {} batch sizes × 2 field types",
-        fri_options.len(), data_sizes_f64.len(), num_queries_list.len(), batch_sizes.len());
 
-    for &(blowup_factor, folding_factor, max_remainder_degree) in &fri_options {
+    for (fri_option, (&data_size_f64, &data_size_f128), &num_queries, &batch_size) in iproduct!(
+        fri_options.iter(),
+        data_sizes_f64.iter().zip(data_sizes_f128.iter()),
+        num_queries_list.iter(),
+        // Combine non-batched (1) and batched sizes
+        std::iter::once(&1).chain(batch_sizes.iter())
+    ) {
+        let &(blowup_factor, folding_factor, max_remainder_degree) = fri_option;
         let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
 
-        for (&data_size_f64, &data_size_f128) in data_sizes_f64.iter().zip(data_sizes_f128.iter()) {
-            for &num_queries in &num_queries_list {
-                // Non-batched (batch_size = 1)
-                if let Ok(result) = std::panic::catch_unwind(|| {
-                    benchmark_non_batched::<F64Element, Blake3F64>(
-                        options.clone(),
-                        data_size_f64,
-                        num_queries,
-                        field_names::F64,
-                    )
-                }) {
-                    results.push(result);
-                }
-
-                if let Ok(result) = std::panic::catch_unwind(|| {
-                    benchmark_non_batched::<F128Element, Blake3F128>(
-                        options.clone(),
-                        data_size_f128,
-                        num_queries,
-                        field_names::F128,
-                    )
-                }) {
-                    results.push(result);
-                }
-
-                // Batched
-                for &batch_size in &batch_sizes {
-                    if let Ok(result) = std::panic::catch_unwind(|| {
-                        benchmark_batched::<F64Element, Blake3F64>(
-                            options.clone(),
-                            data_size_f64,
-                            batch_size,
-                            num_queries,
-                            field_names::F64,
-                        )
-                    }) {
-                        results.push(result);
-                    }
-
-                    if let Ok(result) = std::panic::catch_unwind(|| {
-                        benchmark_batched::<F128Element, Blake3F128>(
-                            options.clone(),
-                            data_size_f128,
-                            batch_size,
-                            num_queries,
-                            field_names::F128,
-                        )
-                    }) {
-                        results.push(result);
-                    }
-                }
+        if batch_size == 1 {
+            // Run non-batched for f64
+            if let Ok(result) = std::panic::catch_unwind(|| {
+                benchmark_non_batched::<F64Element, Blake3F64>(
+                    options.clone(),
+                    data_size_f64,
+                    num_queries,
+                    field_names::F64,
+                )
+            }) {
+                results.push(result);
+            }
+            // Run non-batched for f128
+            if let Ok(result) = std::panic::catch_unwind(|| {
+                benchmark_non_batched::<F128Element, Blake3F128>(
+                    options.clone(),
+                    data_size_f128,
+                    num_queries,
+                    field_names::F128,
+                )
+            }) {
+                results.push(result);
+            }
+        } else {
+            // Run batched for f64
+            if let Ok(result) = std::panic::catch_unwind(|| {
+                benchmark_batched::<F64Element, Blake3F64>(
+                    options.clone(),
+                    data_size_f64,
+                    batch_size,
+                    num_queries,
+                    field_names::F64,
+                )
+            }) {
+                results.push(result);
+            }
+            // Run batched for f128
+            if let Ok(result) = std::panic::catch_unwind(|| {
+                benchmark_batched::<F128Element, Blake3F128>(
+                    options.clone(),
+                    data_size_f128,
+                    batch_size,
+                    num_queries,
+                    field_names::F128,
+                )
+            }) {
+                results.push(result);
             }
         }
     }
@@ -417,82 +419,81 @@ pub fn run_custom_benchmark(config: CustomFridaBenchmarkConfig) {
     let mut results = Vec::new();
     println!("Running custom Frida benchmark...");
 
-    for &(blowup_factor, folding_factor, max_remainder_degree) in &config.fri_options {
-        for &data_size in &config.data_sizes {
-            for &batch_size in &config.batch_sizes {
-                for &num_queries in &config.num_queries {
-                    let options =
-                        FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
+    for (fri_option, &data_size, &batch_size, &num_queries) in iproduct!(
+        config.fri_options.iter(),
+        config.data_sizes.iter(),
+        config.batch_sizes.iter(),
+        config.num_queries.iter()
+    ) {
+        let &(blowup_factor, folding_factor, max_remainder_degree) = fri_option;
+        let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
 
-                    match config.field_type {
-                        crate::common::FieldType::F64 => {
-                            if batch_size > 1 {
-                                results.push(benchmark_batched::<F64Element, Blake3F64>(
-                                    options.clone(),
-                                    data_size,
-                                    batch_size,
-                                    num_queries,
-                                    field_names::F64,
-                                ));
-                            } else {
-                                results.push(benchmark_non_batched::<F64Element, Blake3F64>(
-                                    options.clone(),
-                                    data_size,
-                                    num_queries,
-                                    field_names::F64,
-                                ));
-                            }
-                        }
-                        crate::common::FieldType::F128 => {
-                            if batch_size > 1 {
-                                results.push(benchmark_batched::<F128Element, Blake3F128>(
-                                    options.clone(),
-                                    data_size,
-                                    batch_size,
-                                    num_queries,
-                                    field_names::F128,
-                                ));
-                            } else {
-                                results.push(benchmark_non_batched::<F128Element, Blake3F128>(
-                                    options.clone(),
-                                    data_size,
-                                    num_queries,
-                                    field_names::F128,
-                                ));
-                            }
-                        }
-                        crate::common::FieldType::Both => {
-                            if batch_size > 1 {
-                                results.push(benchmark_batched::<F64Element, Blake3F64>(
-                                    options.clone(),
-                                    data_size,
-                                    batch_size,
-                                    num_queries,
-                                    field_names::F64,
-                                ));
-                                results.push(benchmark_batched::<F128Element, Blake3F128>(
-                                    options.clone(),
-                                    data_size,
-                                    batch_size,
-                                    num_queries,
-                                    field_names::F128,
-                                ));
-                            } else {
-                                results.push(benchmark_non_batched::<F64Element, Blake3F64>(
-                                    options.clone(),
-                                    data_size,
-                                    num_queries,
-                                    field_names::F64,
-                                ));
-                                results.push(benchmark_non_batched::<F128Element, Blake3F128>(
-                                    options.clone(),
-                                    data_size,
-                                    num_queries,
-                                    field_names::F128,
-                                ));
-                            }
-                        }
-                    }
+        match config.field_type {
+            crate::common::FieldType::F64 => {
+                if batch_size > 1 {
+                    results.push(benchmark_batched::<F64Element, Blake3F64>(
+                        options.clone(),
+                        data_size,
+                        batch_size,
+                        num_queries,
+                        field_names::F64,
+                    ));
+                } else {
+                    results.push(benchmark_non_batched::<F64Element, Blake3F64>(
+                        options.clone(),
+                        data_size,
+                        num_queries,
+                        field_names::F64,
+                    ));
+                }
+            }
+            crate::common::FieldType::F128 => {
+                if batch_size > 1 {
+                    results.push(benchmark_batched::<F128Element, Blake3F128>(
+                        options.clone(),
+                        data_size,
+                        batch_size,
+                        num_queries,
+                        field_names::F128,
+                    ));
+                } else {
+                    results.push(benchmark_non_batched::<F128Element, Blake3F128>(
+                        options.clone(),
+                        data_size,
+                        num_queries,
+                        field_names::F128,
+                    ));
+                }
+            }
+            crate::common::FieldType::Both => {
+                if batch_size > 1 {
+                    results.push(benchmark_batched::<F64Element, Blake3F64>(
+                        options.clone(),
+                        data_size,
+                        batch_size,
+                        num_queries,
+                        field_names::F64,
+                    ));
+                    results.push(benchmark_batched::<F128Element, Blake3F128>(
+                        options.clone(),
+                        data_size,
+                        batch_size,
+                        num_queries,
+                        field_names::F128,
+                    ));
+                } else {
+                    results.push(benchmark_non_batched::<F64Element, Blake3F64>(
+                        options.clone(),
+                        data_size,
+                        num_queries,
+                        field_names::F64,
+                    ));
+                    results.push(benchmark_non_batched::<F128Element, Blake3F128>(
+                        options.clone(),
+                        data_size,
+                        num_queries,
+                        field_names::F128,
+                    ));
                 }
             }
         }
