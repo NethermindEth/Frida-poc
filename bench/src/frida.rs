@@ -14,9 +14,7 @@ use frida_poc::{
     verifier::das::FridaDasVerifier,
 };
 
-use crate::common::{
-    field_names, Blake3F128, Blake3F64, F128Element, F64Element, RUNS,
-};
+use crate::common::{field_names, Blake3F128, Blake3F64, F128Element, F64Element, RUNS};
 
 #[derive(Debug)]
 pub struct FridaBenchmarkResult {
