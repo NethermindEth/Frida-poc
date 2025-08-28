@@ -1,11 +1,17 @@
 #![cfg(feature = "bench")]
 
-use clap::{Parser, Subcommand};
-use common::{parse_fri_options, FieldType};
+use clap::{Args, Parser, Subcommand};
+use common::{
+    get_standard_batch_sizes, get_standard_data_sizes, get_standard_fri_options,
+    get_standard_num_queries, get_standard_validator_counts, parse_fri_options, F64Element,
+    FieldType,
+};
+use runner::{run_benchmark, BenchmarkConfig};
 
 mod common;
 mod defrida;
 mod frida;
+mod runner;
 mod single_frida;
 
 #[derive(Parser)]
@@ -18,29 +24,24 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Traditional FRIDA benchmarking (commitment + proof + verification)
-    Frida {
-        #[command(subcommand)]
-        subcommand: BenchmarkSubcommand,
-    },
-    /// Single proof size and time analysis
-    SingleFrida {
-        #[command(subcommand)]
-        subcommand: SingleFridaSubcommand,
-    },
-    /// Distributed deFRIDA workflow benchmarking
-    Defrida {
-        #[command(subcommand)]
-        subcommand: DefridaSubcommand,
-    },
+    /// Traditional FRIDA benchmarking (commitment + proof + verification).
+    Frida(BenchmarkArgs<FridaCustom>),
+    /// Single proof size and time analysis.
+    SingleFrida(BenchmarkArgs<SingleFridaCustom>),
+    /// Distributed deFRIDA workflow benchmarking.
+    Defrida(BenchmarkArgs<DefridaCustom>),
 }
 
-#[derive(Subcommand)]
-enum BenchmarkSubcommand {
-    Full {
-        #[arg(long, default_value = "bench/results/frida_full.csv")]
-        output: String,
-    },
+#[derive(Args, Debug)]
+pub struct BenchmarkArgs<T: Subcommand> {
+    #[command(subcommand)]
+    command: Option<T>,
+    #[arg(long, conflicts_with = "command")]
+    full: bool,
+}
+
+#[derive(Subcommand, Debug)]
+enum FridaCustom {
     Custom {
         #[arg(long, default_value = "(2,2,0)")]
         fri_options: String,
@@ -57,12 +58,8 @@ enum BenchmarkSubcommand {
     },
 }
 
-#[derive(Subcommand)]
-enum SingleFridaSubcommand {
-    Full {
-        #[arg(long, default_value = "bench/results/single_frida_full.csv")]
-        output: String,
-    },
+#[derive(Subcommand, Debug)]
+enum SingleFridaCustom {
     Custom {
         #[arg(long, default_value = "(2,2,0)")]
         fri_options: String,
@@ -77,12 +74,8 @@ enum SingleFridaSubcommand {
     },
 }
 
-#[derive(Subcommand)]
-enum DefridaSubcommand {
-    Full {
-        #[arg(long, default_value = "bench/results/defrida_full.csv")]
-        output: String,
-    },
+#[derive(Subcommand, Debug)]
+enum DefridaCustom {
     Custom {
         #[arg(long, default_value = "(2,2,0)")]
         fri_options: String,
@@ -105,59 +98,101 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Frida { subcommand } => match subcommand {
-            BenchmarkSubcommand::Full { output } => {
-                frida::run_full_benchmark(&output);
-            }
-            BenchmarkSubcommand::Custom {
+        Commands::Frida(args) => {
+            let config = if args.full {
+                BenchmarkConfig {
+                    fri_options: get_standard_fri_options(),
+                    data_sizes: get_standard_data_sizes::<F64Element>(),
+                    batch_sizes: [1]
+                        .iter()
+                        .cloned()
+                        .chain(get_standard_batch_sizes())
+                        .collect(),
+                    field_type: FieldType::Both,
+                    output_path: "bench/results/frida_full.csv".to_string(),
+                    num_queries: Some(get_standard_num_queries()),
+                    num_validators: None,
+                }
+            } else if let Some(FridaCustom::Custom {
                 fri_options,
                 data_size,
                 batch_size,
                 num_queries,
                 field,
                 output,
-            } => {
+            }) = args.command
+            {
                 let parsed_fri_options =
                     parse_fri_options(&fri_options).expect("Invalid format for --fri-options");
-                let config = frida::CustomFridaBenchmarkConfig {
+                BenchmarkConfig {
                     fri_options: parsed_fri_options,
                     data_sizes: data_size,
                     batch_sizes: batch_size,
-                    num_queries,
                     field_type: field,
-                    output_path: &output,
-                };
-                frida::run_custom_benchmark(config);
-            }
-        },
-        Commands::SingleFrida { subcommand } => match subcommand {
-            SingleFridaSubcommand::Full { output } => {
-                single_frida::run_full_benchmark(&output);
-            }
-            SingleFridaSubcommand::Custom {
+                    output_path: output,
+                    num_queries: Some(num_queries),
+                    num_validators: None,
+                }
+            } else {
+                return;
+            };
+            run_benchmark(frida::FridaBenchmark, config);
+        }
+        Commands::SingleFrida(args) => {
+            let config = if args.full {
+                BenchmarkConfig {
+                    fri_options: get_standard_fri_options(),
+                    data_sizes: get_standard_data_sizes::<F64Element>(),
+                    batch_sizes: [1]
+                        .iter()
+                        .cloned()
+                        .chain(get_standard_batch_sizes())
+                        .collect(),
+                    field_type: FieldType::Both,
+                    output_path: "bench/results/single_frida_full.csv".to_string(),
+                    num_queries: None,
+                    num_validators: None,
+                }
+            } else if let Some(SingleFridaCustom::Custom {
                 fri_options,
                 data_size,
                 batch_size,
                 field,
                 output,
-            } => {
+            }) = args.command
+            {
                 let parsed_fri_options =
                     parse_fri_options(&fri_options).expect("Invalid format for --fri-options");
-                let config = single_frida::CustomSingleFridaBenchmarkConfig {
+                BenchmarkConfig {
                     fri_options: parsed_fri_options,
                     data_sizes: data_size,
                     batch_sizes: batch_size,
                     field_type: field,
-                    output_path: &output,
-                };
-                single_frida::run_custom_benchmark(config);
-            }
-        },
-        Commands::Defrida { subcommand } => match subcommand {
-            DefridaSubcommand::Full { output } => {
-                defrida::run_full_benchmark(&output);
-            }
-            DefridaSubcommand::Custom {
+                    output_path: output,
+                    num_queries: None,
+                    num_validators: None,
+                }
+            } else {
+                return;
+            };
+            run_benchmark(single_frida::SingleFridaBenchmark, config);
+        }
+        Commands::Defrida(args) => {
+            let config = if args.full {
+                BenchmarkConfig {
+                    fri_options: get_standard_fri_options(),
+                    data_sizes: get_standard_data_sizes::<F64Element>(),
+                    batch_sizes: [1]
+                        .iter()
+                        .cloned()
+                        .chain(get_standard_batch_sizes())
+                        .collect(),
+                    field_type: FieldType::Both,
+                    output_path: "bench/results/defrida_full.csv".to_string(),
+                    num_queries: Some(get_standard_num_queries()),
+                    num_validators: Some(get_standard_validator_counts()),
+                }
+            } else if let Some(DefridaCustom::Custom {
                 fri_options,
                 data_size,
                 num_validators,
@@ -165,20 +200,23 @@ fn main() {
                 batch_size,
                 field,
                 output,
-            } => {
+            }) = args.command
+            {
                 let parsed_fri_options =
                     parse_fri_options(&fri_options).expect("Invalid format for --fri-options");
-                let config = defrida::CustomDefridaBenchmarkConfig {
+                BenchmarkConfig {
                     fri_options: parsed_fri_options,
                     data_sizes: data_size,
-                    num_validators,
-                    num_queries,
                     batch_sizes: batch_size,
                     field_type: field,
-                    output_path: &output,
-                };
-                defrida::run_custom_benchmark(config);
-            }
-        },
+                    output_path: output,
+                    num_queries: Some(num_queries),
+                    num_validators: Some(num_validators),
+                }
+            } else {
+                return;
+            };
+            run_benchmark(defrida::DefridaBenchmark, config);
+        }
     }
 }

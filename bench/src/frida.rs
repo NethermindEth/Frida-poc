@@ -1,10 +1,10 @@
-use itertools::iproduct;
 use std::time::{Duration, Instant};
 use winter_crypto::ElementHasher;
 use winter_fri::FriOptions;
 use winter_math::FieldElement;
 use winter_rand_utils::rand_vector;
 
+use crate::runner::{Benchmark, BenchmarkParams};
 use frida_poc::{
     prover::{
         bench::{COMMIT_TIME, ERASURE_TIME},
@@ -15,12 +15,11 @@ use frida_poc::{
 };
 
 use crate::common::{
-    self, field_names, get_standard_batch_sizes, get_standard_data_sizes, get_standard_fri_options,
-    get_standard_num_queries, Blake3F128, Blake3F64, F128Element, F64Element, RUNS,
+    field_names, Blake3F128, Blake3F64, F128Element, F64Element, RUNS,
 };
 
 #[derive(Debug)]
-struct FridaBenchmarkResult {
+pub struct FridaBenchmarkResult {
     field_type: String,
     batch_size: usize,
     blowup_factor: usize,
@@ -321,190 +320,71 @@ where
     }
 }
 
-pub fn run_full_benchmark(output_path: &str) {
-    let fri_options = get_standard_fri_options();
-    let data_sizes_f64 = get_standard_data_sizes::<F64Element>();
-    let data_sizes_f128 = get_standard_data_sizes::<F128Element>();
-    let num_queries_list = get_standard_num_queries();
-    let batch_sizes = get_standard_batch_sizes();
+#[derive(Debug, Clone, Copy)]
+pub struct FridaBenchmark;
 
-    let mut results = Vec::new();
+impl Benchmark for FridaBenchmark {
+    type BenchmarkResult = FridaBenchmarkResult;
 
-    println!("Running full Frida benchmark suite...");
-
-    for (fri_option, (&data_size_f64, &data_size_f128), &num_queries, &batch_size) in iproduct!(
-        fri_options.iter(),
-        data_sizes_f64.iter().zip(data_sizes_f128.iter()),
-        num_queries_list.iter(),
-        // Combine non-batched (1) and batched sizes
-        std::iter::once(&1).chain(batch_sizes.iter())
-    ) {
-        let &(blowup_factor, folding_factor, max_remainder_degree) = fri_option;
-        let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
-
-        if batch_size == 1 {
-            // Run non-batched for f64
-            if let Ok(result) = std::panic::catch_unwind(|| {
-                benchmark_non_batched::<F64Element, Blake3F64>(
-                    options.clone(),
-                    data_size_f64,
-                    num_queries,
-                    field_names::F64,
-                )
-            }) {
-                results.push(result);
-            }
-            // Run non-batched for f128
-            if let Ok(result) = std::panic::catch_unwind(|| {
-                benchmark_non_batched::<F128Element, Blake3F128>(
-                    options.clone(),
-                    data_size_f128,
-                    num_queries,
-                    field_names::F128,
-                )
-            }) {
-                results.push(result);
-            }
-        } else {
-            // Run batched for f64
-            if let Ok(result) = std::panic::catch_unwind(|| {
-                benchmark_batched::<F64Element, Blake3F64>(
-                    options.clone(),
-                    data_size_f64,
-                    batch_size,
-                    num_queries,
-                    field_names::F64,
-                )
-            }) {
-                results.push(result);
-            }
-            // Run batched for f128
-            if let Ok(result) = std::panic::catch_unwind(|| {
-                benchmark_batched::<F128Element, Blake3F128>(
-                    options.clone(),
-                    data_size_f128,
-                    batch_size,
-                    num_queries,
-                    field_names::F128,
-                )
-            }) {
-                results.push(result);
-            }
-        }
+    fn csv_header() -> String {
+        FridaBenchmarkResult::csv_header()
     }
 
-    common::save_results_with_header(
-        &results,
-        output_path,
-        &FridaBenchmarkResult::csv_header(),
-        |r| r.to_csv(),
-    )
-    .expect("Failed to save results");
-    println!(
-        "Frida benchmark completed with {} successful results",
-        results.len()
-    );
-}
-
-pub struct CustomFridaBenchmarkConfig<'a> {
-    pub fri_options: Vec<(usize, usize, usize)>,
-    pub data_sizes: Vec<usize>,
-    pub batch_sizes: Vec<usize>,
-    pub num_queries: Vec<usize>,
-    pub field_type: crate::common::FieldType,
-    pub output_path: &'a str,
-}
-
-pub fn run_custom_benchmark(config: CustomFridaBenchmarkConfig) {
-    let mut results = Vec::new();
-    println!("Running custom Frida benchmark...");
-
-    for (fri_option, &data_size, &batch_size, &num_queries) in iproduct!(
-        config.fri_options.iter(),
-        config.data_sizes.iter(),
-        config.batch_sizes.iter(),
-        config.num_queries.iter()
-    ) {
-        let &(blowup_factor, folding_factor, max_remainder_degree) = fri_option;
-        let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
-
-        match config.field_type {
-            crate::common::FieldType::F64 => {
-                if batch_size > 1 {
-                    results.push(benchmark_batched::<F64Element, Blake3F64>(
-                        options.clone(),
-                        data_size,
-                        batch_size,
-                        num_queries,
-                        field_names::F64,
-                    ));
-                } else {
-                    results.push(benchmark_non_batched::<F64Element, Blake3F64>(
-                        options.clone(),
-                        data_size,
-                        num_queries,
-                        field_names::F64,
-                    ));
-                }
-            }
-            crate::common::FieldType::F128 => {
-                if batch_size > 1 {
-                    results.push(benchmark_batched::<F128Element, Blake3F128>(
-                        options.clone(),
-                        data_size,
-                        batch_size,
-                        num_queries,
-                        field_names::F128,
-                    ));
-                } else {
-                    results.push(benchmark_non_batched::<F128Element, Blake3F128>(
-                        options.clone(),
-                        data_size,
-                        num_queries,
-                        field_names::F128,
-                    ));
-                }
-            }
-            crate::common::FieldType::Both => {
-                if batch_size > 1 {
-                    results.push(benchmark_batched::<F64Element, Blake3F64>(
-                        options.clone(),
-                        data_size,
-                        batch_size,
-                        num_queries,
-                        field_names::F64,
-                    ));
-                    results.push(benchmark_batched::<F128Element, Blake3F128>(
-                        options.clone(),
-                        data_size,
-                        batch_size,
-                        num_queries,
-                        field_names::F128,
-                    ));
-                } else {
-                    results.push(benchmark_non_batched::<F64Element, Blake3F64>(
-                        options.clone(),
-                        data_size,
-                        num_queries,
-                        field_names::F64,
-                    ));
-                    results.push(benchmark_non_batched::<F128Element, Blake3F128>(
-                        options.clone(),
-                        data_size,
-                        num_queries,
-                        field_names::F128,
-                    ));
-                }
-            }
-        }
+    fn to_csv(result: &Self::BenchmarkResult) -> String {
+        result.to_csv()
     }
 
-    common::save_results_with_header(
-        &results,
-        config.output_path,
-        &FridaBenchmarkResult::csv_header(),
-        |r| r.to_csv(),
-    )
-    .expect("Failed to save results");
-    println!("Custom Frida benchmark completed successfully");
+    fn run_f64_non_batched(
+        &self,
+        options: FriOptions,
+        params: &BenchmarkParams,
+    ) -> Self::BenchmarkResult {
+        benchmark_non_batched::<F64Element, Blake3F64>(
+            options,
+            params.data_size,
+            params.num_queries,
+            field_names::F64,
+        )
+    }
+
+    fn run_f128_non_batched(
+        &self,
+        options: FriOptions,
+        params: &BenchmarkParams,
+    ) -> Self::BenchmarkResult {
+        benchmark_non_batched::<F128Element, Blake3F128>(
+            options,
+            params.data_size,
+            params.num_queries,
+            field_names::F128,
+        )
+    }
+
+    fn run_f64_batched(
+        &self,
+        options: FriOptions,
+        params: &BenchmarkParams,
+    ) -> Self::BenchmarkResult {
+        benchmark_batched::<F64Element, Blake3F64>(
+            options,
+            params.data_size,
+            params.batch_size,
+            params.num_queries,
+            field_names::F64,
+        )
+    }
+
+    fn run_f128_batched(
+        &self,
+        options: FriOptions,
+        params: &BenchmarkParams,
+    ) -> Self::BenchmarkResult {
+        benchmark_batched::<F128Element, Blake3F128>(
+            options,
+            params.data_size,
+            params.batch_size,
+            params.num_queries,
+            field_names::F128,
+        )
+    }
 }
