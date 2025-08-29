@@ -19,17 +19,17 @@ use crate::common::{field_names, Blake3F128, Blake3F64, F128Element, F64Element,
 #[derive(Debug)]
 pub struct DefridaBenchmarkResult {
     field_type: String,
-    batch_size: usize,
-    blowup_factor: usize,
-    folding_factor: usize,
-    max_remainder_degree: usize,
-    data_size_kb: usize,
-    num_validators: usize,
-    num_queries: usize,
+    batch_size: u32,
+    blowup_factor: u32,
+    folding_factor: u32,
+    max_remainder_degree: u32,
+    data_size_kb: u64,
+    num_validators: u32,
+    num_queries: u32,
     commitment_time_ms: f64,
-    commitment_size_bytes: usize,
+    commitment_size_bytes: u64,
     avg_proof_time_ms: f64,
-    avg_proof_size_bytes: usize,
+    avg_proof_size_bytes: u64,
     verification_setup_time_ms: f64,
     avg_verification_time_ms: f64,
 }
@@ -61,11 +61,11 @@ impl DefridaBenchmarkResult {
 }
 
 fn compute_position_assignments(
-    n_validators: usize,
+    n_validators: u32,
     query_positions: &[usize],
-    h: usize,
+    h: u32,
 ) -> Vec<Vec<usize>> {
-    let s = query_positions.len();
+    let s = query_positions.len() as u32;
     let n = n_validators;
     if n == 0 {
         return vec![];
@@ -76,14 +76,14 @@ fn compute_position_assignments(
             .map(|i| {
                 let offset = (i - 1) % s;
                 (0..span_length)
-                    .map(|j| query_positions[(offset + j) % s])
+                    .map(|j| query_positions[((offset + j) % s) as usize])
                     .collect()
             })
             .collect()
     } else {
         let n_prime = (n / s) * s;
         if n_prime == 0 {
-            return vec![Vec::new(); n];
+            return vec![Vec::new(); n as usize];
         }
         let replication_factor = n_prime / s;
         let h_prime = h.saturating_sub(n - n_prime).div_ceil(replication_factor);
@@ -91,7 +91,7 @@ fn compute_position_assignments(
         (1..=n)
             .map(|i| {
                 if i <= n_prime {
-                    base_subsets[(i - 1) % s].clone()
+                    base_subsets[((i - 1) % s) as usize].clone()
                 } else {
                     Vec::new()
                 }
@@ -102,9 +102,9 @@ fn compute_position_assignments(
 
 fn benchmark_non_batched<E, H>(
     options: FriOptions,
-    data_size: usize,
-    num_validators: usize,
-    num_queries: usize,
+    data_size: u64,
+    num_validators: u32,
+    num_queries: u32,
     field_name: &str,
 ) -> DefridaBenchmarkResult
 where
@@ -120,16 +120,16 @@ where
     let mut total_proofs_generated = 0;
 
     for _ in 0..RUNS {
-        let data = rand_vector::<u8>(data_size);
+        let data = rand_vector::<u8>(data_size as usize);
         let prover_builder = FridaProverBuilder::<E, H>::new(options.clone());
 
         let start = Instant::now();
         let (prover_commitment, prover, base_positions) = prover_builder
-            .commitment(&data, num_queries)
+            .commitment(&data, num_queries as usize)
             .expect("Commitment generation failed");
         total_commitment_time += start.elapsed();
 
-        let commitment_size = prover_commitment.roots.len() * 32 + 16;
+        let commitment_size = (prover_commitment.roots.len() * 32 + 16) as u64;
         total_commitment_size += commitment_size;
 
         let f = (num_validators - 1) / 3;
@@ -141,7 +141,7 @@ where
                 let start = Instant::now();
                 let proof = prover.open(positions);
                 total_proof_times += start.elapsed();
-                total_proof_sizes += proof.size();
+                total_proof_sizes += proof.size() as u64;
                 total_proofs_generated += 1;
             }
         }
@@ -172,21 +172,21 @@ where
     DefridaBenchmarkResult {
         field_type: field_name.to_string(),
         batch_size: 1,
-        blowup_factor: options.blowup_factor(),
-        folding_factor: options.folding_factor(),
-        max_remainder_degree: options.remainder_max_degree(),
+        blowup_factor: options.blowup_factor() as u32,
+        folding_factor: options.folding_factor() as u32,
+        max_remainder_degree: options.remainder_max_degree() as u32,
         data_size_kb: data_size / 1024,
         num_validators,
         num_queries,
         commitment_time_ms: total_commitment_time.as_secs_f64() * 1000.0 / RUNS as f64,
-        commitment_size_bytes: total_commitment_size / RUNS,
+        commitment_size_bytes: total_commitment_size / RUNS as u64,
         avg_proof_time_ms: if total_proofs_generated > 0 {
             total_proof_times.as_secs_f64() * 1000.0 / total_proofs_generated as f64
         } else {
             0.0
         },
         avg_proof_size_bytes: if total_proofs_generated > 0 {
-            total_proof_sizes / total_proofs_generated
+            total_proof_sizes / total_proofs_generated as u64
         } else {
             0
         },
@@ -198,10 +198,10 @@ where
 
 fn benchmark_batched<E, H>(
     options: FriOptions,
-    data_size: usize,
-    batch_size: usize,
-    num_validators: usize,
-    num_queries: usize,
+    data_size: u64,
+    batch_size: u32,
+    num_validators: u32,
+    num_queries: u32,
     field_name: &str,
 ) -> DefridaBenchmarkResult
 where
@@ -219,18 +219,18 @@ where
     for _ in 0..RUNS {
         let mut data_list = vec![];
         for _ in 0..batch_size {
-            data_list.push(rand_vector::<u8>(data_size));
+            data_list.push(rand_vector::<u8>(data_size as usize));
         }
 
         let prover_builder = FridaProverBuilder::<E, H>::new(options.clone());
 
         let start = Instant::now();
         let (prover_commitment, prover, base_positions) = prover_builder
-            .commitment_batch(&data_list, num_queries)
+            .commitment_batch(&data_list, num_queries as usize)
             .expect("Batch commitment generation failed");
         total_commitment_time += start.elapsed();
 
-        let commitment_size = prover_commitment.roots.len() * 32 + 16;
+        let commitment_size = (prover_commitment.roots.len() * 32 + 16) as u64;
         total_commitment_size += commitment_size;
 
         let f = (num_validators - 1) / 3;
@@ -242,7 +242,7 @@ where
                 let start = Instant::now();
                 let proof = prover.open(positions);
                 total_proof_times += start.elapsed();
-                total_proof_sizes += proof.size();
+                total_proof_sizes += proof.size() as u64;
                 total_proofs_generated += 1;
             }
         }
@@ -262,7 +262,7 @@ where
 
         let all_evaluations = batch_data_to_evaluations::<E>(
             &data_list,
-            batch_size,
+            batch_size as usize,
             domain_size,
             blowup_factor,
             options.folding_factor(),
@@ -279,7 +279,7 @@ where
             let evaluations = get_evaluations_from_positions(
                 &all_evaluations,
                 positions,
-                batch_size,
+                batch_size as usize,
                 domain_size,
                 options.folding_factor(),
             );
@@ -294,21 +294,21 @@ where
     DefridaBenchmarkResult {
         field_type: field_name.to_string(),
         batch_size,
-        blowup_factor: options.blowup_factor(),
-        folding_factor: options.folding_factor(),
-        max_remainder_degree: options.remainder_max_degree(),
+        blowup_factor: options.blowup_factor() as u32,
+        folding_factor: options.folding_factor() as u32,
+        max_remainder_degree: options.remainder_max_degree() as u32,
         data_size_kb: data_size / 1024,
         num_validators,
         num_queries,
         commitment_time_ms: total_commitment_time.as_secs_f64() * 1000.0 / RUNS as f64,
-        commitment_size_bytes: total_commitment_size / RUNS,
+        commitment_size_bytes: total_commitment_size / RUNS as u64,
         avg_proof_time_ms: if total_proofs_generated > 0 {
             total_proof_times.as_secs_f64() * 1000.0 / total_proofs_generated as f64
         } else {
             0.0
         },
         avg_proof_size_bytes: if total_proofs_generated > 0 {
-            total_proof_sizes / total_proofs_generated
+            total_proof_sizes / total_proofs_generated as u64
         } else {
             0
         },

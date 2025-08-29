@@ -19,12 +19,12 @@ use crate::common::{field_names, Blake3F128, Blake3F64, F128Element, F64Element,
 #[derive(Debug)]
 pub struct FridaBenchmarkResult {
     field_type: String,
-    batch_size: usize,
-    blowup_factor: usize,
-    folding_factor: usize,
-    max_remainder_degree: usize,
-    data_size_kb: usize,
-    num_queries: usize,
+    batch_size: u32,
+    blowup_factor: u32,
+    folding_factor: u32,
+    max_remainder_degree: u32,
+    data_size_kb: u64,
+    num_queries: u32,
     erasure_time_ms: f64,
     commitment_time_ms: f64,
     proof_time_1_ms: f64,
@@ -34,10 +34,10 @@ pub struct FridaBenchmarkResult {
     verification_1_ms: f64,
     verification_16_ms: f64,
     verification_32_ms: f64,
-    commitment_size_bytes: usize,
-    proof_size_1_bytes: usize,
-    proof_size_16_bytes: usize,
-    proof_size_32_bytes: usize,
+    commitment_size_bytes: u64,
+    proof_size_1_bytes: u64,
+    proof_size_16_bytes: u64,
+    proof_size_32_bytes: u64,
 }
 
 impl FridaBenchmarkResult {
@@ -59,19 +59,23 @@ impl FridaBenchmarkResult {
 }
 
 fn prepare_verifier<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>>(
-    blowup_factor: usize,
-    folding_factor: usize,
-    remainder_max_degree: usize,
+    blowup_factor: u32,
+    folding_factor: u32,
+    remainder_max_degree: u32,
     com: Commitment<H>,
 ) -> FridaDasVerifier<E, H, H> {
-    let options = FriOptions::new(blowup_factor, folding_factor, remainder_max_degree);
+    let options = FriOptions::new(
+        blowup_factor as usize,
+        folding_factor as usize,
+        remainder_max_degree as usize,
+    );
     FridaDasVerifier::new(com, options).unwrap().0
 }
 
 fn benchmark_non_batched<E, H>(
     options: FriOptions,
-    data_size: usize,
-    num_queries: usize,
+    data_size: u64,
+    num_queries: u32,
     field_name: &str,
 ) -> FridaBenchmarkResult
 where
@@ -91,10 +95,12 @@ where
     let mut total_proof_sizes = (0, 0, 0);
 
     for _ in 0..RUNS {
-        let data = rand_vector::<u8>(data_size);
+        let data = rand_vector::<u8>(data_size as usize);
         let prover_builder = FridaProverBuilder::<E, H>::new(options.clone());
 
-        let (com, prover) = prover_builder.commit_and_prove(&data, num_queries).unwrap();
+        let (com, prover) = prover_builder
+            .commit_and_prove(&data, num_queries as usize)
+            .unwrap();
 
         unsafe {
             total_erasure_time += ERASURE_TIME.unwrap_or_default();
@@ -103,7 +109,7 @@ where
             COMMIT_TIME = None;
         }
 
-        total_commitment_size += com.proof.size() + com.roots.len() * 32 + 3;
+        total_commitment_size += (com.proof.size() + com.roots.len() * 32 + 3) as u64;
 
         let positions = rand_vector::<u64>(32)
             .into_iter()
@@ -123,25 +129,25 @@ where
         // Benchmark proof generation for different position counts
         let timer = Instant::now();
         let proof_1 = prover.open(&positions[0..1]);
-        total_proof_sizes.0 += proof_1.size();
+        total_proof_sizes.0 += proof_1.size() as u64;
         total_proof_times.0 += timer.elapsed();
 
         let timer = Instant::now();
         let proof_16 = prover.open(&positions[0..16]);
-        total_proof_sizes.1 += proof_16.size();
+        total_proof_sizes.1 += proof_16.size() as u64;
         total_proof_times.1 += timer.elapsed();
 
         let timer = Instant::now();
         let proof_32 = prover.open(&positions);
-        total_proof_sizes.2 += proof_32.size();
+        total_proof_sizes.2 += proof_32.size() as u64;
         total_proof_times.2 += timer.elapsed();
 
         // Benchmark verification
         let timer = Instant::now();
         let verifier = prepare_verifier::<E, H>(
-            options.blowup_factor(),
-            options.folding_factor(),
-            options.remainder_max_degree(),
+            options.blowup_factor() as u32,
+            options.folding_factor() as u32,
+            options.remainder_max_degree() as u32,
             com,
         );
         total_verify_times.0 += timer.elapsed();
@@ -168,9 +174,9 @@ where
     FridaBenchmarkResult {
         field_type: field_name.to_string(),
         batch_size: 1,
-        blowup_factor: options.blowup_factor(),
-        folding_factor: options.folding_factor(),
-        max_remainder_degree: options.remainder_max_degree(),
+        blowup_factor: options.blowup_factor() as u32,
+        folding_factor: options.folding_factor() as u32,
+        max_remainder_degree: options.remainder_max_degree() as u32,
         data_size_kb: data_size / 1024,
         num_queries,
         erasure_time_ms: total_erasure_time.as_secs_f64() * 1000.0 / RUNS as f64,
@@ -182,18 +188,18 @@ where
         verification_1_ms: total_verify_times.1.as_secs_f64() * 1000.0 / RUNS as f64,
         verification_16_ms: total_verify_times.2.as_secs_f64() * 1000.0 / RUNS as f64,
         verification_32_ms: total_verify_times.3.as_secs_f64() * 1000.0 / RUNS as f64,
-        commitment_size_bytes: total_commitment_size / RUNS,
-        proof_size_1_bytes: total_proof_sizes.0 / RUNS,
-        proof_size_16_bytes: total_proof_sizes.1 / RUNS,
-        proof_size_32_bytes: total_proof_sizes.2 / RUNS,
+        commitment_size_bytes: total_commitment_size / RUNS as u64,
+        proof_size_1_bytes: total_proof_sizes.0 / RUNS as u64,
+        proof_size_16_bytes: total_proof_sizes.1 / RUNS as u64,
+        proof_size_32_bytes: total_proof_sizes.2 / RUNS as u64,
     }
 }
 
 fn benchmark_batched<E, H>(
     options: FriOptions,
-    data_size: usize,
-    batch_size: usize,
-    num_queries: usize,
+    data_size: u64,
+    batch_size: u32,
+    num_queries: u32,
     field_name: &str,
 ) -> FridaBenchmarkResult
 where
@@ -215,12 +221,12 @@ where
     for _ in 0..RUNS {
         let mut data_list = vec![];
         for _ in 0..batch_size {
-            data_list.push(rand_vector::<u8>(data_size));
+            data_list.push(rand_vector::<u8>(data_size as usize));
         }
 
         let prover_builder = FridaProverBuilder::<E, H>::new(options.clone());
         let (com, prover) = prover_builder
-            .commit_and_prove_batch(&data_list, num_queries)
+            .commit_and_prove_batch(&data_list, num_queries as usize)
             .unwrap();
 
         unsafe {
@@ -230,7 +236,7 @@ where
             COMMIT_TIME = None;
         }
 
-        total_commitment_size += com.proof.size() + com.roots.len() * 32 + 3;
+        total_commitment_size += (com.proof.size() + com.roots.len() * 32 + 3) as u64;
 
         let positions = rand_vector::<u64>(32)
             .into_iter()
@@ -240,7 +246,7 @@ where
         let evaluations = get_evaluations_from_positions(
             prover.get_first_layer_evaluations(),
             &positions,
-            batch_size,
+            batch_size as usize,
             com.domain_size,
             options.folding_factor(),
         );
@@ -248,32 +254,36 @@ where
         // Benchmark proof generation
         let timer = Instant::now();
         let proof_1 = prover.open(&positions[0..1]);
-        total_proof_sizes.0 += proof_1.size();
+        total_proof_sizes.0 += proof_1.size() as u64;
         total_proof_times.0 += timer.elapsed();
 
         let timer = Instant::now();
         let proof_16 = prover.open(&positions[0..16]);
-        total_proof_sizes.1 += proof_16.size();
+        total_proof_sizes.1 += proof_16.size() as u64;
         total_proof_times.1 += timer.elapsed();
 
         let timer = Instant::now();
         let proof_32 = prover.open(&positions);
-        total_proof_sizes.2 += proof_32.size();
+        total_proof_sizes.2 += proof_32.size() as u64;
         total_proof_times.2 += timer.elapsed();
 
         // Benchmark verification
         let timer = Instant::now();
         let verifier = prepare_verifier::<E, H>(
-            options.blowup_factor(),
-            options.folding_factor(),
-            options.remainder_max_degree(),
+            options.blowup_factor() as u32,
+            options.folding_factor() as u32,
+            options.remainder_max_degree() as u32,
             com,
         );
         total_verify_times.0 += timer.elapsed();
 
         let timer = Instant::now();
         verifier
-            .verify(&proof_1, &evaluations[0..batch_size], &positions[0..1])
+            .verify(
+                &proof_1,
+                &evaluations[0..batch_size as usize],
+                &positions[0..1],
+            )
             .unwrap();
         total_verify_times.1 += timer.elapsed();
 
@@ -281,7 +291,7 @@ where
         verifier
             .verify(
                 &proof_16,
-                &evaluations[0..batch_size * 16],
+                &evaluations[0..(batch_size * 16) as usize],
                 &positions[0..16],
             )
             .unwrap();
@@ -297,9 +307,9 @@ where
     FridaBenchmarkResult {
         field_type: field_name.to_string(),
         batch_size,
-        blowup_factor: options.blowup_factor(),
-        folding_factor: options.folding_factor(),
-        max_remainder_degree: options.remainder_max_degree(),
+        blowup_factor: options.blowup_factor() as u32,
+        folding_factor: options.folding_factor() as u32,
+        max_remainder_degree: options.remainder_max_degree() as u32,
         data_size_kb: data_size / 1024,
         num_queries,
         erasure_time_ms: total_erasure_time.as_secs_f64() * 1000.0 / RUNS as f64,
@@ -311,10 +321,10 @@ where
         verification_1_ms: total_verify_times.1.as_secs_f64() * 1000.0 / RUNS as f64,
         verification_16_ms: total_verify_times.2.as_secs_f64() * 1000.0 / RUNS as f64,
         verification_32_ms: total_verify_times.3.as_secs_f64() * 1000.0 / RUNS as f64,
-        commitment_size_bytes: total_commitment_size / RUNS,
-        proof_size_1_bytes: total_proof_sizes.0 / RUNS,
-        proof_size_16_bytes: total_proof_sizes.1 / RUNS,
-        proof_size_32_bytes: total_proof_sizes.2 / RUNS,
+        commitment_size_bytes: total_commitment_size / RUNS as u64,
+        proof_size_1_bytes: total_proof_sizes.0 / RUNS as u64,
+        proof_size_16_bytes: total_proof_sizes.1 / RUNS as u64,
+        proof_size_32_bytes: total_proof_sizes.2 / RUNS as u64,
     }
 }
 

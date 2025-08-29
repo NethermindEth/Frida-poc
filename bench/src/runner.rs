@@ -33,22 +33,22 @@ pub trait Benchmark: Debug + Sized {
 
 #[derive(Debug, Clone)]
 pub struct BenchmarkConfig {
-    pub fri_options: Vec<(usize, usize, usize)>,
-    pub data_sizes: Vec<usize>,
-    pub batch_sizes: Vec<usize>,
+    pub fri_options: Vec<(u32, u32, u32)>,
+    pub data_sizes: Vec<u64>,
+    pub batch_sizes: Vec<u32>,
     pub field_type: FieldType,
     pub output_path: String,
     // Optional parameters
-    pub num_queries: Option<Vec<usize>>,
-    pub num_validators: Option<Vec<usize>>,
+    pub num_queries: Option<Vec<u32>>,
+    pub num_validators: Option<Vec<u32>>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct BenchmarkParams {
-    pub data_size: usize,
-    pub batch_size: usize,
-    pub num_queries: usize,
-    pub num_validators: usize,
+    pub data_size: u64,
+    pub batch_size: u32,
+    pub num_queries: u32,
+    pub num_validators: u32,
 }
 
 pub fn run_benchmark<B: Benchmark>(benchmark: B, config: BenchmarkConfig) {
@@ -66,7 +66,11 @@ pub fn run_benchmark<B: Benchmark>(benchmark: B, config: BenchmarkConfig) {
         num_validators_iter.iter()
     ) {
         let &(blowup_factor, folding_factor, max_remainder_degree) = fri_option;
-        let options = FriOptions::new(blowup_factor, folding_factor, max_remainder_degree);
+        let options = FriOptions::new(
+            blowup_factor as usize,
+            folding_factor as usize,
+            max_remainder_degree as usize,
+        );
 
         let params = BenchmarkParams {
             data_size,

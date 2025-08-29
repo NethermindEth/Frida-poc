@@ -46,11 +46,11 @@ enum FridaCustom {
         #[arg(long, default_value = "(2,2,0)")]
         fri_options: String,
         #[arg(long, use_value_delimiter = true, default_value = "65536")]
-        data_size: Vec<usize>,
+        data_size: Vec<u64>,
         #[arg(long, use_value_delimiter = true, default_value = "1")]
-        batch_size: Vec<usize>,
+        batch_size: Vec<u32>,
         #[arg(long, use_value_delimiter = true, default_value = "32")]
-        num_queries: Vec<usize>,
+        num_queries: Vec<u32>,
         #[arg(long, value_enum, default_value = "both")]
         field: FieldType,
         #[arg(long, default_value = "bench/results/frida_custom.csv")]
@@ -64,9 +64,9 @@ enum SingleFridaCustom {
         #[arg(long, default_value = "(2,2,0)")]
         fri_options: String,
         #[arg(long, use_value_delimiter = true, default_value = "65536")]
-        data_size: Vec<usize>,
+        data_size: Vec<u64>,
         #[arg(long, use_value_delimiter = true, default_value = "1")]
-        batch_size: Vec<usize>,
+        batch_size: Vec<u32>,
         #[arg(long, value_enum, default_value = "both")]
         field: FieldType,
         #[arg(long, default_value = "bench/results/single_frida_custom.csv")]
@@ -80,13 +80,13 @@ enum DefridaCustom {
         #[arg(long, default_value = "(2,2,0)")]
         fri_options: String,
         #[arg(long, use_value_delimiter = true, default_value = "65536")]
-        data_size: Vec<usize>,
+        data_size: Vec<u64>,
         #[arg(long, use_value_delimiter = true, default_value = "16")]
-        num_validators: Vec<usize>,
+        num_validators: Vec<u32>,
         #[arg(long, use_value_delimiter = true, default_value = "64")]
-        num_queries: Vec<usize>,
+        num_queries: Vec<u32>,
         #[arg(long, use_value_delimiter = true, default_value = "1")]
-        batch_size: Vec<usize>,
+        batch_size: Vec<u32>,
         #[arg(long, value_enum, default_value = "both")]
         field: FieldType,
         #[arg(long, default_value = "bench/results/defrida_custom.csv")]
