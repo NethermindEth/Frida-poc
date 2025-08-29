@@ -11,15 +11,17 @@ This benchmark suite provides three distinct benchmarking modes to evaluate diff
 - **deFRIDA** (`defrida`) - Distributed proving workflow with per validator proof assignments
 
 ## File Structure
+The benchmark suite is built on a modular, trait-based runner to maximize code reuse and simplify adding new benchmarks.
 
 ```
 bench/
 ├── src/
-│   ├── main.rs           # CLI entry point with subcommand routing
-│   ├── common.rs         # Shared utilities, FRI options, and type definitions
-│   ├── frida.rs          # FRIDA benchmarking implementation
-│   ├── single_frida.rs   # FRIDA single proof analysis implementation
-│   └── defrida.rs        # DeFRIDA benchmarking implementation
+│   ├── main.rs           # CLI entry point and command routing
+│   ├── common.rs         # Shared utilities, types, and parsers
+│   ├── runner.rs         # Generic benchmark runner and the core Benchmark trait
+│   ├── frida.rs          # FRIDA benchmark implementation
+│   ├── single_frida.rs   # Single proof analysis implementation
+│   └── defrida.rs        # deFRIDA benchmark implementation
 ├── benchmark.sh          # Shell script wrapper for easy execution
 ├── results/              # Output directory for CSV files (auto-created)
 └── README.md            
@@ -30,7 +32,7 @@ bench/
 ### Prerequisites
 
 - Rust toolchain with `cargo`
-- Feature flag `bench` enabled for compilation
+- Feature flag bench enabled for compilation (`cargo build --features "bench"`)
 
 ### Basic Usage
 
@@ -48,6 +50,41 @@ chmod +x benchmark.sh
 ./benchmark.sh single-frida custom --fri-options "(2,2,0),(2,2,256)" --data-size 65536 --batch-size "2,4" --field both
 ./benchmark.sh defrida custom --fri-options "(4,2,15)" --data-size 65536 --num-validators "16,32" --batch-size "1,4" --num-queries 64 --field "f128"
 ```
+## Command Line Interface
+
+### Global Structure
+
+```bash
+./benchmark.sh [BENCHMARK_TYPE] [COMMAND] [OPTIONS]
+```
+- **BENCHMARK_TYPE**: `frida`, `single-frida`, or `defrida`.
+
+- **COMMAND**:
+    - `--full`: Runs a comprehensive benchmark across all standard configurations defined in common.rs.
+    - `custom`: Runs a benchmark with the user-specified parameters below.
+
+### Custom Benchmark Options
+#### Common Options
+- `--fri-options "(B,F,R),(B,F,R),..."`
+    - One or more FRI option tuples for (Blowup, Folding, Remainder Degree).
+    - Must be a single string with tuples separated by commas.
+    - Example: `--fri-options "(2,2,0),(4,2,3)"`
+- `--data-size N,N,...`
+    - Comma-separated list of data sizes in bytes.
+    - Example: `--data-size "32768,65536"`
+- `--batch-size N,N,...`
+    - Comma-separated list of batch sizes. 1 indicates a non-batched run.
+- `--field [f64|f128|both]`
+    - The field type to run the benchmark on. Defaults to both.
+- `--output FILE`
+    - Specify the output CSV file path.
+
+#### Benchmark-Specific Options
+- `frida`:
+    - `--num-queries N,N,...`: Comma-separated list of query counts.
+- `defrida`:
+    - `--num-validators N,N,...`: Comma-separated list of validator counts.
+    - `--num-queries N,N,...`: Comma-separated list of total query positions.
 
 ## Benchmark Types
 
@@ -115,69 +152,28 @@ Benchmarks the distributed proving workflow where validators receive proof for a
 - **f64:** 64-bit field elements
 - **f128:** 128-bit field elements
 
-## Command Line Interface
-
-### Global Structure
-
-```bash
-./benchmark.sh [BENCHMARK_TYPE] [COMMAND] [OPTIONS]
-```
-
-### Benchmark Types
-
-- `frida` - Traditional FRI benchmarking
-- `single-frida` - Single proof analysis  
-- `defrida` - Distributed workflow
-
-### Commands
-
-- `full` - Run comprehensive benchmark across all standard configurations
-- `custom` - Run with user-specified parameters
-- `help` - Display usage information
-
-### Common Options
-
-- `--output FILE` - Specify output CSV file path
-- `--blowup-factor "N1, N2, ..."` - FRI blowup factor
-- `--folding-factor "N1, N2, ..."` - FRI folding factor  
-- `--max-remainder-degree "N1, N2, ..."` - Maximum remainder polynomial degree
-- `--data-size "N1, N2, ..."` - Input data size in bytes
-- `--batch-size "N1, N2, ..."` - Number of polynomials to batch (default: 1)
-
-### Benchmark-Specific Options
-
-**Frida:**
-
-- `--num-queries N` - Number of query positions (default: 32)
-
-**deFRIDA:**
-
-- `--num-validators N` - Number of validators in distributed setup
-- `--num-queries N` - Total number of query positions
-
-## Output Format
-
-All benchmarks generate CSV files with descriptive headers and consistent units:
-
-- **Time:** Milliseconds (ms)
-- **Size:** Bytes  
-- **Data Size:** Kilobytes (KB)
-- **Large Estimates:** Megabytes (MB)
 
 ## Integration
 
-### Adding New Benchmarks
+### How it Works
+The core logic is in `runner.rs`, which defines a `Benchmark` trait and a generic `run_benchmark` function. The runner takes any struct that implements the `Benchmark` trait and automatically handles iterating through all parameter combinations using `itertools::iproduct!`.
 
-1. Create new module in `src/` 
-2. Add benchmark type to CLI enum in `main.rs`
-3. Update shell script with new commands
-4. Follow existing patterns for consistency
+### Adding a New Benchmark
+1. **Create a New Module**: Add a new file in `src/`, for example, `my_benchmark.rs`.
 
-### Extending Configurations
+2. **Define Result Struct**: Inside the new file, d efine a `pub struct MyBenchmarkResult` to hold the output data for a single run, and implement `csv_header()` and `to_csv()` methods for it.
 
-- Modify `common.rs` for new FRI parameter sets
-- Update standard data sizes or batch configurations
-- Maintain backward compatibility with existing output formats
+3. **Implement Benchmark Logic**: Create the core `benchmark_non_batched` and `benchmark_batched` functions.
+
+4. **Implement the Trait**:
+    - Create an empty struct: `pub struct MyBenchmark`;
+    - Implement the `runner::Benchmark` trait for `MyBenchmark`, calling your logic functions from within the trait methods.
+
+5. **Update `main.rs`**:
+    - Add your new module: `mod my_benchmark`;
+    - Add a new variant to the `Commands` enum: `MyBenchmark(BenchmarkArgs<MyBenchmarkCustom>)`.
+    - Create a `MyBenchmarkCustom` struct to define its specific CLI arguments.
+    - Add a match arm to handle the new command, construct the `BenchmarkConfig`, and call `run_benchmark(my_benchmark::MyBenchmark, config)`.
 
 ## Troubleshooting
 
