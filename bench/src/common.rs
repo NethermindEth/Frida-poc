@@ -1,12 +1,44 @@
+use clap::ValueEnum;
 use std::{fs, io::Write, path::Path};
 use winter_math::{
     fields::{f128, f64},
     FieldElement,
 };
 
-pub const RUNS: usize = 10;
+pub const RUNS: u32 = 10;
 
-pub fn get_standard_fri_options() -> Vec<(usize, usize, usize)> {
+#[derive(ValueEnum, Clone, Debug, Copy)]
+pub enum FieldType {
+    F64,
+    F128,
+    Both,
+}
+
+// Parses a string of tuples like "(2,2,0),(4,4,2)" into a Vec of tuples.
+pub fn parse_fri_options(s: &str) -> Result<Vec<(u32, u32, u32)>, String> {
+    s.split(')')
+        .filter(|s| !s.trim().is_empty())
+        .map(|part| {
+            let trimmed = part.trim_start_matches(['(', ',']);
+            let nums: Vec<u32> = trimmed
+                .split(',')
+                .map(|num_str| num_str.trim().parse())
+                .collect::<Result<Vec<u32>, _>>()
+                .map_err(|e| format!("Failed to parse number: {e}"))?;
+
+            if nums.len() == 3 {
+                Ok((nums[0], nums[1], nums[2]))
+            } else {
+                Err(
+                    "Invalid tuple format for FRI options. Expected (blowup, folding, remainder)."
+                        .to_string(),
+                )
+            }
+        })
+        .collect()
+}
+
+pub fn get_standard_fri_options() -> Vec<(u32, u32, u32)> {
     vec![
         (2, 2, 0),
         (2, 2, 256),
@@ -19,25 +51,25 @@ pub fn get_standard_fri_options() -> Vec<(usize, usize, usize)> {
     ]
 }
 
-pub fn get_standard_data_sizes<E: FieldElement>() -> Vec<usize> {
+pub fn get_standard_data_sizes<E: FieldElement>() -> Vec<u64> {
     vec![
-        (128 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
-        (256 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
-        (512 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
-        (1024 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
-        (2048 * 1024) / E::ELEMENT_BYTES * (E::ELEMENT_BYTES - 1) - 8,
+        (128 * 1024) / E::ELEMENT_BYTES as u64 * (E::ELEMENT_BYTES as u64 - 1) - 8,
+        (256 * 1024) / E::ELEMENT_BYTES as u64 * (E::ELEMENT_BYTES as u64 - 1) - 8,
+        (512 * 1024) / E::ELEMENT_BYTES as u64 * (E::ELEMENT_BYTES as u64 - 1) - 8,
+        (1024 * 1024) / E::ELEMENT_BYTES as u64 * (E::ELEMENT_BYTES as u64 - 1) - 8,
+        (2048 * 1024) / E::ELEMENT_BYTES as u64 * (E::ELEMENT_BYTES as u64 - 1) - 8,
     ]
 }
 
-pub fn get_standard_num_queries() -> Vec<usize> {
+pub fn get_standard_num_queries() -> Vec<u32> {
     vec![8, 16, 32]
 }
 
-pub fn get_standard_batch_sizes() -> Vec<usize> {
+pub fn get_standard_batch_sizes() -> Vec<u32> {
     vec![2, 4, 8, 16]
 }
 
-pub fn get_standard_validator_counts() -> Vec<usize> {
+pub fn get_standard_validator_counts() -> Vec<u32> {
     vec![4, 8, 16, 32, 64, 128, 512, 1024]
 }
 

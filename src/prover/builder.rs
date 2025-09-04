@@ -115,6 +115,11 @@ where
 
     /// It calculates the domain size and generates the initial evaluations.
     fn prepare_prover_state(&self, data: &[u8], num_queries: usize) -> ProverStateResult<E, H> {
+        #[cfg(feature = "bench")]
+        unsafe {
+            bench::TIMER = Some(Instant::now());
+        }
+
         if num_queries == 0 {
             return Err(FridaError::BadNumQueries(num_queries));
         }
@@ -132,6 +137,13 @@ where
         }
 
         let evaluations = build_evaluations_from_data(data, domain_size, blowup_factor)?;
+
+        #[cfg(feature = "bench")]
+        unsafe {
+            bench::ERASURE_TIME =
+                Some(bench::ERASURE_TIME.unwrap_or_default() + bench::TIMER.unwrap().elapsed());
+            bench::TIMER = Some(Instant::now());
+        }
 
         if num_queries >= domain_size {
             return Err(FridaError::BadNumQueries(num_queries));
@@ -253,7 +265,6 @@ where
 
         // reduce the degree by folding_factor at each iteration until the remaining polynomial
         // has small enough degree
-        let mut evaluations = evaluations;
         let domain_size = if is_batched {
             evaluations.len() * self.options.folding_factor()
         } else {
@@ -266,22 +277,23 @@ where
             layers.push(batch_layer);
         }
         let start = if is_batched { 1 } else { 0 };
+        let mut current_evaluations = evaluations;
         for _ in start..num_fri_layers {
-            let (new_evaluations, frida_layer) = match self.options.folding_factor() {
-                2 => self.build_layer::<2>(channel, &evaluations),
-                4 => self.build_layer::<4>(channel, &evaluations),
-                8 => self.build_layer::<8>(channel, &evaluations),
-                16 => self.build_layer::<16>(channel, &evaluations),
+            let (next_evaluations, frida_layer) = match self.options.folding_factor() {
+                2 => self.build_layer::<2>(channel, &current_evaluations),
+                4 => self.build_layer::<4>(channel, &current_evaluations),
+                8 => self.build_layer::<8>(channel, &current_evaluations),
+                16 => self.build_layer::<16>(channel, &current_evaluations),
                 _ => unimplemented!(
                     "folding factor {} is not supported",
                     self.options.folding_factor()
                 ),
             };
             layers.push(frida_layer);
-            evaluations = new_evaluations;
+            current_evaluations = next_evaluations;
         }
 
-        let remainder_poly = self.build_remainder(channel, &mut evaluations);
+        let remainder_poly = self.build_remainder(channel, &mut current_evaluations);
 
         FridaProver {
             layers,
