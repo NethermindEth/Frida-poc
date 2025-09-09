@@ -2,9 +2,14 @@
 
 > **Disclaimer:** This is a proof-of-concept prototype. This implementation is provided for research and evaluation purposes. It has not undergone a formal security audit or comprehensive code review and is **NOT ready for production use**. Use at your own risk.
 
-This repository contains a proof-of-concept implementation of a FRI based DA scheme. It leverages the robust and performant components of the Winterfell STARK prover and verifier library to demonstrate the core principles of FRI.
+This repository contains a proof-of-concept implementation of the FRIDA and DeFRIDA data availability sampling (DAS) schemes.
 
-The primary goal of this project is to provide a clear and well-structured implementation of the FRIDA protocol, suitable for research purposes.
+- FRIDA is the DAS protocol from Hall-Andersen, Simkin, and Wagner [FRIDA: Data Availability Sampling from FRI](https://eprint.iacr.org/2024/248) based on FRI IOPPs.
+- DeFRIDA is the DAS protocol [DeFRIDA: Distributed FRIDA (paper to appear)]() that extends FRIDA in a distributed setting.
+
+This implementation leverages the robust and performant components of the [Winterfell](https://github.com/facebook/winterfell) STARK prover and verifier library to demonstrate the core principles of the schemes.
+
+The primary goal of this project is to provide a clear and well-structured implementation of the FRIDA and DeFRIDA protocols, suitable for research purposes.
 
 ## Project Structure
 
@@ -105,6 +110,7 @@ Run a custom benchmark:
 ### Key Functions
 
 #### Commitment and Proving
+
 ```rust
 // Generates both commitment and proof for num_queries number of positions.
 pub fn commit_and_prove(&self, data: &[u8], num_queries: usize) -> Result<(Commitment<H>, FridaProver<E, H>), FridaError>
@@ -116,12 +122,14 @@ pub fn commitment_batch(&self, data_list: &[Vec<u8>], num_queries: usize) -> Res
 ```
 
 #### Proof Generation
+
 ```rust
 // Generate proof for specific positions
 pub fn open(&self, positions: &[usize]) -> FridaProof
 ```
 
 #### Verification
+
 ```rust
 // Verify proof against evaluations and positions
 pub fn verify(&self, proof: &FridaProof, evaluations: &[E], positions: &[usize]) -> Result<(), FridaError>
@@ -142,11 +150,13 @@ See `bench/README.md` for detailed information about the benchmark suite.
 This is a research prototype. Contributions, bug reports, and feedback are welcome! See [Contributing](./CONTRIBUTING.md)
 
 ## License
+
 The crates in this repository are licensed under the following licence.
 
 * Apache 2.0 license ([LICENSE](./LICENSE)) is applied to all commits
 
-
 ## Acknowledgments
+
+This project was supported by a grant from the [Ethereum Foundation](https://ethereum.foundation/).
 
 This implementation builds upon the excellent [Winterfell](https://github.com/facebook/winterfell) library by Meta for cryptographic primitives and FRI implementation details.
